@@ -62,13 +62,13 @@ func _process(delta: float) -> void:
 func _spawn_random_chord() -> void:
 	var count := randi_range(1, CHORD_MAX)
 	# Pick distinct strings to avoid stacking notes on the same string.
-	var strings := range(STRING_COUNT)
+	var strings : Array = range(STRING_COUNT)
 	strings.shuffle()
 	for i in count:
-		var fret   := randi_range(0, FRET_COUNT - 1)
-		var string := strings[i]
-		var dur    := randf_range(0.15, 0.40)
-		_pool.spawn_note(fret, string, 0.0, dur)
+		var fret       : int   = randi_range(0, FRET_COUNT - 1)
+		var string_idx : int   = strings[i]
+		var dur        : float = randf_range(0.15, 0.40)
+		_pool.spawn_note(fret, string_idx, 0.0, dur)
 
 
 func _take_screenshot(num: int) -> void:
