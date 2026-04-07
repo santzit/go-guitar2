@@ -10,18 +10,22 @@ const LEAD_TIME    : float = START_Z / TRAVEL_SPEED   # = 2.5 s
 const SCREENSHOT_TIMES : Array  = [1.5, 2.0, 2.5, 3.0, 3.5]
 const SCREENSHOT_DIR   : String = "user://screenshots"
 
+# -- Max delta clamp to prevent fast-renderer notes from vanishing too quickly
+const MAX_DELTA : float = 0.05
+
 # -- Scene references --------------------------------------------------------
 @onready var _pool   : Node3D            = $NotePool
 @onready var _highway: Node3D            = $Highway
 @onready var _player : AudioStreamPlayer = $AudioStreamPlayer
 
 # -- State -------------------------------------------------------------------
-var _bridge    : RsBridge = null
-var _notes     : Array    = []
-var _next_idx  : int      = 0
-var _song_time : float    = 0.0
-var _playing   : bool     = false
-var _shot_idx  : int      = 0
+var _bridge        : RsBridge = null
+var _notes         : Array    = []
+var _next_idx      : int      = 0
+var _song_time     : float    = 0.0
+var _playing       : bool     = false
+var _shot_idx      : int      = 0
+var _start_wall_ms : int      = 0
 
 
 func _ready() -> void:
@@ -47,6 +51,7 @@ func _ready() -> void:
 	DirAccess.make_dir_recursive_absolute(
 		ProjectSettings.globalize_path(SCREENSHOT_DIR)
 	)
+	_start_wall_ms = Time.get_ticks_msec()
 	_playing = true
 
 
@@ -54,7 +59,9 @@ func _process(delta: float) -> void:
 	if not _playing:
 		return
 
-	_song_time += delta
+	# Clamp delta to avoid huge first-frame jumps from initialization.
+	var clamped_delta := minf(delta, MAX_DELTA)
+	_song_time += clamped_delta
 
 	while _next_idx < _notes.size():
 		var nd: Dictionary = _notes[_next_idx]
@@ -64,9 +71,10 @@ func _process(delta: float) -> void:
 		else:
 			break
 
-	# Auto-screenshot at configured times.
+	# Screenshots based on real wall-clock time to avoid timer batching on slow renderers.
 	if _shot_idx < SCREENSHOT_TIMES.size():
-		if _song_time >= SCREENSHOT_TIMES[_shot_idx]:
+		var wall_sec := (Time.get_ticks_msec() - _start_wall_ms) / 1000.0
+		if wall_sec >= SCREENSHOT_TIMES[_shot_idx]:
 			_take_screenshot(_shot_idx + 1)
 			_shot_idx += 1
 
@@ -75,7 +83,10 @@ func _process(delta: float) -> void:
 
 func _take_screenshot(num: int) -> void:
 	await RenderingServer.frame_post_draw
-	var img  := get_viewport().get_texture().get_image()
+	var img := get_viewport().get_texture().get_image()
+	# Convert to RGB8 — the OpenGL Compatibility framebuffer has alpha=0 for 3D content;
+	# converting drops the alpha channel so the saved PNG shows the actual rendered colours.
+	img.convert(Image.FORMAT_RGB8)
 	var path := SCREENSHOT_DIR + "/music_play_%d.png" % num
 	var abs_path := ProjectSettings.globalize_path(path)
 	img.save_png(abs_path)

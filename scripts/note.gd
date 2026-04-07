@@ -21,6 +21,7 @@ const STRING_SPACING: float = 0.5
 const START_Z       : float = 20.0
 const STRUM_Z       : float = 0.0
 const TRAVEL_SPEED  : float = 8.0   # units per second – must match music_play.gd
+const MAX_DELTA     : float = 0.05  # cap frame delta to keep notes on-screen on slow renderers
 
 var fret         : int   = 0
 var string_index : int   = 0
@@ -61,7 +62,7 @@ func _process(delta: float) -> void:
 	if not is_active:
 		return
 
-	position.z -= TRAVEL_SPEED * delta
+	position.z -= TRAVEL_SPEED * minf(delta, MAX_DELTA)
 
 	# Return to pool once it has passed the strum line.
 	if position.z < STRUM_Z - 2.0:
