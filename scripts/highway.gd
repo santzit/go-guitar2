@@ -6,12 +6,12 @@ extends Node3D
 const STRING_Y_BASE   : float = 0.20
 const STRING_SPACING  : float = 0.50
 const STRING_COLORS: Array[Color] = [
-	Color(0.85, 0.15, 0.15, 1.0),  # 0 – Low  E  (red)
-	Color(0.90, 0.50, 0.05, 1.0),  # 1 – A       (orange)
-	Color(0.85, 0.85, 0.05, 1.0),  # 2 – D       (yellow)
-	Color(0.10, 0.80, 0.20, 1.0),  # 3 – G       (green)
-	Color(0.10, 0.50, 0.95, 1.0),  # 4 – B       (blue)
-	Color(0.70, 0.10, 0.95, 1.0),  # 5 – High e  (purple)
+	Color(0.70, 0.10, 0.95, 1.0),  # 0 – purple
+	Color(0.10, 0.80, 0.20, 1.0),  # 1 – green
+	Color(0.90, 0.50, 0.05, 1.0),  # 2 – orange
+	Color(0.10, 0.50, 0.95, 1.0),  # 3 – blue
+	Color(0.85, 0.85, 0.05, 1.0),  # 4 – yellow
+	Color(0.85, 0.15, 0.15, 1.0),  # 5 – red
 ]
 
 @onready var _surface: MeshInstance3D = $HighwaySurface
