@@ -119,8 +119,13 @@ impl RocksmithBridge {
 
         if let Some(name) = sng_name {
             godot_print!("RocksmithBridge: parsing arrangement '{}'", name);
+            // SNG files inside a PSARC are AES-256-CTR encrypted + zlib-compressed
+            // on top of the PSARC block-level compression.  inflate_file() only
+            // strips the PSARC layer; we must decrypt the SNG layer ourselves.
+            // CDLC is always PC-keyed; official disc content may use Mac keys.
             let data = psarc.inflate_file(&name)?;
-            let sng  = Sng::read(&data)?;
+            let sng  = Sng::from_encrypted(&data, rocksmith2014_sng::Platform::Pc)
+                .or_else(|_| Sng::from_encrypted(&data, rocksmith2014_sng::Platform::Mac))?;
 
             // Use the highest-difficulty level (last in the levels list,
             // sorted by difficulty ascending by the Rocksmith format).

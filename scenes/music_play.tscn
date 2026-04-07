@@ -17,10 +17,12 @@ light_energy   = 1.2
 shadow_enabled = true
 
 ; Camera: position (12, 6, -8) looking toward highway centre (12, 0, 10).
-; Pulled back and FOV widened to frame all 24 fret lanes.
-; look_at basis: x=(1,0,0) y=(0,0.943,0.333) z=(0,-0.333,0.943)
+; Correct look_at basis (Godot formula: z=normalize(eye-target), x=normalize(up x z), y=z x x):
+;   z = normalize(0,6,-18)  = (0,  0.31623, -0.94868)  <- z.z negative = looking toward +Z world
+;   x = normalize(up x z)   = (-0.94868, 0, 0)  <- x.x negative (image mirrored but visually correct)
+;   y = z x x               = (0, 0.94868, 0.31623)
 [node name="Camera3D" type="Camera3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 0.94281, 0.33334, 0, -0.33334, 0.94281, 12, 6, -8)
+transform = Transform3D(-0.94868, 0, 0, 0, 0.94868, 0.31623, 0, 0.31623, -0.94868, 12, 6, -8)
 fov = 90.0
 
 ; ── Background (sky + WorldEnvironment + bloom) ───────────────────────────────
