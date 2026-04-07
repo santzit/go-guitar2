@@ -17,5 +17,4 @@ config/features=PackedStringArray("4.4", "Forward Plus")
 
 [rendering]
 
-renderer/rendering_method="forward_plus"
 environment/defaults/default_clear_color=Color(0.05, 0.05, 0.1, 1)

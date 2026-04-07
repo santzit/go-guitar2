@@ -11,15 +11,14 @@ subdivide_depth = 0
 
 [sub_resource type="ShaderMaterial" id="ShaderMat_hw01"]
 shader = ExtResource("2_hwshader")
-shader_parameter/fret_count        = 24
-shader_parameter/string_count      = 6
-shader_parameter/highway_color     = Color(0.06, 0.06, 0.14, 1)
-shader_parameter/fret_line_color   = Color(0.40, 0.40, 0.75, 1)
-shader_parameter/string_lane_color = Color(0.15, 0.55, 0.15, 1)
-shader_parameter/strum_glow_color  = Color(0.90, 0.90, 1.00, 1)
-shader_parameter/fret_line_width   = 0.030
-shader_parameter/string_lane_width = 0.018
-shader_parameter/glow_strength     = 0.40
+shader_parameter/fret_count       = 24
+shader_parameter/highway_color    = Color(0.06, 0.06, 0.14, 1)
+shader_parameter/fret_line_color  = Color(0.45, 0.45, 0.80, 1)
+shader_parameter/lane_tint_a      = Color(0.08, 0.08, 0.18, 1)
+shader_parameter/lane_tint_b      = Color(0.06, 0.06, 0.12, 1)
+shader_parameter/strum_glow_color = Color(0.90, 0.90, 1.00, 1)
+shader_parameter/fret_line_width  = 0.035
+shader_parameter/glow_strength    = 0.40
 
 ; ── Strum-line marker (thin bright box at Z = 0) ──────────────────────────────
 [sub_resource type="BoxMesh" id="BoxMesh_strum"]

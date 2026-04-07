@@ -7,8 +7,8 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-# Godot 4 Rust bindings (gdext)
-godot = { git = "https://github.com/godot-rust/gdext", branch = "master" }
+# Godot 4.4 Rust bindings — pin to api-4-4 so the binary matches Godot 4.4.x
+godot = { git = "https://github.com/godot-rust/gdext", branch = "master", features = ["api-4-4"] }
 
 # Rocksmith 2014 file parsers (individual crates from the workspace)
 rocksmith2014-psarc = { git = "https://github.com/santzit/Rocksmith2014.rs" }
