@@ -16,7 +16,7 @@ const BEAT_INTERVAL  : float = 0.30   # seconds between beats
 const CHORD_MAX      : int   = 3      # max simultaneous notes per beat
 
 # -- Screenshot capture -------------------------------------------------------
-const SCREENSHOT_TIMES : Array  = [30.0, 60.0, 90.0, 120.0, 150.0]
+const SCREENSHOT_TIMES : Array  = [5.0, 10.0, 15.0, 20.0, 25.0]
 const SCREENSHOT_DIR   : String = "user://screenshots"
 
 # -- Delta cap (keeps notes on-screen on slow software renderers) -------------

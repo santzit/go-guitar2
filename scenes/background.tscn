@@ -1,104 +1,34 @@
-[gd_scene load_steps=9 format=3 uid="uid://cbkgnd00001"]
+[gd_scene load_steps=3 format=3 uid="uid://cbkgnd00001"]
 
-[ext_resource type="Shader" path="res://shaders/background.gdshader" id="1_bgshader"]
+; ── ProceduralSkyMaterial – deep purple/space sky matching the stage theme ───
+[sub_resource type="ProceduralSkyMaterial" id="SkyMat_proc"]
+sky_top_color            = Color(0.02, 0.01, 0.12, 1)
+sky_horizon_color        = Color(0.18, 0.08, 0.40, 1)
+sky_curve                = 0.25
+sky_energy_multiplier    = 1.0
+ground_bottom_color      = Color(0.01, 0.00, 0.06, 1)
+ground_horizon_color     = Color(0.10, 0.04, 0.22, 1)
+ground_curve             = 0.05
+ground_energy_multiplier = 1.0
+sun_angle_max            = 30.0
+sun_curve                = 0.15
 
-; ── WorldEnvironment – dark solid colour, glow post-process ─────────────────
-[sub_resource type="Environment" id="Env_bg"]
-background_mode              = 1
-background_color             = Color(0.00, 0.00, 0.04, 1)
-ambient_light_source         = 1
-ambient_light_color          = Color(0.08, 0.05, 0.15, 1)
-ambient_light_energy         = 0.5
-glow_enabled                 = true
-glow_normalized              = true
-glow_intensity               = 0.8
-glow_bloom                   = 0.10
-glow_blend_mode              = 2
+[sub_resource type="Sky" id="Sky_proc"]
+sky_material = SubResource("SkyMat_proc")
 
-; ── Backdrop wall – gradient shader material ─────────────────────────────────
-[sub_resource type="ShaderMaterial" id="ShaderMat_bd"]
-shader = ExtResource("1_bgshader")
-shader_parameter/color_top     = Color(0.05, 0.02, 0.18, 1.0)
-shader_parameter/color_bottom  = Color(0.00, 0.00, 0.04, 1.0)
-shader_parameter/glow_color    = Color(0.18, 0.08, 0.40, 1.0)
-shader_parameter/glow_strength = 1.2
-
-; ── Backdrop plane mesh 80 × 40 (rotated vertical, faces camera) ─────────────
-[sub_resource type="PlaneMesh" id="PlaneMesh_bd"]
-size = Vector2(80.0, 40.0)
-
-; ── Floor material – dark semi-reflective stage floor ────────────────────────
-[sub_resource type="StandardMaterial3D" id="Mat_floor"]
-albedo_color               = Color(0.04, 0.03, 0.08, 1)
-metallic                   = 0.40
-roughness                  = 0.25
-emission_enabled           = true
-emission                   = Color(0.04, 0.02, 0.10, 1)
-emission_energy_multiplier = 1.0
-
-; ── Floor plane mesh 80 × 60 ─────────────────────────────────────────────────
-[sub_resource type="PlaneMesh" id="PlaneMesh_fl"]
-size = Vector2(80.0, 60.0)
-
-; ── Stage pillar material – dark with purple glow ────────────────────────────
-[sub_resource type="StandardMaterial3D" id="Mat_pillar"]
-albedo_color               = Color(0.08, 0.04, 0.16, 1)
-emission_enabled           = true
-emission                   = Color(0.30, 0.10, 0.70, 1)
-emission_energy_multiplier = 3.0
-
-; ── Stage pillar box mesh 0.8 × 9 × 0.8 (shared by left and right) ──────────
-[sub_resource type="BoxMesh" id="BoxMesh_pillar"]
-size = Vector3(0.8, 9.0, 0.8)
+; ── WorldEnvironment – sky background with glow post-process ────────────────
+[sub_resource type="Environment" id="Env_proc"]
+background_mode      = 2
+sky                  = SubResource("Sky_proc")
+ambient_light_source = 0
+glow_enabled         = true
+glow_normalized      = true
+glow_intensity       = 1.0
+glow_bloom           = 0.15
+glow_blend_mode      = 2
 
 [node name="Background" type="Node3D"]
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
-environment = SubResource("Env_bg")
-
-; Backdrop: vertical plane at Z=25, rotated -90° around X so normal faces -Z (camera).
-; Basis: X→X, Y→-Z, Z→Y  ↔  Transform3D(1,0,0, 0,0,-1, 0,1,0, cx,cy,cz)
-[node name="Backdrop" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0,  0, 0, -1,  0, 1, 0,  12, 5, 25)
-mesh = SubResource("PlaneMesh_bd")
-surface_material_override/0 = SubResource("ShaderMat_bd")
-
-; Floor: dark stage floor below the highway
-[node name="Floor" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0,  0, 1, 0,  0, 0, 1,  12, -0.5, 12)
-mesh = SubResource("PlaneMesh_fl")
-surface_material_override/0 = SubResource("Mat_floor")
-
-; Left stage tower pillar at X=0 (centre at Y=4.5 for 9-unit tall box)
-[node name="PillarLeft" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0,  0, 1, 0,  0, 0, 1,  0, 4.5, 10)
-mesh = SubResource("BoxMesh_pillar")
-surface_material_override/0 = SubResource("Mat_pillar")
-
-; Right stage tower pillar at X=24
-[node name="PillarRight" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0,  0, 1, 0,  0, 0, 1,  24, 4.5, 10)
-mesh = SubResource("BoxMesh_pillar")
-surface_material_override/0 = SubResource("Mat_pillar")
-
-; Stage light – left: warm orange-red
-[node name="StageLightLeft" type="OmniLight3D" parent="."]
-transform = Transform3D(1, 0, 0,  0, 1, 0,  0, 0, 1,  2, 9, 3)
-light_color  = Color(1.00, 0.30, 0.05, 1)
-light_energy = 5.0
-omni_range   = 28.0
-
-; Stage light – right: cool blue-violet
-[node name="StageLightRight" type="OmniLight3D" parent="."]
-transform = Transform3D(1, 0, 0,  0, 1, 0,  0, 0, 1,  22, 9, 3)
-light_color  = Color(0.15, 0.40, 1.00, 1)
-light_energy = 5.0
-omni_range   = 28.0
-
-; Stage light – center back: warm fill light
-[node name="StageLightCenter" type="OmniLight3D" parent="."]
-transform = Transform3D(1, 0, 0,  0, 1, 0,  0, 0, 1,  12, 12, 14)
-light_color  = Color(1.00, 0.85, 0.60, 1)
-light_energy = 3.0
-omni_range   = 35.0
+environment = SubResource("Env_proc")
 
