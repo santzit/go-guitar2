@@ -18,6 +18,9 @@ const STRING_COLORS: Array[Color] = [
 
 const FRET_SPACING  : float = 1.0
 const STRING_SPACING: float = 0.5
+## Minimum Y above the highway surface (XZ plane at Y=0).
+## Must match highway.gd STRING_Y_BASE so notes sit on their string lines.
+const STRING_Y_BASE : float = 0.20
 const START_Z       : float = 20.0
 const STRUM_Z       : float = 0.0
 const TRAVEL_SPEED  : float = 8.0   # units per second – must match music_play.gd
@@ -49,7 +52,7 @@ func setup(p_fret: int, p_string: int, p_time: float, p_duration: float) -> void
 	is_active    = true
 	visible      = true
 
-	position = Vector3(fret * FRET_SPACING, string_index * STRING_SPACING, START_Z)
+	position = Vector3(fret * FRET_SPACING, STRING_Y_BASE + string_index * STRING_SPACING, START_Z)
 
 	# Apply string colour to the per-instance material.
 	if _mesh:
