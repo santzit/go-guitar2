@@ -7,7 +7,7 @@ const START_Z      : float = 20.0
 const LEAD_TIME    : float = START_Z / TRAVEL_SPEED   # = 2.5 s
 
 # -- Screenshot capture (for automated testing) ------------------------------
-const SCREENSHOT_TIMES : Array  = [1.5, 2.0, 2.5, 3.0, 3.5]
+const SCREENSHOT_TIMES : Array  = [30.0, 60.0, 90.0, 120.0, 150.0]
 const SCREENSHOT_DIR   : String = "user://screenshots"
 
 # -- Max delta clamp to prevent fast-renderer notes from vanishing too quickly
