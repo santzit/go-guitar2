@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode cull_disabled, unshaded, depth_draw_opaque;
+render_mode cull_disabled, unshaded, blend_mix, depth_draw_never;
 
 // 24 fret columns drawn across the highway width (X axis).
 // Strings are NOT lanes on this surface — they are the Y (height) of each note.
