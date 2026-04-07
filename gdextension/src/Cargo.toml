@@ -1,0 +1,15 @@
+[package]
+name    = "godot_rocksmith"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# Godot 4 Rust bindings (gdext)
+godot = { git = "https://github.com/godot-rust/gdext", branch = "master" }
+
+# Rocksmith 2014 file parsers (individual crates from the workspace)
+rocksmith2014-psarc = { git = "https://github.com/santzit/Rocksmith2014.rs" }
+rocksmith2014-sng   = { git = "https://github.com/santzit/Rocksmith2014.rs" }

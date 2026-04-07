@@ -1,0 +1,30 @@
+[gd_scene load_steps=4 format=3 uid="uid://cbkgnd00001"]
+
+; ── Procedural dark-space sky ─────────────────────────────────────────────────
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_bg"]
+sky_top_color        = Color(0.02, 0.02, 0.08, 1)
+sky_horizon_color    = Color(0.04, 0.04, 0.14, 1)
+sky_energy_multiplier = 0.4
+ground_bottom_color  = Color(0.01, 0.01, 0.03, 1)
+ground_horizon_color = Color(0.03, 0.03, 0.10, 1)
+
+[sub_resource type="Sky" id="Sky_bg01"]
+sky_material = SubResource("ProceduralSkyMaterial_bg")
+
+[sub_resource type="Environment" id="Environment_bg01"]
+background_mode              = 2
+sky                          = SubResource("Sky_bg01")
+ambient_light_source         = 2
+ambient_light_color          = Color(0.10, 0.10, 0.20, 1)
+ambient_light_energy         = 0.4
+tonemap_mode                 = 2
+glow_enabled                 = true
+glow_normalized              = true
+glow_intensity               = 0.6
+glow_bloom                   = 0.06
+glow_blend_mode              = 2
+
+[node name="Background" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_bg01")
