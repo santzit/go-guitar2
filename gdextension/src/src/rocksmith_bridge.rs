@@ -137,15 +137,32 @@ impl RocksmithBridge {
 
             if let Some(lvl) = level {
                 for note in &lvl.notes {
-                    // Skip chord-reference notes (chord_id != -1 means the note
-                    // belongs to a chord event that is listed separately).
                     if note.chord_id == -1 {
+                        // Individual note: use it directly.
                         self.notes.push(NoteData {
                             time:         note.time,
                             fret:         note.fret as i32,
                             string_index: note.string_index as i32,
                             duration:     note.sustain,
                         });
+                    } else {
+                        // Chord event: expand to one NoteData per played string.
+                        // sng.chords[chord_id].frets[string] == -1 means string
+                        // is not played in this chord; >= 0 means it is played.
+                        let chord_idx = note.chord_id as usize;
+                        if chord_idx < sng.chords.len() {
+                            let chord = &sng.chords[chord_idx];
+                            for (str_idx, &fret) in chord.frets.iter().enumerate() {
+                                if fret >= 0 {
+                                    self.notes.push(NoteData {
+                                        time:         note.time,
+                                        fret:         fret as i32,
+                                        string_index: str_idx as i32,
+                                        duration:     note.sustain,
+                                    });
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -157,6 +174,8 @@ impl RocksmithBridge {
         });
 
         // ── Audio: first .ogg found in the manifest ───────────────────────
+        // Note: official Rocksmith DLC uses .wem (Wwise) audio which Godot
+        // cannot play directly.  CDLC that embeds raw OGG will be picked up here.
         let ogg_name = manifest.iter()
             .find(|n| n.ends_with(".ogg"))
             .cloned();
@@ -166,6 +185,17 @@ impl RocksmithBridge {
             match psarc.inflate_file(&name) {
                 Ok(data) => { self.audio_data = Some(data); }
                 Err(e)   => { godot_warn!("RocksmithBridge: audio extraction failed: {}", e); }
+            }
+        } else {
+            // Log whether .wem audio is present (cannot be played by Godot natively).
+            let has_wem = manifest.iter().any(|n| n.ends_with(".wem"));
+            if has_wem {
+                godot_warn!(
+                    "RocksmithBridge: PSARC contains .wem (Wwise) audio which \
+                     Godot cannot play natively.  No audio will be played."
+                );
+            } else {
+                godot_warn!("RocksmithBridge: no audio file found in PSARC.");
             }
         }
 
