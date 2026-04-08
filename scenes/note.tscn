@@ -20,3 +20,6 @@ script = ExtResource("1_notescript")
 [node name="NoteMesh" type="MeshInstance3D" parent="."]
 mesh = SubResource("BoxMesh_note01")
 surface_material_override/0 = SubResource("ShaderMat_note01")
+
+; Fret-number label container – digit scenes are added at runtime by note.gd
+[node name="FretLabel" type="Node3D" parent="."]

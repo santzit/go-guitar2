@@ -16,6 +16,25 @@ const STRING_COLORS: Array[Color] = [
 	Color(0.85, 0.15, 0.15, 1.0),  # 5 – red
 ]
 
+# ── Digit scenes (0–9) used to display the fret number on each note ──────────
+const DIGIT_SCENES: Array[PackedScene] = [
+	preload("res://scenes/number_0.tscn"),
+	preload("res://scenes/number_1.tscn"),
+	preload("res://scenes/number_2.tscn"),
+	preload("res://scenes/number_3.tscn"),
+	preload("res://scenes/number_4.tscn"),
+	preload("res://scenes/number_5.tscn"),
+	preload("res://scenes/number_6.tscn"),
+	preload("res://scenes/number_7.tscn"),
+	preload("res://scenes/number_8.tscn"),
+	preload("res://scenes/number_9.tscn"),
+]
+
+## Y offset above the note centre where digit labels are placed.
+const LABEL_Y : float = 0.27
+## X offset between tens and ones digit for two-digit fret numbers.
+const DIGIT_X_OFFSET : float = 0.11
+
 const FRET_SPACING  : float = 1.0
 const STRING_SPACING: float = 0.5
 ## Minimum Y above the highway surface (XZ plane at Y=0).
@@ -32,7 +51,8 @@ var time_offset  : float = 0.0
 var duration     : float = 0.25
 var is_active    : bool  = false
 
-@onready var _mesh: MeshInstance3D = $NoteMesh
+@onready var _mesh       : MeshInstance3D = $NoteMesh
+@onready var _fret_label : Node3D         = $FretLabel
 
 
 func _ready() -> void:
@@ -59,6 +79,34 @@ func setup(p_fret: int, p_string: int, p_time: float, p_duration: float) -> void
 		var mat := _mesh.get_surface_override_material(0) as ShaderMaterial
 		if mat:
 			mat.set_shader_parameter("note_color", STRING_COLORS[string_index])
+
+	_rebuild_fret_label()
+
+
+## Build digit-scene children inside FretLabel to show the fret number.
+func _rebuild_fret_label() -> void:
+	# Remove any digits from a previous activation.
+	for child in _fret_label.get_children():
+		_fret_label.remove_child(child)
+		child.free()
+
+	var tens := fret / 10
+	var ones := fret % 10
+
+	if tens > 0:
+		# Two-digit fret (10–24): place tens left, ones right.
+		var d_tens := DIGIT_SCENES[tens].instantiate()
+		d_tens.position = Vector3(-DIGIT_X_OFFSET, LABEL_Y, 0.0)
+		_fret_label.add_child(d_tens)
+
+		var d_ones := DIGIT_SCENES[ones].instantiate()
+		d_ones.position = Vector3(DIGIT_X_OFFSET, LABEL_Y, 0.0)
+		_fret_label.add_child(d_ones)
+	else:
+		# Single-digit fret (0–9): centred above the note.
+		var d := DIGIT_SCENES[ones].instantiate()
+		d.position = Vector3(0.0, LABEL_Y, 0.0)
+		_fret_label.add_child(d)
 
 
 func _process(delta: float) -> void:
