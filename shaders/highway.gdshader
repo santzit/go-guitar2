@@ -17,7 +17,9 @@ void fragment() {
 	vec2  uv       = UV;
 
 	// ── Fret-column index (0 … fret_count-1) along the X axis ────────────
-	float fret_uv   = uv.x * float(fret_count);
+	// UV is flipped (1-uv.x) so lane 1 appears on the left of the screen,
+	// matching the note X formula where fret 1 is at high world X.
+	float fret_uv   = (1.0 - uv.x) * float(fret_count);
 	float fret_idx  = floor(fret_uv);        // which fret column we are in
 	float fret_frac = fract(fret_uv);        // 0…1 within that column
 	bool  on_line   = fret_frac < fret_line_width || fret_frac > 1.0 - fret_line_width;

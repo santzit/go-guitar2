@@ -4,7 +4,10 @@
 [ext_resource type="Shader" path="res://shaders/note.gdshader" id="2_noteshader"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_note01"]
-size = Vector3(0.90, 0.50, 0.50)
+size = Vector3(0.90, 0.50, 0.30)
+subdivide_width = 4
+subdivide_height = 4
+subdivide_depth = 4
 
 [sub_resource type="ShaderMaterial" id="ShaderMat_note01"]
 shader = ExtResource("2_noteshader")

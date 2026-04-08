@@ -30,11 +30,12 @@ const DIGIT_SCENES: Array[PackedScene] = [
 	preload("res://scenes/number_9.tscn"),
 ]
 
-## Z offset places the label on the front face of the note box (box depth = 0.50).
-const LABEL_Z : float = -0.26
+## Z offset places the label on the front face of the note box (box depth = 0.30).
+const LABEL_Z : float = -0.16
 ## X offset between tens and ones digit for two-digit fret numbers.
 const DIGIT_X_OFFSET : float = 0.11
 
+const FRET_COUNT    : int   = 24   # total number of fret lanes on the highway
 const FRET_SPACING  : float = 1.0
 const STRING_SPACING: float = 0.5
 ## Minimum Y above the highway surface (XZ plane at Y=0).
@@ -72,7 +73,7 @@ func setup(p_fret: int, p_string: int, p_time: float, p_duration: float) -> void
 	is_active    = true
 	visible      = true
 
-	position = Vector3(fret * FRET_SPACING - FRET_SPACING * 0.5, STRING_Y_BASE + string_index * STRING_SPACING, START_Z)
+	position = Vector3((FRET_COUNT - fret) * FRET_SPACING + FRET_SPACING * 0.5, STRING_Y_BASE + string_index * STRING_SPACING, START_Z)
 
 	# Apply string colour to the per-instance material.
 	if _mesh:
