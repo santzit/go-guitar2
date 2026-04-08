@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode cull_disabled, unshaded, blend_mix, depth_draw_never;
+render_mode cull_disabled, unshaded, depth_prepass_alpha;
 
 // 24 fret columns drawn across the highway width (X axis).
 // Strings are NOT lanes on this surface — they are the Y (height) of each note.
@@ -43,5 +43,5 @@ void fragment() {
 
 	ALBEDO   = col.rgb;
 	EMISSION = col.rgb * glow_strength * 0.5;
-	ALPHA    = col.a;
+	ALPHA    = 1.0;
 }
