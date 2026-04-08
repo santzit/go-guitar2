@@ -90,6 +90,10 @@ func _rebuild_fret_label() -> void:
 		_fret_label.remove_child(child)
 		child.free()
 
+	# Only render labels for valid frets 1–24.
+	if fret < 1 or fret > 24:
+		return
+
 	var tens := fret / 10
 	var ones := fret % 10
 

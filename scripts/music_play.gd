@@ -66,7 +66,10 @@ func _process(delta: float) -> void:
 	while _next_idx < _notes.size():
 		var nd: Dictionary = _notes[_next_idx]
 		if nd["time"] - _song_time <= LEAD_TIME:
-			_pool.spawn_note(nd["fret"], nd["string"], nd["time"], nd["duration"])
+			var f: int = nd["fret"]
+			# Skip open-string (fret 0) notes and any out-of-range fret values.
+			if f >= 1 and f <= 24:
+				_pool.spawn_note(f, nd["string"], nd["time"], nd["duration"])
 			_next_idx += 1
 		else:
 			break
@@ -110,7 +113,7 @@ func _find_dlc_psarc() -> String:
 
 func _generate_demo_notes() -> Array:
 	var result  : Array = []
-	var frets   := [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19, 21, 23]
+	var frets   := [2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19, 21, 23, 24]
 	var strings := [0, 1, 2, 3, 4, 5]
 	var beat    : float = 0.35
 	var t       : float = 0.0
