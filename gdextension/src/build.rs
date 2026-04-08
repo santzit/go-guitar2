@@ -2,9 +2,12 @@
 //            libvgmstream.a (WEM audio decoding) on Linux and Windows.
 //
 // Pre-built libraries live at:
-//   gdextension/lib/linux/librocksmith_shim.so — NativeAOT shared lib (dotnet publish linux-x64)
-//   gdextension/lib/linux/libvgmstream.a        — static, built from vgmstream main
-//   gdextension/lib/windows/libvgmstream.a      — static, cross-compiled with MinGW
+//   gdextension/lib/linux/librocksmith_shim.so  — NativeAOT shared lib (dotnet publish linux-x64)
+//   gdextension/lib/linux/libvgmstream.a         — static, built from vgmstream main
+//   gdextension/lib/windows/libvgmstream.a       — static, cross-compiled with MinGW + USE_VORBIS=ON
+//   gdextension/lib/windows/libvorbisfile.a      — cross-compiled libvorbisfile (vgmstream OGG Vorbis dep)
+//   gdextension/lib/windows/libvorbis.a          — cross-compiled libvorbis   (Wwise Vorbis dep)
+//   gdextension/lib/windows/libogg.a             — cross-compiled libogg      (libvorbis dep)
 
 fn main() {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
@@ -37,8 +40,13 @@ fn main() {
             //   dotnet publish -c Release -r win-x64
             // inside gdextension/dotnet/RocksmithShim/)
             println!("cargo:rustc-link-lib=dylib=RocksmithShim");
-            // vgmstream WEM decoder (cross-compiled via MinGW).
+            // vgmstream WEM decoder + Wwise Vorbis deps (cross-compiled via MinGW,
+            // built with USE_VORBIS=ON so Wwise Vorbis / Rocksmith WEM is supported).
             println!("cargo:rustc-link-lib=static=vgmstream");
+            // libvorbisfile and libvorbis are required by vgmstream when USE_VORBIS=ON.
+            println!("cargo:rustc-link-lib=static=vorbisfile");
+            println!("cargo:rustc-link-lib=static=vorbis");
+            println!("cargo:rustc-link-lib=static=ogg");
             println!("cargo:rustc-link-lib=static=stdc++");
         }
         _ => {}
@@ -48,6 +56,9 @@ fn main() {
     println!("cargo:rerun-if-changed=../lib/linux/librocksmith_shim.so");
     println!("cargo:rerun-if-changed=../lib/linux/libvgmstream.a");
     println!("cargo:rerun-if-changed=../lib/windows/libvgmstream.a");
+    println!("cargo:rerun-if-changed=../lib/windows/libvorbisfile.a");
+    println!("cargo:rerun-if-changed=../lib/windows/libvorbis.a");
+    println!("cargo:rerun-if-changed=../lib/windows/libogg.a");
     println!("cargo:rerun-if-changed=../lib/windows/libRocksmithShim.a");
     println!("cargo:rerun-if-changed=build.rs");
 }
