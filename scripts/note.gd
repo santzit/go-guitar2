@@ -99,13 +99,14 @@ func _rebuild_fret_label() -> void:
 	var ones := fret % 10
 
 	if tens > 0:
-		# Two-digit fret (10–24): place tens left, ones right on the front face.
+		# Two-digit fret (10–24): camera right = world -X, so +X_OFFSET = screen left (tens),
+		# -X_OFFSET = screen right (ones), giving correct left-to-right digit order.
 		var d_tens := DIGIT_SCENES[tens].instantiate()
-		d_tens.position = Vector3(-DIGIT_X_OFFSET, 0.0, LABEL_Z)
+		d_tens.position = Vector3(DIGIT_X_OFFSET, 0.0, LABEL_Z)
 		_fret_label.add_child(d_tens)
 
 		var d_ones := DIGIT_SCENES[ones].instantiate()
-		d_ones.position = Vector3(DIGIT_X_OFFSET, 0.0, LABEL_Z)
+		d_ones.position = Vector3(-DIGIT_X_OFFSET, 0.0, LABEL_Z)
 		_fret_label.add_child(d_ones)
 	else:
 		# Single-digit fret (0–9): centred on the front face.
