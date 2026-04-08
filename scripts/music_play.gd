@@ -6,6 +6,8 @@ extends Node3D
 ## lane of the most recently scheduled note, mirroring the behaviour of the
 ## standalone demo scene.
 
+const _RsBridgeScript = preload("res://scripts/rs_bridge.gd")
+
 # -- Timing constants (must match note.gd) -----------------------------------
 const TRAVEL_SPEED : float = 8.0
 const START_Z      : float = 20.0
@@ -40,7 +42,7 @@ const MAX_DELTA : float = 0.05
 @onready var _camera : Camera3D          = $Camera3D
 
 # -- State -------------------------------------------------------------------
-var _bridge              : RsBridge = null
+var _bridge              = null  # RsBridge instance (no static type — avoids parse errors when class is not yet registered)
 var _notes               : Array    = []
 var _next_idx            : int      = 0
 var _song_time           : float    = 0.0
@@ -57,7 +59,7 @@ var _last_fret_per_string: Array[int] = [-1, -1, -1, -1, -1, -1]
 
 
 func _ready() -> void:
-	_bridge = RsBridge.new()
+	_bridge = _RsBridgeScript.new()
 
 	# _find_dlc_psarc() now returns an absolute filesystem path so the Rust
 	# bridge can open it directly on any platform (editor or exported build).
@@ -66,7 +68,7 @@ func _ready() -> void:
 		print("MusicPlay: loading " + psarc_path)
 		if _bridge.load_psarc_abs(psarc_path):
 			_notes = _bridge.get_notes()
-			var stream := _bridge.get_audio_stream()
+			var stream : AudioStream = _bridge.get_audio_stream()
 			if stream:
 				_player.stream = stream
 				_player.play()
@@ -190,7 +192,7 @@ func _find_dlc_psarc() -> String:
 		dir.list_dir_begin()
 		var file_name := dir.get_next()
 		while file_name != "":
-		var lower_name := file_name.to_lower()
+			var lower_name := file_name.to_lower()
 			if not dir.current_is_dir() and lower_name.ends_with(".psarc"):
 				dir.list_dir_end()
 				var full_path := root.path_join(file_name)
