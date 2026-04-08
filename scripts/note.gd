@@ -30,8 +30,8 @@ const DIGIT_SCENES: Array[PackedScene] = [
 	preload("res://scenes/number_9.tscn"),
 ]
 
-## Y offset above the note centre where digit labels are placed.
-const LABEL_Y : float = 0.27
+## Z offset places the label on the front face of the note box (box depth = 0.50).
+const LABEL_Z : float = -0.26
 ## X offset between tens and ones digit for two-digit fret numbers.
 const DIGIT_X_OFFSET : float = 0.11
 
@@ -94,18 +94,18 @@ func _rebuild_fret_label() -> void:
 	var ones := fret % 10
 
 	if tens > 0:
-		# Two-digit fret (10–24): place tens left, ones right.
+		# Two-digit fret (10–24): place tens left, ones right on the front face.
 		var d_tens := DIGIT_SCENES[tens].instantiate()
-		d_tens.position = Vector3(-DIGIT_X_OFFSET, LABEL_Y, 0.0)
+		d_tens.position = Vector3(-DIGIT_X_OFFSET, 0.0, LABEL_Z)
 		_fret_label.add_child(d_tens)
 
 		var d_ones := DIGIT_SCENES[ones].instantiate()
-		d_ones.position = Vector3(DIGIT_X_OFFSET, LABEL_Y, 0.0)
+		d_ones.position = Vector3(DIGIT_X_OFFSET, 0.0, LABEL_Z)
 		_fret_label.add_child(d_ones)
 	else:
-		# Single-digit fret (0–9): centred above the note.
+		# Single-digit fret (0–9): centred on the front face.
 		var d := DIGIT_SCENES[ones].instantiate()
-		d.position = Vector3(0.0, LABEL_Y, 0.0)
+		d.position = Vector3(0.0, 0.0, LABEL_Z)
 		_fret_label.add_child(d)
 
 

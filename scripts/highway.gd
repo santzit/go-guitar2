@@ -40,6 +40,7 @@ func _create_string_lines() -> void:
 		mi.mesh = box
 		mi.set_surface_override_material(0, mat)
 		mi.transform.origin = Vector3(12.0, STRING_Y_BASE + i * STRING_SPACING, 10.0)
+		mi.visible = false   # Keep string Y coordinates for note placement; lines not shown
 		add_child(mi)
 
 

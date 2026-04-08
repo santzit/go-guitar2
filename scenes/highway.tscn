@@ -60,14 +60,16 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0.025, 0)
 mesh = SubResource("BoxMesh_strum")
 surface_material_override/0 = SubResource("StrumMat")
 
-; Left wall at X = 0
+; Left wall at X = 0 (invisible – walls removed from player view)
 [node name="WallLeft" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 10)
 mesh = SubResource("BoxMesh_wallL")
 surface_material_override/0 = SubResource("WallMat")
+visible = false
 
-; Right wall at X = 24
+; Right wall at X = 24 (invisible – walls removed from player view)
 [node name="WallRight" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24, 1.5, 10)
 mesh = SubResource("BoxMesh_wallR")
 surface_material_override/0 = SubResource("WallMat")
+visible = false
