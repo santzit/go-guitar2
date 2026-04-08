@@ -7,4 +7,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-godot = { git = "https://github.com/godot-rust/gdext", branch = "master", features = ["api-4-4"] }
+godot      = { git = "https://github.com/godot-rust/gdext", branch = "master", features = ["api-4-4"] }
+# .NET CLR hosting — loads RocksmithBridge.dll via load_assembly_and_get_function_pointer.
+# No NativeAOT, no shim DLL — the CLR is hosted in-process.
+netcorehost = "0.20"
