@@ -49,6 +49,12 @@ var _shot_idx            : int      = 0
 var _start_wall_ms       : int      = 0
 var _camera_target_fret  : int      = FRET_COUNT / 2   # start at highway centre
 
+## Per-string fret-change tracker for smart label logic.
+## -1 = no note has been spawned on this string yet.
+## When the next note on string S has a different fret from _last_fret_per_string[S],
+## the label is shown and _last_fret_per_string[S] is updated.
+var _last_fret_per_string: Array[int] = [-1, -1, -1, -1, -1, -1]
+
 
 func _ready() -> void:
 	_bridge = RsBridge.new()
@@ -98,9 +104,14 @@ func _process(delta: float) -> void:
 		var nd: Dictionary = _notes[_next_idx]
 		if nd["time"] - _song_time <= LEAD_TIME:
 			var f: int = nd["fret"]
+			var s: int = nd["string"]
 			# Skip open-string (fret 0) notes and any out-of-range fret values.
 			if f >= 1 and f <= 24:
-				_pool.spawn_note(f, nd["string"], nd["time"], nd["duration"])
+				# Smart label: show the fret number only when the fret changes on this string.
+				var show_label := (f != _last_fret_per_string[s])
+				if show_label:
+					_last_fret_per_string[s] = f
+				_pool.spawn_note(f, s, nd["time"], nd["duration"], show_label)
 				# Track which fret the camera should follow.
 				_camera_target_fret = f
 			_next_idx += 1

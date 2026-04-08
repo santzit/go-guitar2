@@ -65,7 +65,8 @@ func _ready() -> void:
 
 
 ## Called by NotePool to activate and position this note.
-func setup(p_fret: int, p_string: int, p_time: float, p_duration: float) -> void:
+## p_show_label controls whether the fret number is rendered on this note.
+func setup(p_fret: int, p_string: int, p_time: float, p_duration: float, p_show_label: bool = true) -> void:
 	fret         = p_fret
 	string_index = clampi(p_string, 0, 5)
 	time_offset  = p_time
@@ -81,7 +82,13 @@ func setup(p_fret: int, p_string: int, p_time: float, p_duration: float) -> void
 		if mat:
 			mat.set_shader_parameter("note_color", STRING_COLORS[string_index])
 
-	_rebuild_fret_label()
+	if p_show_label:
+		_rebuild_fret_label()
+	else:
+		# Clear any label from a previous activation.
+		for child in _fret_label.get_children():
+			_fret_label.remove_child(child)
+			child.free()
 
 
 ## Build digit-scene children inside FretLabel to show the fret number.
