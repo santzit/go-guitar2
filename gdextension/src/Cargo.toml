@@ -13,3 +13,6 @@ godot = { git = "https://github.com/godot-rust/gdext", branch = "master", featur
 # Rocksmith 2014 file parsers (individual crates from the workspace)
 rocksmith2014-psarc = { git = "https://github.com/santzit/Rocksmith2014.rs" }
 rocksmith2014-sng   = { git = "https://github.com/santzit/Rocksmith2014.rs" }
+
+[build-dependencies]
+# Used by build.rs to locate and link the pre-built vgmstream static library.
