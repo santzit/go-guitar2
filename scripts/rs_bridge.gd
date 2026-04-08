@@ -81,7 +81,7 @@ func get_audio_stream() -> AudioStream:
 		if ae_exists:
 			var eng: Object = ClassDB.instantiate("AudioEngine")
 			print("RsBridge: calling AudioEngine.open() with %d WEM bytes" % wem.size())
-			var ok := eng.open(wem)
+			var ok: Variant = eng.open(wem)
 			print("RsBridge: AudioEngine.open() returned: %s" % str(ok))
 			if ok:
 				var pcm_bytes: PackedByteArray = eng.decode_all()
