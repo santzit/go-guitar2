@@ -59,19 +59,23 @@ var _last_fret_per_string: Array[int] = [-1, -1, -1, -1, -1, -1]
 func _ready() -> void:
 	_bridge = RsBridge.new()
 
+	# _find_dlc_psarc() now returns an absolute filesystem path so the Rust
+	# bridge can open it directly on any platform (editor or exported build).
 	var psarc_path := _find_dlc_psarc()
 	if psarc_path != "":
 		print("MusicPlay: loading " + psarc_path)
-		if _bridge.load_psarc(psarc_path):
+		if _bridge.load_psarc_abs(psarc_path):
 			_notes = _bridge.get_notes()
 			var stream := _bridge.get_audio_stream()
 			if stream:
 				_player.stream = stream
 				_player.play()
+			else:
+				push_warning("MusicPlay: audio stream not available (no WEM/OGG in PSARC).")
 		else:
 			push_warning("MusicPlay: failed to load psarc - using demo notes.")
 	else:
-		push_warning("MusicPlay: no .psarc found in res://DLC/ - using demo notes.")
+		push_warning("MusicPlay: no .psarc found in any DLC search path - using demo notes.")
 
 	if _notes.is_empty():
 		_notes = _generate_demo_notes()
@@ -156,18 +160,46 @@ func _take_screenshot(num: int) -> void:
 	print("Screenshot saved: " + abs_path)
 
 
+## Return the absolute filesystem path to the first .psarc found.
+## Searches in order:
+##   1. res://DLC/         — works in the Godot editor (res:// = project root)
+##   2. <exe dir>/DLC/     — exported game: DLC folder placed next to the .exe
+##   3. user://DLC/        — user-writable AppData/Roaming folder (portable)
 func _find_dlc_psarc() -> String:
-	var dir := DirAccess.open("res://DLC")
-	if dir == null:
-		return ""
-	dir.list_dir_begin()
-	var file_name := dir.get_next()
-	while file_name != "":
-		if not dir.current_is_dir() and file_name.ends_with(".psarc"):
-			dir.list_dir_end()
-			return "res://DLC/" + file_name
-		file_name = dir.get_next()
-	dir.list_dir_end()
+	# Candidate search roots as absolute filesystem paths.
+	var roots: Array[String] = []
+
+	# 1. Project directory (works in editor; res:// resolves to real path here)
+	var res_dlc := ProjectSettings.globalize_path("res://DLC")
+	roots.append(res_dlc)
+
+	# 2. Directory next to the game executable (exported build)
+	var exe_dlc := OS.get_executable_path().get_base_dir().path_join("DLC")
+	if exe_dlc != res_dlc:
+		roots.append(exe_dlc)
+
+	# 3. User data folder (AppData/Roaming on Windows, ~/.local/share on Linux)
+	var user_dlc := ProjectSettings.globalize_path("user://DLC")
+	roots.append(user_dlc)
+
+	for root in roots:
+		var dir := DirAccess.open(root)
+		if dir == null:
+			push_warning("MusicPlay: DLC search — cannot open: " + root)
+			continue
+		dir.list_dir_begin()
+		var file_name := dir.get_next()
+		while file_name != "":
+		var lower_name := file_name.to_lower()
+			if not dir.current_is_dir() and lower_name.ends_with(".psarc"):
+				dir.list_dir_end()
+				var full_path := root.path_join(file_name)
+				print("MusicPlay: found PSARC at " + full_path)
+				return full_path
+			file_name = dir.get_next()
+		dir.list_dir_end()
+
+	push_warning("MusicPlay: no .psarc found in any DLC search path.")
 	return ""
 
 

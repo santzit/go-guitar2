@@ -27,11 +27,22 @@ func _init() -> void:
 		)
 
 
-## Load a .psarc archive.  Returns true on success.
+## Load a .psarc archive from a res:// or user:// Godot path.
+## The path is converted to an absolute filesystem path before being passed
+## to the native bridge (needed when running from the editor).
 func load_psarc(path: String) -> bool:
 	if _ext == null:
 		return false
 	return _ext.load_psarc(ProjectSettings.globalize_path(path))
+
+
+## Load a .psarc archive from an already-absolute filesystem path.
+## Use this when the path was resolved outside Godot's virtual filesystem
+## (e.g. next to the executable or in user data).
+func load_psarc_abs(abs_path: String) -> bool:
+	if _ext == null:
+		return false
+	return _ext.load_psarc(abs_path)
 
 
 ## Returns notes as an Array of Dictionaries:
@@ -59,22 +70,25 @@ func get_wem_bytes() -> PackedByteArray:
 
 
 ## Convenience: create an AudioStream from the embedded audio data, or null.
-## Priority: WEM (decoded via AudioEngine) → OGG (CDLC fallback).
+## Priority: WEM (decoded via AudioEngine on Linux/Windows) → OGG (CDLC fallback).
 func get_audio_stream() -> AudioStream:
-	# ── Try WEM via AudioEngine (official DLC — vgmstream on Linux) ──────────
+	# ── Try WEM via AudioEngine (official DLC — vgmstream on Linux + Windows) ─
 	var wem := get_wem_bytes()
-	if not wem.is_empty() and ClassDB.class_exists("AudioEngine"):
-		var eng: Object = ClassDB.instantiate("AudioEngine")
-		if eng.open(wem):
-			var pcm_bytes: PackedByteArray = eng.decode_all()
-			if not pcm_bytes.is_empty():
-				var stream := AudioStreamWAV.new()
-				stream.format   = AudioStreamWAV.FORMAT_16_BITS
-				stream.stereo   = (eng.get_channels() == 2)
-				stream.mix_rate = eng.get_sample_rate()
-				stream.data     = pcm_bytes
-				return stream
-		push_warning("RsBridge: AudioEngine could not decode WEM — trying OGG fallback.")
+	if not wem.is_empty():
+		if ClassDB.class_exists("AudioEngine"):
+			var eng: Object = ClassDB.instantiate("AudioEngine")
+			if eng.open(wem):
+				var pcm_bytes: PackedByteArray = eng.decode_all()
+				if not pcm_bytes.is_empty():
+					var stream := AudioStreamWAV.new()
+					stream.format   = AudioStreamWAV.FORMAT_16_BITS
+					stream.stereo   = (eng.get_channels() == 2)
+					stream.mix_rate = eng.get_sample_rate()
+					stream.data     = pcm_bytes
+					return stream
+			push_warning("RsBridge: AudioEngine.open() failed — trying OGG fallback.")
+		else:
+			push_warning("RsBridge: AudioEngine class not found — trying OGG fallback.")
 
 	# ── Try OGG (CDLC) ────────────────────────────────────────────────────────
 	var raw := get_audio_bytes()
