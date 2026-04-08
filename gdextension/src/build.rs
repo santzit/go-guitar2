@@ -31,11 +31,15 @@ fn main() {
         "windows" => {
             let lib_dir = format!("{manifest_dir}/../lib/windows");
             println!("cargo:rustc-link-search=native={lib_dir}");
-            // Windows: vgmstream WEM decoder (cross-compiled via MinGW).
+            // Rocksmith2014.NET NativeAOT shim (import library generated from
+            // RocksmithShim.def via dlltool; actual RocksmithShim.dll must be
+            // present at runtime, built on Windows with:
+            //   dotnet publish -c Release -r win-x64
+            // inside gdextension/dotnet/RocksmithShim/)
+            println!("cargo:rustc-link-lib=dylib=RocksmithShim");
+            // vgmstream WEM decoder (cross-compiled via MinGW).
             println!("cargo:rustc-link-lib=static=vgmstream");
             println!("cargo:rustc-link-lib=static=stdc++");
-            // NOTE: A Windows NativeAOT build of librocksmith_shim is needed here
-            //       for rs_open_psarc/rs_get_notes_json/rs_get_wem_bytes on Windows.
         }
         _ => {}
     }
@@ -44,5 +48,6 @@ fn main() {
     println!("cargo:rerun-if-changed=../lib/linux/librocksmith_shim.so");
     println!("cargo:rerun-if-changed=../lib/linux/libvgmstream.a");
     println!("cargo:rerun-if-changed=../lib/windows/libvgmstream.a");
+    println!("cargo:rerun-if-changed=../lib/windows/libRocksmithShim.a");
     println!("cargo:rerun-if-changed=build.rs");
 }
