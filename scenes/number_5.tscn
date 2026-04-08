@@ -2,9 +2,9 @@
 
 [node name="Number5" type="Label3D"]
 text = "5"
-pixel_size = 0.007
-font_size = 36
-outline_size = 8
+pixel_size = 0.005
+font_size = 20
+outline_size = 4
 no_depth_test = true
 billboard = 1
 double_sided = true

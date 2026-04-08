@@ -30,10 +30,10 @@ const DIGIT_SCENES: Array[PackedScene] = [
 	preload("res://scenes/number_9.tscn"),
 ]
 
-## Z offset places the label on the front face of the note box (box depth = 0.30).
-const LABEL_Z : float = -0.16
+## Z offset places the label on the front face of the note box (box depth = 0.10).
+const LABEL_Z : float = -0.06
 ## X offset between tens and ones digit for two-digit fret numbers.
-const DIGIT_X_OFFSET : float = 0.11
+const DIGIT_X_OFFSET : float = 0.07
 
 const FRET_COUNT    : int   = 24   # total number of fret lanes on the highway
 const FRET_SPACING  : float = 1.0
