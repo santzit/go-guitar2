@@ -42,20 +42,43 @@ func get_notes() -> Array:
 	return _ext.get_notes()
 
 
-## Returns raw OGG bytes from the song.
-## Convert with AudioStreamOggVorbis.load_from_buffer(bytes) in Godot 4.
+## Returns raw OGG bytes from the song (CDLC only).
 func get_audio_bytes() -> PackedByteArray:
 	if _ext == null:
 		return PackedByteArray()
 	return _ext.get_audio_bytes()
 
 
+## Returns raw WEM bytes from the song (official DLC).
+func get_wem_bytes() -> PackedByteArray:
+	if _ext == null:
+		return PackedByteArray()
+	if _ext.has_method("get_wem_bytes"):
+		return _ext.get_wem_bytes()
+	return PackedByteArray()
+
+
 ## Convenience: create an AudioStream from the embedded audio data, or null.
+## Priority: WEM (decoded via AudioEngine) → OGG (CDLC fallback).
 func get_audio_stream() -> AudioStream:
+	# ── Try WEM via AudioEngine (official DLC — vgmstream on Linux) ──────────
+	var wem := get_wem_bytes()
+	if not wem.is_empty() and ClassDB.class_exists("AudioEngine"):
+		var eng: Object = ClassDB.instantiate("AudioEngine")
+		if eng.open(wem):
+			var pcm_bytes: PackedByteArray = eng.decode_all()
+			if not pcm_bytes.is_empty():
+				var stream := AudioStreamWAV.new()
+				stream.format   = AudioStreamWAV.FORMAT_16_BITS
+				stream.stereo   = (eng.get_channels() == 2)
+				stream.mix_rate = eng.get_sample_rate()
+				stream.data     = pcm_bytes
+				return stream
+		push_warning("RsBridge: AudioEngine could not decode WEM — trying OGG fallback.")
+
+	# ── Try OGG (CDLC) ────────────────────────────────────────────────────────
 	var raw := get_audio_bytes()
-	if raw.is_empty():
-		return null
-	# AudioStreamOggVorbis.load_from_buffer is the Godot 4 API.
-	if ResourceLoader.exists("res://"):   # sanity-check engine is available
+	if not raw.is_empty():
 		return AudioStreamOggVorbis.load_from_buffer(raw)
+
 	return null

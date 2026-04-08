@@ -18,8 +18,9 @@ struct NoteData {
 /// ```gdscript
 /// var bridge = RocksmithBridge.new()
 /// if bridge.load_psarc("/absolute/path/to/song.psarc"):
-///     var notes = bridge.get_notes()          # Array[Dictionary]
-///     var bytes = bridge.get_audio_bytes()    # PackedByteArray (OGG)
+///     var notes    = bridge.get_notes()       # Array[Dictionary]
+///     var wem_bytes = bridge.get_wem_bytes()  # PackedByteArray (.wem Wwise audio)
+///     var ogg_bytes = bridge.get_audio_bytes() # PackedByteArray (.ogg, CDLC only)
 /// ```
 #[derive(GodotClass)]
 #[class(base = Object)]
@@ -27,7 +28,8 @@ pub struct RocksmithBridge {
     #[base]
     base:       Base<Object>,
     notes:      Vec<NoteData>,
-    audio_data: Option<Vec<u8>>,
+    audio_data: Option<Vec<u8>>,   // OGG bytes (CDLC fallback)
+    wem_data:   Option<Vec<u8>>,   // WEM bytes (official DLC)
 }
 
 #[godot_api]
@@ -37,6 +39,7 @@ impl IObject for RocksmithBridge {
             base,
             notes:      Vec::new(),
             audio_data: None,
+            wem_data:   None,
         }
     }
 }
@@ -49,6 +52,7 @@ impl RocksmithBridge {
     fn load_psarc(&mut self, path: GString) -> bool {
         self.notes.clear();
         self.audio_data = None;
+        self.wem_data   = None;
 
         let path_str = path.to_string();
         godot_print!("RocksmithBridge: loading '{}'", path_str);
@@ -85,12 +89,31 @@ impl RocksmithBridge {
         arr
     }
 
-    /// Returns raw OGG audio bytes extracted from the `.psarc`.
+    /// Returns raw OGG audio bytes extracted from the `.psarc` (CDLC only).
     /// In GDScript convert with:
     /// `AudioStreamOggVorbis.load_from_buffer(bytes)`
     #[func]
     fn get_audio_bytes(&self) -> PackedByteArray {
         match &self.audio_data {
+            Some(data) => PackedByteArray::from(data.as_slice()),
+            None       => PackedByteArray::new(),
+        }
+    }
+
+    /// Returns raw WEM (Wwise) audio bytes extracted from the `.psarc`.
+    /// Use with the `AudioEngine` GDExtension class to decode to PCM:
+    /// ```gdscript
+    /// var eng = AudioEngine.new()
+    /// if eng.open(bridge.get_wem_bytes()):
+    ///     var stream = AudioStreamWAV.new()
+    ///     stream.format   = AudioStreamWAV.FORMAT_16_BITS
+    ///     stream.stereo   = (eng.get_channels() == 2)
+    ///     stream.mix_rate = eng.get_sample_rate()
+    ///     stream.data     = eng.decode_all()
+    /// ```
+    #[func]
+    fn get_wem_bytes(&self) -> PackedByteArray {
+        match &self.wem_data {
             Some(data) => PackedByteArray::from(data.as_slice()),
             None       => PackedByteArray::new(),
         }
@@ -173,30 +196,43 @@ impl RocksmithBridge {
             a.time.partial_cmp(&b.time).unwrap_or(std::cmp::Ordering::Equal)
         });
 
-        // ── Audio: first .ogg found in the manifest ───────────────────────
-        // Note: official Rocksmith DLC uses .wem (Wwise) audio which Godot
-        // cannot play directly.  CDLC that embeds raw OGG will be picked up here.
+        // ── Audio: OGG (CDLC) or WEM (official DLC) ─────────────────────────
         let ogg_name = manifest.iter()
             .find(|n| n.ends_with(".ogg"))
             .cloned();
 
         if let Some(name) = ogg_name {
-            godot_print!("RocksmithBridge: extracting audio '{}'", name);
+            godot_print!("RocksmithBridge: extracting OGG audio '{}'", name);
             match psarc.inflate_file(&name) {
                 Ok(data) => { self.audio_data = Some(data); }
-                Err(e)   => { godot_warn!("RocksmithBridge: audio extraction failed: {}", e); }
+                Err(e)   => { godot_warn!("RocksmithBridge: OGG extraction failed: {}", e); }
             }
-        } else {
-            // Log whether .wem audio is present (cannot be played by Godot natively).
-            let has_wem = manifest.iter().any(|n| n.ends_with(".wem"));
-            if has_wem {
-                godot_warn!(
-                    "RocksmithBridge: PSARC contains .wem (Wwise) audio which \
-                     Godot cannot play natively.  No audio will be played."
-                );
-            } else {
-                godot_warn!("RocksmithBridge: no audio file found in PSARC.");
+        }
+
+        // Extract the first WEM file found (main backing track).
+        // AudioEngine (Rust/vgmstream) is used by GDScript to decode this.
+        let wem_name = manifest.iter()
+            .find(|n| n.ends_with(".wem"))
+            .cloned();
+
+        if let Some(name) = wem_name {
+            godot_print!("RocksmithBridge: extracting WEM audio '{}'", name);
+            match psarc.inflate_file(&name) {
+                Ok(data) => {
+                    godot_print!(
+                        "RocksmithBridge: extracted {} WEM bytes",
+                        data.len()
+                    );
+                    self.wem_data = Some(data);
+                }
+                Err(e) => {
+                    godot_warn!("RocksmithBridge: WEM extraction failed: {}", e);
+                }
             }
+        }
+
+        if self.audio_data.is_none() && self.wem_data.is_none() {
+            godot_warn!("RocksmithBridge: no audio file found in PSARC.");
         }
 
         Ok(())
