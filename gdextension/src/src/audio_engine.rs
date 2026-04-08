@@ -60,8 +60,8 @@ impl AudioEngine {
             return false;
         }
 
-        // vgmstream decoding is only available on Linux builds.
-        #[cfg(target_os = "linux")]
+        // vgmstream decoding is available on Linux and Windows (static lib linked via build.rs).
+        #[cfg(any(target_os = "linux", target_os = "windows"))]
         {
             match ffi::decode_wem(raw) {
                 Ok(result) => {
@@ -86,11 +86,10 @@ impl AudioEngine {
             }
         }
 
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(not(any(target_os = "linux", target_os = "windows")))]
         {
             godot_warn!(
-                "AudioEngine: vgmstream WEM decoding is currently only \
-                 supported on Linux; no audio will play on this platform."
+                "AudioEngine: vgmstream WEM decoding is not supported on this platform."
             );
             false
         }
@@ -125,9 +124,9 @@ impl AudioEngine {
     }
 }
 
-// ── vgmstream FFI (Linux only) ────────────────────────────────────────────────
+// ── vgmstream FFI (Linux and Windows) ────────────────────────────────────────
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 mod ffi {
     use std::ffi::{c_int, c_void, CString};
     use std::sync::Arc;
