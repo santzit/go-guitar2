@@ -28,6 +28,17 @@ gdextension/
   README.md            – Build instructions
 ```
 
+## Audio system 
+Use Rust for Audio DSP
+
+Libraries / Projects used:
+| Project | Description | Github |
+|------|---------|---------|
+| **Q** | Audio DSP Library - for note/technique detetion |[cycfi/q](https://github.com/cycfi/q)|
+| **vgmstream** | Wwise (.wen) audio |[vgmstream/vgmstream](https://github.com/vgmstream/vgmstream)|
+| **guitarrix** | Virtual Guitar Amplifier - for Amp / Tones |[brummer10/guitarix](https://github.com/brummer10/guitarix)|
+| **Rocksmith2014.rs** | Libraries for creating Rocksmith 2014 custom DLC|[santzit/Rocksmith2014.rs](https://github.com/santzit/Rocksmith2014.rs)|
+
 ## Coordinate system
 
 | Axis | Meaning |
