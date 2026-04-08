@@ -68,10 +68,13 @@ func _ready() -> void:
 		print("MusicPlay: loading " + psarc_path)
 		if _bridge.load_psarc_abs(psarc_path):
 			_notes = _bridge.get_notes()
+			print("MusicPlay: %d notes loaded, requesting audio stream..." % _notes.size())
 			var stream : AudioStream = _bridge.get_audio_stream()
 			if stream:
+				print("MusicPlay: stream type=%s, assigning to AudioStreamPlayer and calling play()" % stream.get_class())
 				_player.stream = stream
 				_player.play()
+				print("MusicPlay: AudioStreamPlayer.playing=%s  volume_db=%s" % [str(_player.playing), str(_player.volume_db)])
 			else:
 				push_warning("MusicPlay: audio stream not available (no WEM/OGG in PSARC).")
 		else:

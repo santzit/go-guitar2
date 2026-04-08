@@ -74,25 +74,39 @@ func get_wem_bytes() -> PackedByteArray:
 func get_audio_stream() -> AudioStream:
 	# ── Try WEM via AudioEngine (official DLC — vgmstream on Linux + Windows) ─
 	var wem := get_wem_bytes()
+	print("RsBridge: get_audio_stream() — WEM bytes: %d" % wem.size())
 	if not wem.is_empty():
-		if ClassDB.class_exists("AudioEngine"):
+		var ae_exists := ClassDB.class_exists("AudioEngine")
+		print("RsBridge: AudioEngine class exists: %s" % str(ae_exists))
+		if ae_exists:
 			var eng: Object = ClassDB.instantiate("AudioEngine")
-			if eng.open(wem):
+			print("RsBridge: calling AudioEngine.open() with %d WEM bytes" % wem.size())
+			var ok := eng.open(wem)
+			print("RsBridge: AudioEngine.open() returned: %s" % str(ok))
+			if ok:
 				var pcm_bytes: PackedByteArray = eng.decode_all()
+				print("RsBridge: AudioEngine.decode_all() returned %d PCM bytes  channels=%d  rate=%d" % [
+					pcm_bytes.size(), eng.get_channels(), eng.get_sample_rate()])
 				if not pcm_bytes.is_empty():
 					var stream := AudioStreamWAV.new()
 					stream.format   = AudioStreamWAV.FORMAT_16_BITS
 					stream.stereo   = (eng.get_channels() == 2)
 					stream.mix_rate = eng.get_sample_rate()
 					stream.data     = pcm_bytes
+					print("RsBridge: AudioStreamWAV created — stereo=%s  mix_rate=%d  data=%d bytes" % [
+						str(stream.stereo), stream.mix_rate, stream.data.size()])
 					return stream
-			push_warning("RsBridge: AudioEngine.open() failed — trying OGG fallback.")
+				push_warning("RsBridge: AudioEngine.decode_all() returned empty PCM — trying OGG fallback.")
+			else:
+				push_warning("RsBridge: AudioEngine.open() failed — trying OGG fallback.")
 		else:
 			push_warning("RsBridge: AudioEngine class not found — trying OGG fallback.")
 
 	# ── Try OGG (CDLC) ────────────────────────────────────────────────────────
 	var raw := get_audio_bytes()
+	print("RsBridge: OGG fallback — raw bytes: %d" % raw.size())
 	if not raw.is_empty():
 		return AudioStreamOggVorbis.load_from_buffer(raw)
 
+	push_warning("RsBridge: no audio stream available (no WEM decoded, no OGG).")
 	return null
