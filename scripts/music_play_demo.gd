@@ -65,7 +65,7 @@ func _spawn_random_chord() -> void:
 	var strings : Array = range(STRING_COUNT)
 	strings.shuffle()
 	for i in count:
-		var fret       : int   = randi_range(0, FRET_COUNT - 1)
+		var fret       : int   = randi_range(1, FRET_COUNT)
 		var string_idx : int   = strings[i]
 		var dur        : float = randf_range(0.15, 0.40)
 		_pool.spawn_note(fret, string_idx, 0.0, dur)

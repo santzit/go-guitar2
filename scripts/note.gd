@@ -72,7 +72,7 @@ func setup(p_fret: int, p_string: int, p_time: float, p_duration: float) -> void
 	is_active    = true
 	visible      = true
 
-	position = Vector3(fret * FRET_SPACING, STRING_Y_BASE + string_index * STRING_SPACING, START_Z)
+	position = Vector3(fret * FRET_SPACING - FRET_SPACING * 0.5, STRING_Y_BASE + string_index * STRING_SPACING, START_Z)
 
 	# Apply string colour to the per-instance material.
 	if _mesh:
