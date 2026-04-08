@@ -11,5 +11,4 @@ macos.debug   = "res://gdextension/bin/libgodot_rocksmith.dylib"
 macos.release = "res://gdextension/bin/libgodot_rocksmith.dylib"
 
 [dependencies]
-linux.x86_64   = {"res://gdextension/bin/librocksmith_shim.so": ""}
-windows.x86_64 = {"res://gdextension/bin/RocksmithShim.dll": ""}
+linux.x86_64 = {"res://gdextension/bin/librocksmith_shim.so": ""}

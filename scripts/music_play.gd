@@ -64,6 +64,9 @@ func _ready() -> void:
 	# _find_dlc_psarc() now returns an absolute filesystem path so the Rust
 	# bridge can open it directly on any platform (editor or exported build).
 	var psarc_path := _find_dlc_psarc()
+	print("MusicPlay: RocksmithBridge GDExtension loaded: %s" % str(ClassDB.class_exists("RocksmithBridge")))
+	print("MusicPlay: AudioEngine GDExtension loaded: %s" % str(ClassDB.class_exists("AudioEngine")))
+
 	if psarc_path != "":
 		print("MusicPlay: loading " + psarc_path)
 		if _bridge.load_psarc_abs(psarc_path):
