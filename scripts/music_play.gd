@@ -1,5 +1,10 @@
 extends Node3D
 ## music_play.gd -- main gameplay controller.
+##
+## Works with real Rocksmith PSARC files (DLC/*.psarc) and falls back to a
+## sequential demo when none are found.  The camera always follows the fret
+## lane of the most recently scheduled note, mirroring the behaviour of the
+## standalone demo scene.
 
 # -- Timing constants (must match note.gd) -----------------------------------
 const TRAVEL_SPEED : float = 8.0
@@ -15,12 +20,14 @@ const DEMO_FRET_DURATION  : float = 3.0   # seconds each fret is active
 const DEMO_NOTE_BEAT      : float = 0.40  # spacing between demo notes
 
 # -- Camera follow -----------------------------------------------------------
+## FOV (degrees) used for the zoomed-in follow camera.
+const CAM_FOV_ZOOM      : float = 40.0
 const CAMERA_Y          : float = 6.0
 const CAMERA_Z          : float = -8.0
 const CAMERA_LERP_SPEED : float = 4.0    # units/s for smooth pan
 
 # -- Screenshot capture (for automated testing) ------------------------------
-const SCREENSHOT_TIMES : Array  = [30.0, 60.0, 90.0, 120.0, 150.0]
+const SCREENSHOT_TIMES : Array  = [5.0, 10.0, 15.0, 20.0, 25.0]
 const SCREENSHOT_DIR   : String = "user://screenshots"
 
 # -- Max delta clamp to prevent fast-renderer notes from vanishing too quickly
@@ -33,14 +40,14 @@ const MAX_DELTA : float = 0.05
 @onready var _camera : Camera3D          = $Camera3D
 
 # -- State -------------------------------------------------------------------
-var _bridge        : RsBridge = null
-var _notes         : Array    = []
-var _next_idx      : int      = 0
-var _song_time     : float    = 0.0
-var _playing       : bool     = false
-var _shot_idx      : int      = 0
-var _start_wall_ms : int      = 0
-var _is_demo_mode  : bool     = false
+var _bridge              : RsBridge = null
+var _notes               : Array    = []
+var _next_idx            : int      = 0
+var _song_time           : float    = 0.0
+var _playing             : bool     = false
+var _shot_idx            : int      = 0
+var _start_wall_ms       : int      = 0
+var _camera_target_fret  : int      = FRET_COUNT / 2   # start at highway centre
 
 
 func _ready() -> void:
@@ -62,12 +69,20 @@ func _ready() -> void:
 
 	if _notes.is_empty():
 		_notes = _generate_demo_notes()
-		_is_demo_mode = true
 
 	DirAccess.make_dir_recursive_absolute(
 		ProjectSettings.globalize_path(SCREENSHOT_DIR)
 	)
 	_start_wall_ms = Time.get_ticks_msec()
+
+	# Snap camera to the centre of the highway on startup; enable zoom FOV.
+	if _camera:
+		_camera.position.x = _fret_world_x(_camera_target_fret)
+		_camera.position.y = CAMERA_Y
+		_camera.position.z = CAMERA_Z
+		_camera.fov        = CAM_FOV_ZOOM
+		_camera.look_at(Vector3(_camera.position.x, 0.0, 10.0), Vector3.UP)
+
 	_playing = true
 
 
@@ -86,9 +101,21 @@ func _process(delta: float) -> void:
 			# Skip open-string (fret 0) notes and any out-of-range fret values.
 			if f >= 1 and f <= 24:
 				_pool.spawn_note(f, nd["string"], nd["time"], nd["duration"])
+				# Track which fret the camera should follow.
+				_camera_target_fret = f
 			_next_idx += 1
 		else:
 			break
+
+	# Camera always follows the most recently scheduled fret lane.
+	if _camera:
+		var target_x := _fret_world_x(_camera_target_fret)
+		var cam_pos  := _camera.position
+		cam_pos.x = lerp(cam_pos.x, target_x, CAMERA_LERP_SPEED * clamped_delta)
+		cam_pos.y = CAMERA_Y
+		cam_pos.z = CAMERA_Z
+		_camera.position = cam_pos
+		_camera.look_at(Vector3(cam_pos.x, 0.0, 10.0), Vector3.UP)
 
 	# Screenshots based on real wall-clock time to avoid timer batching on slow renderers.
 	if _shot_idx < SCREENSHOT_TIMES.size():
@@ -97,19 +124,14 @@ func _process(delta: float) -> void:
 			_take_screenshot(_shot_idx + 1)
 			_shot_idx += 1
 
-	# Demo mode: camera smoothly follows the current sequential fret lane.
-	if _is_demo_mode and _camera:
-		var fret_idx := clampi(1 + int(_song_time / DEMO_FRET_DURATION), 1, FRET_COUNT)
-		var target_x := (FRET_COUNT - fret_idx) * FRET_SPACING + FRET_SPACING * 0.5
-		var cam_pos  := _camera.position
-		cam_pos.x = lerp(cam_pos.x, target_x, CAMERA_LERP_SPEED * clamped_delta)
-		cam_pos.y = CAMERA_Y
-		cam_pos.z = CAMERA_Z
-		_camera.position = cam_pos
-		_camera.look_at(Vector3(cam_pos.x, 0.0, 10.0), Vector3.UP)
-
 
 # -- Helpers -----------------------------------------------------------------
+
+## World X centre for a fret lane.  Mirrors note.gd formula:
+##   X = (FRET_COUNT - fret + 0.5) * FRET_SPACING
+func _fret_world_x(f: int) -> float:
+	return (FRET_COUNT - f + 0.5) * FRET_SPACING
+
 
 func _take_screenshot(num: int) -> void:
 	await RenderingServer.frame_post_draw
