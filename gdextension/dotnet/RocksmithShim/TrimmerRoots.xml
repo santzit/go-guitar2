@@ -1,0 +1,8 @@
+<linker>
+  <!-- Keep all types from the F# runtime and our F# deps so the trimmer
+       does not remove code that is only reached via F# reflection. -->
+  <assembly fullname="FSharp.Core" preserve="all" />
+  <assembly fullname="Rocksmith2014.Common" preserve="all" />
+  <assembly fullname="Rocksmith2014.PSARC" preserve="all" />
+  <assembly fullname="Rocksmith2014.SNG" preserve="all" />
+</linker>

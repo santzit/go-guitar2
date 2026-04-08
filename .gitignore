@@ -19,3 +19,11 @@ mono_crash.*.json
 # Rust build artefacts
 gdextension/src/target/
 wget-log
+
+# Rocksmith2014.NET source clone (fetched by build script)
+gdextension/dotnet/deps/
+
+# NativeAOT debug symbols
+gdextension/dotnet/RocksmithShim/bin/
+gdextension/dotnet/RocksmithShim/obj/
+gdextension/lib/linux/librocksmith_shim.a

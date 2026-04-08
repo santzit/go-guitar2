@@ -1,4 +1,5 @@
 use godot::prelude::*;
+use crate::rs_net_ffi::PsarcHandle;
 
 /// Internal representation of a single parsed note.
 #[derive(Clone, Debug)]
@@ -11,16 +12,16 @@ struct NoteData {
 
 /// GDExtension class exposed to Godot as **RocksmithBridge**.
 ///
-/// Wraps the [Rocksmith2014.rs](https://github.com/santzit/Rocksmith2014.rs)
-/// library for opening `.psarc` archives and extracting note / audio data.
+/// Wraps [iminashi/Rocksmith2014.NET](https://github.com/iminashi/Rocksmith2014.NET)
+/// (PSARC + SNG parsing) via a C# NativeAOT shim and Rust FFI.
 ///
 /// GDScript usage:
 /// ```gdscript
 /// var bridge = RocksmithBridge.new()
 /// if bridge.load_psarc("/absolute/path/to/song.psarc"):
-///     var notes    = bridge.get_notes()       # Array[Dictionary]
-///     var wem_bytes = bridge.get_wem_bytes()  # PackedByteArray (.wem Wwise audio)
-///     var ogg_bytes = bridge.get_audio_bytes() # PackedByteArray (.ogg, CDLC only)
+///     var notes     = bridge.get_notes()        # Array[Dictionary]
+///     var wem_bytes = bridge.get_wem_bytes()    # PackedByteArray (.wem Wwise audio)
+///     var ogg_bytes = bridge.get_audio_bytes()  # PackedByteArray (.ogg, CDLC only)
 /// ```
 #[derive(GodotClass)]
 #[class(base = Object)]
@@ -89,9 +90,7 @@ impl RocksmithBridge {
         arr
     }
 
-    /// Returns raw OGG audio bytes extracted from the `.psarc` (CDLC only).
-    /// In GDScript convert with:
-    /// `AudioStreamOggVorbis.load_from_buffer(bytes)`
+    /// Returns raw OGG audio bytes (CDLC only).
     #[func]
     fn get_audio_bytes(&self) -> PackedByteArray {
         match &self.audio_data {
@@ -100,17 +99,7 @@ impl RocksmithBridge {
         }
     }
 
-    /// Returns raw WEM (Wwise) audio bytes extracted from the `.psarc`.
-    /// Use with the `AudioEngine` GDExtension class to decode to PCM:
-    /// ```gdscript
-    /// var eng = AudioEngine.new()
-    /// if eng.open(bridge.get_wem_bytes()):
-    ///     var stream = AudioStreamWAV.new()
-    ///     stream.format   = AudioStreamWAV.FORMAT_16_BITS
-    ///     stream.stereo   = (eng.get_channels() == 2)
-    ///     stream.mix_rate = eng.get_sample_rate()
-    ///     stream.data     = eng.decode_all()
-    /// ```
+    /// Returns raw WEM (Wwise) audio bytes from the official DLC.
     #[func]
     fn get_wem_bytes(&self) -> PackedByteArray {
         match &self.wem_data {
@@ -124,117 +113,65 @@ impl RocksmithBridge {
 
 impl RocksmithBridge {
     fn parse_psarc(&mut self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
-        use rocksmith2014_psarc::Psarc;
-        use rocksmith2014_sng::Sng;
-        use std::path::Path;
+        // Open via the .NET NativeAOT shim (Rocksmith2014.NET PSARC + SNG).
+        let handle = PsarcHandle::open(path)
+            .ok_or_else(|| format!("RocksmithShim: rs_open_psarc failed for '{}'", path))?;
 
-        let mut psarc = Psarc::open(Path::new(path))?;
-        let manifest  = psarc.manifest().to_vec();
-
-        // Determine the highest-difficulty arrangement available.
-        // We prefer lead, then rhythm, then bass, then any .sng.
-        let sng_name = manifest.iter()
-            .find(|n| n.ends_with("_lead.sng"))
-            .or_else(|| manifest.iter().find(|n| n.ends_with("_rhythm.sng")))
-            .or_else(|| manifest.iter().find(|n| n.ends_with("_bass.sng")))
-            .or_else(|| manifest.iter().find(|n| n.ends_with(".sng")))
-            .cloned();
-
-        if let Some(name) = sng_name {
-            godot_print!("RocksmithBridge: parsing arrangement '{}'", name);
-            // SNG files inside a PSARC are AES-256-CTR encrypted + zlib-compressed
-            // on top of the PSARC block-level compression.  inflate_file() only
-            // strips the PSARC layer; we must decrypt the SNG layer ourselves.
-            // CDLC is always PC-keyed; official disc content may use Mac keys.
-            let data = psarc.inflate_file(&name)?;
-            let sng  = Sng::from_encrypted(&data, rocksmith2014_sng::Platform::Pc)
-                .or_else(|_| Sng::from_encrypted(&data, rocksmith2014_sng::Platform::Mac))?;
-
-            // Use the highest-difficulty level (last in the levels list,
-            // sorted by difficulty ascending by the Rocksmith format).
-            let max_diff = sng.metadata.max_difficulty;
-            let level = sng.levels.iter()
-                .filter(|l| l.difficulty <= max_diff)
-                .last()
-                .or_else(|| sng.levels.last());
-
-            if let Some(lvl) = level {
-                for note in &lvl.notes {
-                    if note.chord_id == -1 {
-                        // Individual note: use it directly.
-                        self.notes.push(NoteData {
-                            time:         note.time,
-                            fret:         note.fret as i32,
-                            string_index: note.string_index as i32,
-                            duration:     note.sustain,
-                        });
-                    } else {
-                        // Chord event: expand to one NoteData per played string.
-                        // sng.chords[chord_id].frets[string] == -1 means string
-                        // is not played in this chord; >= 0 means it is played.
-                        let chord_idx = note.chord_id as usize;
-                        if chord_idx < sng.chords.len() {
-                            let chord = &sng.chords[chord_idx];
-                            for (str_idx, &fret) in chord.frets.iter().enumerate() {
-                                if fret >= 0 {
-                                    self.notes.push(NoteData {
-                                        time:         note.time,
-                                        fret:         fret as i32,
-                                        string_index: str_idx as i32,
-                                        duration:     note.sustain,
-                                    });
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+        // ── Notes (JSON array from the .NET SNG parser) ───────────────────
+        if let Some(json) = handle.notes_json() {
+            self.notes = parse_notes_json(&json);
+            godot_print!(
+                "RocksmithBridge: parsed {} notes via Rocksmith2014.NET",
+                self.notes.len()
+            );
         }
 
-        // Sort notes by hit-time for the GDScript scheduler.
-        self.notes.sort_by(|a, b| {
-            a.time.partial_cmp(&b.time).unwrap_or(std::cmp::Ordering::Equal)
-        });
-
-        // ── Audio: OGG (CDLC) or WEM (official DLC) ─────────────────────────
-        let ogg_name = manifest.iter()
-            .find(|n| n.ends_with(".ogg"))
-            .cloned();
-
-        if let Some(name) = ogg_name {
-            godot_print!("RocksmithBridge: extracting OGG audio '{}'", name);
-            match psarc.inflate_file(&name) {
-                Ok(data) => { self.audio_data = Some(data); }
-                Err(e)   => { godot_warn!("RocksmithBridge: OGG extraction failed: {}", e); }
-            }
-        }
-
-        // Extract the first WEM file found (main backing track).
-        // AudioEngine (Rust/vgmstream) is used by GDScript to decode this.
-        let wem_name = manifest.iter()
-            .find(|n| n.ends_with(".wem"))
-            .cloned();
-
-        if let Some(name) = wem_name {
-            godot_print!("RocksmithBridge: extracting WEM audio '{}'", name);
-            match psarc.inflate_file(&name) {
-                Ok(data) => {
-                    godot_print!(
-                        "RocksmithBridge: extracted {} WEM bytes",
-                        data.len()
-                    );
-                    self.wem_data = Some(data);
-                }
-                Err(e) => {
-                    godot_warn!("RocksmithBridge: WEM extraction failed: {}", e);
-                }
-            }
-        }
-
-        if self.audio_data.is_none() && self.wem_data.is_none() {
-            godot_warn!("RocksmithBridge: no audio file found in PSARC.");
+        // ── WEM audio bytes ───────────────────────────────────────────────
+        if let Some(wem) = handle.wem_bytes() {
+            godot_print!("RocksmithBridge: extracted {} WEM bytes", wem.len());
+            self.wem_data = Some(wem);
+        } else {
+            godot_warn!("RocksmithBridge: no WEM audio found in PSARC.");
         }
 
         Ok(())
     }
+}
+
+// ── Minimal JSON notes parser ─────────────────────────────────────────────────
+
+/// Parse the compact JSON produced by `Exports.cs BuildNotesJson()`.
+/// Format: `[{"time":1.5,"fret":7,"string":3,"duration":0.12},...]`
+///
+/// We avoid a full JSON library dependency and instead use a hand-rolled
+/// parser since the format is machine-generated and fully predictable.
+fn parse_notes_json(json: &str) -> Vec<NoteData> {
+    let mut notes = Vec::new();
+    // Each object starts after "{" and ends before "}".
+    for obj in json.split('{').skip(1) {
+        let obj = obj.trim_end_matches(|c| c == ',' || c == ']').trim_end_matches('}');
+        let time_val: f32   = obj.split(',').find_map(|p| parse_kv(p, "time"))    .unwrap_or(f32::NAN);
+        let fret_val: i32   = obj.split(',').find_map(|p| parse_kv(p, "fret"))    .unwrap_or(-1);
+        let string_val: i32 = obj.split(',').find_map(|p| parse_kv(p, "string"))  .unwrap_or(-1);
+        let dur_val: f32    = obj.split(',').find_map(|p| parse_kv(p, "duration")).unwrap_or(f32::NAN);
+
+        // Skip notes with missing or out-of-range fields.
+        if time_val.is_nan() || time_val < 0.0 { continue; }
+        if !(1..=24).contains(&fret_val) { continue; }
+        if !(0..=5).contains(&string_val) { continue; }
+        let duration = if dur_val.is_nan() || dur_val < 0.0 { 0.0 } else { dur_val };
+
+        notes.push(NoteData { time: time_val, fret: fret_val, string_index: string_val, duration });
+    }
+    // Sort by time (the .NET library already sorts, but be safe).
+    notes.sort_by(|a, b| a.time.partial_cmp(&b.time).unwrap_or(std::cmp::Ordering::Equal));
+    notes
+}
+
+/// Extract the value for `key` from a single `"key":value` token.
+fn parse_kv<T: std::str::FromStr>(pair: &str, key: &str) -> Option<T> {
+    let mut kv = pair.splitn(2, ':');
+    let k = kv.next()?.trim().trim_matches('"');
+    if k != key { return None; }
+    kv.next()?.trim().parse().ok()
 }

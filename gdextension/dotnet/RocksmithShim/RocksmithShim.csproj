@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PublishAot>true</PublishAot>
+    <NativeLib>Shared</NativeLib>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Disable central package management — we live outside the Rocksmith2014.NET solution -->
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <!-- Suppress warnings about reflection that NativeAOT can't analyse in the F# deps -->
+    <TrimmerRootDescriptor>TrimmerRoots.xml</TrimmerRootDescriptor>
+    <IlcGenerateStackTraceData>false</IlcGenerateStackTraceData>
+    <IlcOptimizationPreference>Speed</IlcOptimizationPreference>
+    <!-- Suppress NativeAOT warnings from third-party F# code we don't control -->
+    <IlcSingleThreaded>false</IlcSingleThreaded>
+    <SuppressTrimAnalysisWarnings>true</SuppressTrimAnalysisWarnings>
+    <NoWarn>IL2026;IL2104;IL2111;IL3050;IL3002</NoWarn>
+  </PropertyGroup>
+
+  <!-- The three Rocksmith2014.NET libraries we need -->
+  <ItemGroup>
+    <ProjectReference Include="../deps/Rocksmith2014.NET/src/Rocksmith2014.PSARC/Rocksmith2014.PSARC.fsproj" />
+    <ProjectReference Include="../deps/Rocksmith2014.NET/src/Rocksmith2014.SNG/Rocksmith2014.SNG.fsproj" />
+  </ItemGroup>
+
+  <!-- NuGet versions for the F# project's PackageReference entries (no version specified there) -->
+  <ItemGroup>
+    <PackageReference Include="FSharp.Core" Version="10.1.201" />
+    <PackageReference Include="FSharp.SystemTextJson" Version="1.4.36" />
+    <PackageReference Include="Microsoft.IO.RecyclableMemoryStream" Version="3.0.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <!-- NativeAOT ILCompiler -->
+    <PackageReference Include="Microsoft.DotNet.ILCompiler" Version="10.0.*" />
+  </ItemGroup>
+
+</Project>
