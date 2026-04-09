@@ -36,8 +36,10 @@ Libraries / Projects used:
 |------|---------|---------|
 | **Q** | Audio DSP Library - for note/technique detetion |[cycfi/q](https://github.com/cycfi/q)|
 | **vgmstream** | Wwise (.wen) audio |[vgmstream/vgmstream](https://github.com/vgmstream/vgmstream)|
+| **G.719 Codec** |  G.719 decoder library for vgmstream | [speech-coders/itu-g-719-codec](https://vocal.com/speech-coders/itu-g-719-codec/)|
 | **guitarrix** | Virtual Guitar Amplifier - for Amp / Tones |[brummer10/guitarix](https://github.com/brummer10/guitarix)|
 | **Rocksmith2014.rs** | Libraries for creating Rocksmith 2014 custom DLC|[santzit/Rocksmith2014.rs](https://github.com/santzit/Rocksmith2014.rs)|
+
 
 ## Coordinate system
 
