@@ -1,8 +1,9 @@
-// build.rs — links librocksmith_shim.so (Rocksmith2014.NET NativeAOT) and
-//            libvgmstream.a (WEM audio decoding) on Linux and Windows.
+// build.rs — links libvgmstream.a (WEM audio decoding) for Linux and Windows.
+//
+// PSARC/SNG parsing is handled by pure-Rust crates (rocksmith2014-psarc,
+// rocksmith2014-sng) — no .NET runtime, no librocksmith_shim.so needed.
 //
 // Pre-built libraries live at:
-//   gdextension/lib/linux/librocksmith_shim.so   — NativeAOT shared lib (dotnet publish linux-x64)
 //   gdextension/lib/linux/libvgmstream.a          — static, built from vgmstream main (USE_VORBIS=ON USE_G719=OFF)
 //   gdextension/lib/windows/libvgmstream.a        — static, MinGW cross-compiled USE_VORBIS=ON
 //   gdextension/lib/windows/libvorbisfile.a       — cross-compiled libvorbisfile
@@ -21,11 +22,6 @@ fn main() {
             let lib_dir = format!("{manifest_dir}/../lib/linux");
             println!("cargo:rustc-link-search=native={lib_dir}");
 
-            // ── Rocksmith2014.NET NativeAOT shared library ─────────────────
-            println!("cargo:rustc-link-lib=dylib=rocksmith_shim");
-            // Make the .so look for librocksmith_shim.so in its own directory.
-            println!("cargo:rustc-link-arg=-Wl,-rpath,$ORIGIN");
-
             // ── vgmstream WEM audio decoder (static, USE_VORBIS=ON USE_G719=OFF) ──
             println!("cargo:rustc-link-arg=-Wl,--whole-archive");
             println!("cargo:rustc-link-arg={lib_dir}/libvgmstream.a");
@@ -42,9 +38,6 @@ fn main() {
         "windows" => {
             let lib_dir = format!("{manifest_dir}/../lib/windows");
             println!("cargo:rustc-link-search=native={lib_dir}");
-            // RocksmithShim.dll is loaded at runtime via LoadLibraryA (no import lib needed).
-            // Place RocksmithShim.dll (built with: dotnet publish -c Release -r win-x64)
-            // next to godot_rocksmith.dll in gdextension/bin/ for PSARC parsing to work.
             // Windows: vgmstream WEM decoder (cross-compiled via MinGW, USE_VORBIS=ON).
             println!("cargo:rustc-link-lib=static=vgmstream");
             println!("cargo:rustc-link-lib=static=vorbisfile");
@@ -56,7 +49,6 @@ fn main() {
     }
 
     // Re-run if libraries change.
-    println!("cargo:rerun-if-changed=../lib/linux/librocksmith_shim.so");
     println!("cargo:rerun-if-changed=../lib/linux/libvgmstream.a");
     println!("cargo:rerun-if-changed=../lib/windows/libvgmstream.a");
     println!("cargo:rerun-if-changed=../lib/windows/libvorbisfile.a");
