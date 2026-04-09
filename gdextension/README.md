@@ -10,7 +10,8 @@ Rust GDExtension+Rust FFI that bridges Godot 4 to the
 | Tool | Version |
 |------|---------|
 | [Rust toolchain](https://rustup.rs) | stable ≥ 1.75 |
-| Godot 4.4 | – (headers fetched automatically by gdext) |
+[Rocksmith2014.NET](https://github.com/iminashi/Rocksmith2014.NET) | 3.5.0 |
+| [Godot Game Engine](https://github.com/godotengine/godot) | 4.4.1 |
 
 ---
 
