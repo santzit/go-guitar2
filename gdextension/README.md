@@ -1,8 +1,7 @@
 # Rocksmith GDExtension
 
-Rust GDExtension that bridges Godot 4 to the
-[Rocksmith2014.rs](https://github.com/santzit/Rocksmith2014.rs) library for
-loading `.psarc` archives and parsing `.sng` note/chord data.
+Rust GDExtension+Rust FFI that bridges Godot 4 to the
+[Rocksmith2014.NET]([https://github.com/santzit/Rocksmith2014.rs](https://github.com/iminashi/Rocksmith2014.NET)) library for loading `.psarc` archives and parsing `.sng` note/chord data.
 
 ---
 
