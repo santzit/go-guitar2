@@ -52,6 +52,14 @@ mod win_shim {
         pub close:          FnClose,
         pub free_ptr:       FnFreePtr,
     }
+    // SAFETY: The functions loaded from RocksmithShim.dll (NativeAOT) and
+    // RocksmithBridge.dll (CLR) are both thread-safe:
+    // - NativeAOT: each rs_* function is stateless with respect to shared mutable
+    //   state across calls (handles are opaque GCHandle pointers, thread-safe).
+    // - CLR hosting: the .NET CLR itself is designed to be called from multiple
+    //   threads; the [UnmanagedCallersOnly] methods in Exports.cs use only
+    //   thread-safe managed APIs (PSARC reading is read-only after open).
+    // The SHIM OnceLock ensures the library is loaded exactly once.
     unsafe impl Send for ShimFns {}
     unsafe impl Sync for ShimFns {}
 
@@ -98,6 +106,12 @@ mod win_shim {
         let lib = unsafe { LoadLibraryA(b"RocksmithShim.dll\0".as_ptr()) };
         if lib.is_null() { return None; }
         eprintln!("[rs_net_ffi] Loaded RocksmithShim.dll (NativeAOT)");
+        // SAFETY: `transmute` is required here because `GetProcAddress` returns
+        // a type-erased `*mut c_void`.  The ABI contract is enforced by the
+        // [UnmanagedCallersOnly] attribute in RocksmithShim / RocksmithBridge.
+        // Each function signature is: fn(*const u8) -> *mut c_void  (open_psarc),
+        // fn(*mut c_void, *mut i32) -> *mut u8  (get_*), fn(*mut c_void)  (close),
+        // fn(*mut u8)  (free_ptr) — matching the `extern "C"` types above exactly.
         Some(ShimFns {
             open_psarc:     unsafe { std::mem::transmute(get_proc(lib, b"rs_open_psarc\0")?) },
             get_notes_json: unsafe { std::mem::transmute(get_proc(lib, b"rs_get_notes_json\0")?) },
@@ -202,12 +216,18 @@ mod win_shim {
         };
 
         let fns = ShimFns {
+            // SAFETY: same ABI contract as the NativeAOT case — function
+            // signatures match [UnmanagedCallersOnly] declarations in Exports.cs.
             open_psarc:     unsafe { std::mem::transmute(get_fp("OpenPsarc")?) },
             get_notes_json: unsafe { std::mem::transmute(get_fp("GetNotesJson")?) },
             get_wem_bytes:  unsafe { std::mem::transmute(get_fp("GetWemBytes")?) },
             close:          unsafe { std::mem::transmute(get_fp("Close")?) },
             free_ptr:       unsafe { std::mem::transmute(get_fp("FreePtr")?) },
         };
+        // `hostfxr_close` only releases the host context bookkeeping — it does
+        // NOT unload the CLR or the assemblies it loaded.  The CLR is a global
+        // singleton once started; function pointers obtained via
+        // `load_assembly_and_get_function_pointer` remain valid indefinitely.
         unsafe { close_fn(host_ctx); }
         eprintln!("[rs_net_ffi] CLR hosting ready (RocksmithBridge.dll)");
         Some(fns)
