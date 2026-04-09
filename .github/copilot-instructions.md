@@ -2,8 +2,7 @@
 
 ## Project Overview
 
-A Rocksmith 2014-style guitar game built in **Godot 4.4.1** using a **Rust GDExtension** for PSARC
-and SNG parsing, plus WEM audio decoding via vgmstream.
+A Rocksmith 2014-style guitar game built in **Godot 4.4.1** 
 
 ## Architecture
 
