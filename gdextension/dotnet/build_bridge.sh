@@ -64,7 +64,10 @@ done
 # F# runtime and any other required managed DLLs
 for dll in \
     FSharp.Core.dll \
+    FSharp.SystemTextJson.dll \
     Microsoft.IO.RecyclableMemoryStream.dll \
+    Newtonsoft.Json.dll \
+    Rocksmith2014.FSharpExtensions.dll \
     ; do
     if [ -f "$BRIDGE_DIR/publish/$dll" ]; then
         cp "$BRIDGE_DIR/publish/$dll" "$BIN_DIR/"
@@ -72,10 +75,26 @@ for dll in \
     fi
 done
 
-# Runtime config (required by netcorehost to locate the CLR)
+# Runtime config (required by hostfxr CLR hosting to locate the .NET runtime)
+# This file is committed to the repo so no build step is needed.  If you update
+# the target framework, regenerate it by running this script.
 if [ -f "$BRIDGE_DIR/publish/RocksmithBridge.runtimeconfig.json" ]; then
     cp "$BRIDGE_DIR/publish/RocksmithBridge.runtimeconfig.json" "$BIN_DIR/"
     echo "[build_bridge] Copied RocksmithBridge.runtimeconfig.json"
+else
+    # Class library builds don't produce a runtimeconfig.json — create one.
+    cat > "$BIN_DIR/RocksmithBridge.runtimeconfig.json" <<'EOF'
+{
+  "runtimeOptions": {
+    "tfm": "net10.0",
+    "framework": {
+      "name": "Microsoft.NETCore.App",
+      "version": "10.0.0"
+    }
+  }
+}
+EOF
+    echo "[build_bridge] Generated RocksmithBridge.runtimeconfig.json"
 fi
 
 echo "[build_bridge] Done — DLLs copied to $BIN_DIR"

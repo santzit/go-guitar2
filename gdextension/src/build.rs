@@ -42,12 +42,9 @@ fn main() {
         "windows" => {
             let lib_dir = format!("{manifest_dir}/../lib/windows");
             println!("cargo:rustc-link-search=native={lib_dir}");
-            // RocksmithShim.dll (NativeAOT) — import library ships with the repo.
-            // The DLL itself must be built on a Windows machine:
-            //   cd gdextension/dotnet/RocksmithShim
-            //   dotnet publish -c Release -r win-x64
-            // then copied to gdextension/bin/RocksmithShim.dll.
-            println!("cargo:rustc-link-lib=dylib=RocksmithShim");
+            // RocksmithShim.dll is loaded at runtime via LoadLibraryA (no import lib needed).
+            // Place RocksmithShim.dll (built with: dotnet publish -c Release -r win-x64)
+            // next to godot_rocksmith.dll in gdextension/bin/ for PSARC parsing to work.
             // Windows: vgmstream WEM decoder (cross-compiled via MinGW, USE_VORBIS=ON).
             println!("cargo:rustc-link-lib=static=vgmstream");
             println!("cargo:rustc-link-lib=static=vorbisfile");
@@ -61,7 +58,6 @@ fn main() {
     // Re-run if libraries change.
     println!("cargo:rerun-if-changed=../lib/linux/librocksmith_shim.so");
     println!("cargo:rerun-if-changed=../lib/linux/libvgmstream.a");
-    println!("cargo:rerun-if-changed=../lib/windows/libRocksmithShim.a");
     println!("cargo:rerun-if-changed=../lib/windows/libvgmstream.a");
     println!("cargo:rerun-if-changed=../lib/windows/libvorbisfile.a");
     println!("cargo:rerun-if-changed=../lib/windows/libvorbis.a");

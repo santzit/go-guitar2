@@ -27,3 +27,8 @@ gdextension/dotnet/deps/
 gdextension/dotnet/RocksmithShim/bin/
 gdextension/dotnet/RocksmithShim/obj/
 gdextension/lib/linux/librocksmith_shim.a
+
+# .NET build intermediate artifacts (not needed in repo)
+gdextension/dotnet/RocksmithBridge/bin/
+gdextension/dotnet/RocksmithBridge/obj/
+gdextension/dotnet/RocksmithBridge/publish/
