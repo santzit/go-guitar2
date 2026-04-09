@@ -17,9 +17,15 @@ Godot 4.4.1 (GDScript)
        └─ vgmstream FFI               (WEM → PCM-16 audio, statically linked)
 ```
 
-**Key principle:** The Rust GDExtension uses NativeAOT — Rust calls
-`Rocksmith2014.NET` managed code directly through .NET's component hosting API
-(`load_assembly_and_get_function_pointer`).
+**Key principle:** 
+
+- Use Godot Game Engine 4.4.1
+- Use vgmstream for Wwise(.WEM) audio 
+- Use Rust for GDExtension (Godot Extension)
+- Use Rocksmith2014.NET for Rocksmith parse .sparc files
+- Use Rust cpal for Audio
+
+
 
 ## Directory Layout
 
