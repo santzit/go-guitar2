@@ -10,15 +10,14 @@ and SNG parsing, plus WEM audio decoding via vgmstream.
 ```
 Godot 4.4.1 (GDScript)
   └─ Rust GDExtension  (libgodot_rocksmith.so / godot_rocksmith.dll)
-       ├─ CLR hosting via netcorehost  (Rust calls .NET CLR at runtime — no NativeAOT/shim)
+       ├─ Rocksmith2014 NativeAOT/shim
        │    └─ RocksmithBridge.dll    (regular managed .NET — PSARC + SNG parsing)
        │         ├─ Rocksmith2014.PSARC.dll   (F# — PSARC extraction)
        │         └─ Rocksmith2014.SNG.dll     (F# — SNG note parsing + decryption)
        └─ vgmstream FFI               (WEM → PCM-16 audio, statically linked)
 ```
 
-**Key principle:** The Rust GDExtension uses [`netcorehost`](https://crates.io/crates/netcorehost)
-to host the .NET CLR in-process. There is **no NativeAOT** and **no shim DLL** — Rust calls
+**Key principle:** The Rust GDExtension uses NativeAOT — Rust calls
 `Rocksmith2014.NET` managed code directly through .NET's component hosting API
 (`load_assembly_and_get_function_pointer`).
 
