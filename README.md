@@ -52,7 +52,5 @@ Libraries / Projects used:
 
 ## Quick start
 
-1. Open the project in **Godot 4.4**.
+1. Open the project in **Godot 4.4** - https://github.com/godotengine/godot/releases/tag/4.4.1-stable.
 2. The game auto-detects the first `.psarc` in `res://DLC/` on startup.
-3. If the GDExtension binary is not built yet, the game uses built-in demo notes.
-4. To enable real song data, build the Rust extension (see `gdextension/README.md`).
