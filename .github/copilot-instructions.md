@@ -128,12 +128,10 @@ All `.dll` files must be in `gdextension/bin/`:
 ## Key Coding Conventions
 
 - **Rust** — GDExtension uses `godot-rust/gdext`. GDExtension classes use `#[derive(GodotClass)]`.
-- **C# bridge** — uses `[UnmanagedCallersOnly]` (NOT NativeAOT). Rust loads via `netcorehost`.
+- **C# bridge** — uses NativeAOT
 - **GDScript** — tabs for indentation. Type annotations required for non-obvious variables.
 - **Screenshots** — the `music_play.gd` scene saves screenshots automatically every 5 s to
   `user://screenshots/`. After any code change, run the game and confirm screenshots look correct.
-- **No NativeAOT** — do NOT add `<PublishAot>true</PublishAot>` or `Microsoft.DotNet.ILCompiler` to
-  the `RocksmithBridge.csproj`. The bridge is regular managed .NET loaded at runtime by the CLR.
 
 ## Testing
 
