@@ -1,10 +1,13 @@
 extends Node3D
 ## music_play.gd -- main gameplay controller.
 ##
-## Works with real Rocksmith PSARC files (DLC/*.psarc) and falls back to a
-## sequential demo when none are found.  The camera always follows the fret
-## lane of the most recently scheduled note, mirroring the behaviour of the
-## standalone demo scene.
+## Requires real Rocksmith PSARC files placed in a DLC/ folder.
+## Place .psarc files in one of:
+##   - <project root>/DLC/     (editor / development)
+##   - <exe dir>/DLC/          (exported game)
+##   - user://DLC/             (user data folder)
+##
+## For a no-DLC visual showcase, open the music_play_demo scene instead.
 
 const _RsBridgeScript = preload("res://scripts/rs_bridge.gd")
 
@@ -16,10 +19,6 @@ const LEAD_TIME    : float = START_Z / TRAVEL_SPEED   # = 2.5 s
 # -- Highway layout (must match note.gd) ------------------------------------
 const FRET_COUNT   : int   = 24
 const FRET_SPACING : float = 1.0
-
-# -- Demo mode: sequential fret showcase ------------------------------------
-const DEMO_FRET_DURATION  : float = 3.0   # seconds each fret is active
-const DEMO_NOTE_BEAT      : float = 0.40  # spacing between demo notes
 
 # -- Camera follow -----------------------------------------------------------
 ## FOV (degrees) used for the zoomed-in follow camera.
@@ -81,12 +80,9 @@ func _ready() -> void:
 			else:
 				push_warning("MusicPlay: audio stream not available (no WEM/OGG in PSARC).")
 		else:
-			push_warning("MusicPlay: failed to load psarc - using demo notes.")
+			push_error("MusicPlay: failed to load psarc — place a valid .psarc in the DLC/ folder.")
 	else:
-		push_warning("MusicPlay: no .psarc found in any DLC search path - using demo notes.")
-
-	if _notes.is_empty():
-		_notes = _generate_demo_notes()
+		push_error("MusicPlay: no .psarc found — place .psarc files in the DLC/ folder next to the project or executable.")
 
 	DirAccess.make_dir_recursive_absolute(
 		ProjectSettings.globalize_path(SCREENSHOT_DIR)
@@ -209,25 +205,6 @@ func _find_dlc_psarc() -> String:
 
 	push_warning("MusicPlay: no .psarc found in any DLC search path.")
 	return ""
-
-
-func _generate_demo_notes() -> Array:
-	var result  : Array = []
-	var strings := [0, 1, 2, 3, 4, 5]
-	var t       : float = 0.0
-	for fret in range(1, FRET_COUNT + 1):
-		var end_t := t + DEMO_FRET_DURATION
-		var si    := 0
-		while t < end_t:
-			result.append({
-				"time"    : t,
-				"fret"    : fret,
-				"string"  : strings[si % strings.size()],
-				"duration": DEMO_NOTE_BEAT * 0.8,
-			})
-			si += 1
-			t  += DEMO_NOTE_BEAT
-	return result
 
 
 func push_print(msg: String) -> void:
