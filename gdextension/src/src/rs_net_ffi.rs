@@ -55,6 +55,8 @@ impl PsarcData {
                 .map_err(|e| format!("Failed to inflate SNG '{}': {}", name, e))?;
 
             let sng = rocksmith2014_sng::Sng::from_encrypted(&encrypted, Platform::Pc)
+                // Platform::Pc is correct for all official Rocksmith 2014 PC/Windows DLC.
+                // Mac DLC uses Platform::Mac (different AES key) and is not supported here.
                 .map_err(|e| format!("Failed to decrypt SNG '{}': {}", name, e))?;
 
             // Use the highest-difficulty level (most notes).
