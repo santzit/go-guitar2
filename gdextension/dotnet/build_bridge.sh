@@ -36,6 +36,13 @@ else
     echo "[build_bridge] Rocksmith2014.NET already present — skipping clone."
 fi
 
+# ── Patch upstream projects to net9.0 (upstream targets net10.0) ─────────────
+# The upstream projects target net10.0, but RocksmithBridge targets net9.0
+# for maximum compatibility. Patch the TFM in the referenced fsproj files.
+echo "[build_bridge] Patching upstream .fsproj to net9.0..."
+find "$DEPS_DIR/Rocksmith2014.NET/src" -name "*.fsproj" \
+    -exec sed -i 's/<TargetFramework>net10\.0<\/TargetFramework>/<TargetFramework>net9.0<\/TargetFramework>/g' {} \;
+
 # ── Restore and build ─────────────────────────────────────────────────────────
 echo "[build_bridge] Building RocksmithBridge.dll (regular managed .NET)..."
 dotnet publish "$BRIDGE_DIR/RocksmithBridge.csproj" \
@@ -86,10 +93,11 @@ else
     cat > "$BIN_DIR/RocksmithBridge.runtimeconfig.json" <<'EOF'
 {
   "runtimeOptions": {
-    "tfm": "net10.0",
+    "tfm": "net9.0",
+    "rollForward": "LatestMajor",
     "framework": {
       "name": "Microsoft.NETCore.App",
-      "version": "10.0.0"
+      "version": "9.0.0"
     }
   }
 }
