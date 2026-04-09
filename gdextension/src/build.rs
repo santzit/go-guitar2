@@ -3,7 +3,8 @@
 //
 // Pre-built libraries live at:
 //   gdextension/lib/linux/librocksmith_shim.so   — NativeAOT shared lib (dotnet publish linux-x64)
-//   gdextension/lib/linux/libvgmstream.a          — static, built from vgmstream main
+//   gdextension/lib/linux/libvgmstream.a          — static, built from vgmstream main (USE_VORBIS=ON USE_G719=ON)
+//   gdextension/lib/linux/libg719_decode.a        — static, built from kode54/libg719_decode
 //   gdextension/lib/windows/libvgmstream.a        — static, MinGW cross-compiled USE_VORBIS=ON
 //   gdextension/lib/windows/libvorbisfile.a       — cross-compiled libvorbisfile
 //   gdextension/lib/windows/libvorbis.a           — cross-compiled libvorbis
@@ -26,8 +27,18 @@ fn main() {
             // Make the .so look for librocksmith_shim.so in its own directory.
             println!("cargo:rustc-link-arg=-Wl,-rpath,$ORIGIN");
 
-            // ── vgmstream WEM audio decoder (static) ───────────────────────
-            println!("cargo:rustc-link-lib=static=vgmstream");
+            // ── vgmstream WEM audio decoder (static, USE_VORBIS=ON USE_G719=ON) ──
+            // Force inclusion of all objects from both g719 and vgmstream so that
+            // circular references between them resolve within this shared library.
+            println!("cargo:rustc-link-arg=-Wl,--whole-archive");
+            println!("cargo:rustc-link-arg={lib_dir}/libg719_decode.a");
+            println!("cargo:rustc-link-arg={lib_dir}/libvgmstream.a");
+            println!("cargo:rustc-link-arg=-Wl,--no-whole-archive");
+            // Vorbis / Ogg — required for Wwise WEM Vorbis decode
+            println!("cargo:rustc-link-lib=static=vorbisfile");
+            println!("cargo:rustc-link-lib=static=vorbis");
+            println!("cargo:rustc-link-lib=static=ogg");
+            println!("cargo:rustc-link-search=native=/usr/lib/x86_64-linux-gnu");
             println!("cargo:rustc-link-lib=dylib=stdc++");
             println!("cargo:rustc-link-lib=dylib=m");
         }
@@ -50,6 +61,7 @@ fn main() {
     // Re-run if libraries change.
     println!("cargo:rerun-if-changed=../lib/linux/librocksmith_shim.so");
     println!("cargo:rerun-if-changed=../lib/linux/libvgmstream.a");
+    println!("cargo:rerun-if-changed=../lib/linux/libg719_decode.a");
     println!("cargo:rerun-if-changed=../lib/windows/libvgmstream.a");
     println!("cargo:rerun-if-changed=../lib/windows/libvorbisfile.a");
     println!("cargo:rerun-if-changed=../lib/windows/libvorbis.a");
