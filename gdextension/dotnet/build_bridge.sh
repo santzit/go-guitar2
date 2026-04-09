@@ -41,7 +41,9 @@ fi
 # for maximum compatibility. Patch the TFM in the referenced fsproj files.
 echo "[build_bridge] Patching upstream .fsproj to net9.0..."
 find "$DEPS_DIR/Rocksmith2014.NET/src" -name "*.fsproj" \
-    -exec sed -i 's/<TargetFramework>net10\.0<\/TargetFramework>/<TargetFramework>net9.0<\/TargetFramework>/g' {} \;
+    -exec sed -i 's|<TargetFramework>net10\.0</TargetFramework>|<TargetFramework>net9.0</TargetFramework>|g' {} \; && \
+    echo "[build_bridge] Patch applied." || \
+    { echo "[build_bridge] WARNING: sed patch failed — build may fail if upstream targets net10.0"; }
 
 # ── Restore and build ─────────────────────────────────────────────────────────
 echo "[build_bridge] Building RocksmithBridge.dll (regular managed .NET)..."
@@ -94,7 +96,7 @@ else
 {
   "runtimeOptions": {
     "tfm": "net9.0",
-    "rollForward": "LatestMajor",
+    "rollForward": "Major",
     "framework": {
       "name": "Microsoft.NETCore.App",
       "version": "9.0.0"
