@@ -104,9 +104,17 @@ func _process(delta: float) -> void:
 	if not _playing:
 		return
 
-	# Clamp delta to avoid huge first-frame jumps from initialization.
+	# Sync song time to wall-clock time elapsed since game start so that
+	# note spawning is never delayed by frame-rate limiting or MAX_DELTA caps.
+	# When audio is playing we prefer the stream position for accuracy.
+	if _player and _player.playing:
+		_song_time = _player.get_playback_position()
+	else:
+		_song_time = (Time.get_ticks_msec() - _start_wall_ms) / 1000.0
+
+	# clamped_delta is still used by node-level note movement (note.gd handles it there).
+	@warning_ignore("unused_variable")
 	var clamped_delta := minf(delta, MAX_DELTA)
-	_song_time += clamped_delta
 
 	while _next_idx < _notes.size():
 		var nd: Dictionary = _notes[_next_idx]

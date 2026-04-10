@@ -1,7 +1,7 @@
 use godot::prelude::*;
 
 mod audio_engine;
-mod rs_net_ffi;
+mod psarc_parser;
 mod rocksmith_bridge;
 
 struct GoGuitar2Extension;
