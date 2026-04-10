@@ -48,6 +48,7 @@ var _song_time           : float    = 0.0
 var _playing             : bool     = false
 var _shot_idx            : int      = 0
 var _start_wall_ms       : int      = 0
+var _play_from           : float    = 0.0   # audio seek offset (>0 when skipping a long intro)
 var _camera_target_fret  : int      = FRET_COUNT / 2   # start at highway centre
 
 ## Per-string fret-change tracker for smart label logic.
@@ -75,7 +76,15 @@ func _ready() -> void:
 			if stream:
 				print("MusicPlay: stream type=%s, assigning to AudioStreamPlayer and calling play()" % stream.get_class())
 				_player.stream = stream
-				_player.play()
+				# Seek to just before the first note so screenshots always capture notes.
+				# Many DLC songs have a long silent intro (e.g. Tom Petty = 71 s) — skip it.
+				_play_from = 0.0
+				if _notes.size() > 0:
+					var first_note_time: float = _notes[0]["time"]
+					_play_from = maxf(0.0, first_note_time - 5.0)
+					if _play_from > 0.0:
+						print("MusicPlay: first note at t=%.2fs — starting playback at t=%.2fs" % [first_note_time, _play_from])
+				_player.play(_play_from)
 				print("MusicPlay: AudioStreamPlayer.playing=%s  volume_db=%s" % [str(_player.playing), str(_player.volume_db)])
 			else:
 				push_warning("MusicPlay: audio stream not available (no WEM/OGG in PSARC).")
@@ -110,7 +119,8 @@ func _process(delta: float) -> void:
 	if _player and _player.playing:
 		_song_time = _player.get_playback_position()
 	else:
-		_song_time = (Time.get_ticks_msec() - _start_wall_ms) / 1000.0
+		# Wall-clock fallback: offset by _play_from so song time matches note timestamps.
+		_song_time = _play_from + (Time.get_ticks_msec() - _start_wall_ms) / 1000.0
 
 	# clamped_delta is still used by node-level note movement (note.gd handles it there).
 	@warning_ignore("unused_variable")
