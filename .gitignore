@@ -16,20 +16,9 @@ export_credentials.cfg
 data_*/
 mono_crash.*.json
 
-# Rust build artefacts
+# Rust build artefacts (keep gdextension/bin/ tracked — pre-built binaries)
 gdextension/src/target/
 wget-log
 
-# Rocksmith2014.NET source clone (fetched by build script)
-gdextension/dotnet/deps/
-
-# NativeAOT debug symbols
-gdextension/dotnet/RocksmithShim/bin/
-gdextension/dotnet/RocksmithShim/obj/
-gdextension/lib/linux/librocksmith_shim.a
-
-# .NET build intermediate artifacts (not needed in repo)
-gdextension/dotnet/RocksmithBridge/bin/
-gdextension/dotnet/RocksmithBridge/obj/
-gdextension/dotnet/RocksmithBridge/publish/
+# Godot binary (downloaded at runtime, not committed)
 Godot_v4.4.1-stable_linux.x86_64
