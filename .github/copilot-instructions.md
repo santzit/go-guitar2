@@ -15,6 +15,7 @@ Godot 4.4.1 (GDScript)
        │         Source: https://github.com/santzit/Rocksmith2014.rs
        └─ vgmstream FFI               (WEM → PCM-16 audio, statically linked)
 ```
+If find any problem with Rocksmith2014.rs, report reply comment and stop session. We will handle it on Rocksmith2014.rs repository.
 
 **Key principle:** 
 
