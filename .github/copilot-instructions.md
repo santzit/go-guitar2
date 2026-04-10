@@ -20,6 +20,7 @@ If find any problem with Rocksmith2014.rs, report reply comment and stop session
 **Key principle:** 
 
 - Use Godot Game Engine 4.4.1
+- Use cpal for Audio DI (input)
 - Use vgmstream for Wwise(.WEM) audio 
 - Use Rust for GDExtension (Godot Extension)
 - Use santzit/Rocksmith2014.rs Rust crates for PSARC + SNG parsing (NO .NET, NO CLR hosting)
