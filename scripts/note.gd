@@ -124,11 +124,15 @@ func _rebuild_fret_label() -> void:
 ## Update this note's Z position from the authoritative audio song time.
 ## Called every frame by NotePool.tick() so notes are always pixel-perfectly
 ## synced to the audio stream rather than accumulating delta errors.
+##
+## Example: note with time_offset=10.0 and TRAVEL_SPEED=8.0
+##   p_song_time=7.5  → Z=(10-7.5)*8 = 20.0 = START_Z  (just spawned)
+##   p_song_time=10.0 → Z=(10-10)*8  =  0.0 = STRUM_Z  (hit time)
 func tick(p_song_time: float) -> void:
 	if not is_active:
 		return
 
-	# Compute Z directly from audio time: at hit time Z=0, LEAD_TIME earlier Z=START_Z.
+	# Compute Z directly from audio time.
 	position.z = (time_offset - p_song_time) * TRAVEL_SPEED
 
 	# Return to pool once it has passed the strum line.
