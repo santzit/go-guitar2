@@ -43,7 +43,7 @@ const STRING_SPACING: float = 0.5
 const STRING_Y_BASE : float = 0.20
 const START_Z       : float = 20.0
 const STRUM_Z       : float = 0.0
-const TRAVEL_SPEED  : float = 4.0   # units per second – must match music_play.gd
+const TRAVEL_SPEED  : float = 2.0   # units per second – must match music_play.gd
 const MISS_HOLD_SECS: float = 1.0
 const MISS_LABEL_Z  : float = -0.30
 
@@ -133,9 +133,9 @@ func _rebuild_fret_label() -> void:
 ## Called every frame by NotePool.tick() so notes are always pixel-perfectly
 ## synced to the audio stream rather than accumulating delta errors.
 ##
-## Example: note with time_offset=10.0 and TRAVEL_SPEED=8.0
-##   p_song_time=7.5  → Z=(10-7.5)*8 = 20.0 = START_Z  (just spawned)
-##   p_song_time=10.0 → Z=(10-10)*8  =  0.0 = STRUM_Z  (hit time)
+## Example: note with time_offset=10.0 and TRAVEL_SPEED=2.0
+##   p_song_time=0.0   → Z=(10-0)*2  = 20.0 = START_Z  (just spawned)
+##   p_song_time=10.0  → Z=(10-10)*2 =  0.0 = STRUM_Z  (hit time)
 func tick(p_song_time: float) -> void:
 	if not is_active:
 		return

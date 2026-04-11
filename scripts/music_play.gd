@@ -11,9 +11,9 @@ const BUS_MUSIC  : int = 1   # Music bus
 const BUS_MASTER : int = 6   # Master bus
 
 # -- Timing constants (must match note.gd) -----------------------------------
-const TRAVEL_SPEED : float = 4.0
+const TRAVEL_SPEED : float = 2.0
 const START_Z      : float = 20.0
-const LEAD_TIME    : float = START_Z / TRAVEL_SPEED   # = 5.0 s
+const LEAD_TIME    : float = START_Z / TRAVEL_SPEED   # = 10.0 s
 
 # -- Highway layout (must match note.gd) ------------------------------------
 const FRET_COUNT   : int   = 24
@@ -21,9 +21,9 @@ const FRET_SPACING : float = 1.0
 
 # -- Camera follow -----------------------------------------------------------
 ## FOV (degrees) used for the zoomed-out follow camera.
-const CAM_FOV_ZOOM      : float = 65.0
-const CAMERA_Y          : float = 12.0
-const CAMERA_Z          : float = -8.0
+const CAM_FOV_ZOOM      : float = 75.0
+const CAMERA_Y          : float = 6.0
+const CAMERA_Z          : float = -12.0
 const CAMERA_LERP_SPEED : float = 2.0    # units/s for smooth pan
 
 # -- Screenshot capture (for automated testing) ------------------------------
@@ -102,11 +102,11 @@ func _ready() -> void:
 
 	# Snap camera to the centre of the highway on startup; enable zoom FOV.
 	if _camera:
-		_camera.position.x = _fret_world_x(_camera_target_fret)
+		_camera.position.x = clampf(_fret_world_x(_camera_target_fret), 4.0, 20.0)
 		_camera.position.y = CAMERA_Y
 		_camera.position.z = CAMERA_Z
 		_camera.fov        = CAM_FOV_ZOOM
-		_camera.look_at(Vector3(_camera.position.x, 0.0, 4.0), Vector3.UP)
+		_camera.look_at(Vector3(_camera.position.x, 0.0, 14.0), Vector3.UP)
 
 	# Start warmup countdown.  _process() will count down WARMUP_SECS real
 	# seconds showing only the empty highway, then start both audio and note
@@ -185,13 +185,13 @@ func _process(delta: float) -> void:
 
 	# Camera always follows the most recently scheduled fret lane.
 	if _camera:
-		var target_x := _fret_world_x(_camera_target_fret)
+		var target_x := clampf(_fret_world_x(_camera_target_fret), 4.0, 20.0)
 		var cam_pos  := _camera.position
 		cam_pos.x = lerp(cam_pos.x, target_x, CAMERA_LERP_SPEED * minf(delta, MAX_DELTA))
 		cam_pos.y = CAMERA_Y
 		cam_pos.z = CAMERA_Z
 		_camera.position = cam_pos
-		_camera.look_at(Vector3(cam_pos.x, 0.0, 4.0), Vector3.UP)
+		_camera.look_at(Vector3(cam_pos.x, 0.0, 14.0), Vector3.UP)
 
 	# Screenshots based on real wall-clock time to avoid timer batching on slow renderers.
 	if _shot_idx < SCREENSHOT_TIMES.size():
