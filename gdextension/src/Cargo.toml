@@ -10,7 +10,7 @@ crate-type = ["cdylib"]
 godot                = { git = "https://github.com/godot-rust/gdext", branch = "master", features = ["api-4-4"] }
 rocksmith2014-psarc  = { git = "https://github.com/santzit/Rocksmith2014.rs", branch = "copilot/add-tests-xmlfiles-to-sng" }
 rocksmith2014-sng    = { git = "https://github.com/santzit/Rocksmith2014.rs", branch = "copilot/add-tests-xmlfiles-to-sng" }
-gg-mixer             = { git = "https://github.com/goguitar/gg-mixer" }
+gg-mixer             = { git = "https://github.com/goguitar/gg-mixer", branch = "copilot/implement-custom-mixer-engine-thread" }
 # RT audio Phase 1 — engine thread + lock-free ring buffers
 rtrb                 = "0.3"
 thread-priority      = "1.1"

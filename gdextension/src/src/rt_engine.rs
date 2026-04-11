@@ -32,7 +32,7 @@
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{SampleFormat, StreamConfig};
 use godot::prelude::*;
-use gg_mixer::{BusId, MixInput, Mixer};
+use gg_mixer::{BusId, BUS_COUNT, MixInput, Mixer};
 use rtrb::RingBuffer;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -71,15 +71,15 @@ struct RtInner {
     running:          Arc<AtomicBool>,
     channels:         u32,
     sample_rate:      u32,
+    /// Mirror of per-bus gain_db values set from GDScript — allows readback
+    /// without sending a command to the engine thread.
+    gain_db:          [f32; BUS_COUNT],
 }
 
 /// Holds the live CPAL streams.  Dropping this struct closes both streams.
 struct CpalStreams {
     _input_stream:    Option<cpal::Stream>,
     _output_stream:   cpal::Stream,
-    /// Keeps the input ring buffer consumer alive until streams are closed.
-    /// Phase 3 will drain this consumer in the engine thread instead.
-    _input_consumer:  rtrb::Consumer<f32>,
 }
 
 // `cpal::Stream` is not `Send`, so we wrap it in an opaque box on the heap.
@@ -104,12 +104,18 @@ unsafe impl Send for CpalStreams {}
 #[class(base = Object)]
 pub struct RtEngine {
     #[base]
-    base:         Base<Object>,
-    inner:        Mutex<RtInner>,
+    base:             Base<Object>,
+    inner:            Mutex<RtInner>,
     /// CPAL streams are kept alive here; dropping closes the hardware streams.
-    cpal_streams: Mutex<Option<CpalStreams>>,
+    cpal_streams:     Mutex<Option<CpalStreams>>,
     /// Output ring buffer consumer created by `start()` and consumed by `start_streams()`.
-    output_consumer: Mutex<Option<rtrb::Consumer<f32>>>,
+    output_consumer:  Mutex<Option<rtrb::Consumer<f32>>>,
+    /// Input ring buffer producer created by `start()` and given to `start_streams()`.
+    /// The consumer half is owned by the engine thread (Phase 3).
+    input_producer:   Mutex<Option<rtrb::Producer<f32>>>,
+    /// Shared per-bus peak meter values.  Written by the engine thread after each
+    /// block; read from GDScript via `get_bus_meter_peak()`.
+    meter_peaks:      Arc<Mutex<Vec<f32>>>,
 }
 
 #[godot_api]
@@ -124,9 +130,12 @@ impl IObject for RtEngine {
                 running:        Arc::new(AtomicBool::new(false)),
                 channels:       2,
                 sample_rate:    48_000,
+                gain_db:        [0.0; BUS_COUNT],
             }),
             cpal_streams:    Mutex::new(None),
             output_consumer: Mutex::new(None),
+            input_producer:  Mutex::new(None),
+            meter_peaks:     Arc::new(Mutex::new(vec![0.0f32; BUS_COUNT])),
         }
     }
 }
@@ -156,6 +165,9 @@ impl RtEngine {
         let (music_producer,  music_consumer)  = RingBuffer::<f32>::new(RING_CAPACITY);
         let (output_producer, output_consumer) = RingBuffer::<f32>::new(RING_CAPACITY);
         let (cmd_producer,    cmd_consumer)    = RingBuffer::<EngineCmd>::new(64);
+        // Phase 3: input ring buffer — producer given to start_streams() for
+        // the CPAL input callback; consumer fed into the engine thread.
+        let (input_producer_rb, input_consumer_rb) = RingBuffer::<f32>::new(RING_CAPACITY);
 
         inner.music_producer = Some(music_producer);
         inner.cmd_producer   = Some(cmd_producer);
@@ -164,10 +176,15 @@ impl RtEngine {
         if let Ok(mut oc) = self.output_consumer.lock() {
             *oc = Some(output_consumer);
         }
+        // Store input producer so CPAL input callback can take it in start_streams().
+        if let Ok(mut ip) = self.input_producer.lock() {
+            *ip = Some(input_producer_rb);
+        }
 
         // ── Engine thread ─────────────────────────────────────────────────────
         let running = Arc::clone(&inner.running);
         running.store(true, Ordering::SeqCst);
+        let meter_peaks_clone = Arc::clone(&self.meter_peaks);
 
         let handle = std::thread::Builder::new()
             .name("rt-audio-engine".into())
@@ -175,9 +192,11 @@ impl RtEngine {
                 engine_thread(
                     ch, sr,
                     music_consumer,
+                    input_consumer_rb,
                     output_producer,
                     cmd_consumer,
                     running,
+                    meter_peaks_clone,
                 )
             })
             .expect("RtEngine: failed to spawn engine thread");
@@ -201,6 +220,14 @@ impl RtEngine {
         inner.running.store(false, Ordering::SeqCst);
         inner.music_producer = None;
         inner.cmd_producer   = None;
+
+        // Clear the stored input/output ring buffer halves so start() can re-create them.
+        if let Ok(mut ip) = self.input_producer.lock() {
+            *ip = None;
+        }
+        if let Ok(mut oc) = self.output_consumer.lock() {
+            *oc = None;
+        }
 
         if let Some(handle) = inner.thread_handle.take() {
             let _ = handle.join();
@@ -248,6 +275,12 @@ impl RtEngine {
     /// See `BusId` enum in gg-mixer for full list.
     #[func]
     pub fn set_bus_gain_db(&self, bus: i32, gain_db: f32) {
+        // Mirror the value on the main thread so get_bus_gain_db() can read it back.
+        if let Ok(mut inner) = self.inner.lock() {
+            if let Some(g) = inner.gain_db.get_mut(bus as usize) {
+                *g = gain_db;
+            }
+        }
         self.send_cmd(EngineCmd::SetGainDb { bus: bus as usize, db: gain_db });
     }
 
@@ -284,6 +317,61 @@ impl RtEngine {
             .ok()
             .and_then(|g| g.music_producer.as_ref().map(|p| p.slots() as i64))
             .unwrap_or(0)
+    }
+
+    // ── Phase 3: mixer readback + bus metadata ────────────────────────────────
+
+    /// Returns the number of mixer buses (always 9).
+    #[func]
+    pub fn get_bus_count(&self) -> i32 {
+        BUS_COUNT as i32
+    }
+
+    /// Returns the display name for a bus index (0 = UI … 8 = Mic Room).
+    #[func]
+    pub fn get_bus_name(&self, bus: i32) -> GString {
+        match bus {
+            0 => GString::from("UI"),
+            1 => GString::from("Music"),
+            2 => GString::from("Lead Guitar"),
+            3 => GString::from("Rhythm Guitar"),
+            4 => GString::from("Bass"),
+            5 => GString::from("Player Instrument"),
+            6 => GString::from("Master"),
+            7 => GString::from("Metronome"),
+            8 => GString::from("Mic Room"),
+            _ => GString::from("Unknown"),
+        }
+    }
+
+    /// Read back the gain in dB that was last set for a bus.
+    /// Returns `0.0` if the engine is not running or the bus index is out of range.
+    #[func]
+    pub fn get_bus_gain_db(&self, bus: i32) -> f32 {
+        self.inner.lock()
+            .ok()
+            .and_then(|g| g.gain_db.get(bus as usize).copied())
+            .unwrap_or(0.0)
+    }
+
+    /// Read the current peak level for a bus (0.0 = silence, 1.0 = 0 dBFS).
+    /// The engine thread updates this every processing block.
+    #[func]
+    pub fn get_bus_meter_peak(&self, bus: i32) -> f32 {
+        self.meter_peaks.lock()
+            .ok()
+            .and_then(|g| g.get(bus as usize).copied())
+            .unwrap_or(0.0)
+    }
+
+    /// Reset the peak hold for a bus to 0.0 (call after displaying the peak).
+    #[func]
+    pub fn reset_bus_meter_peak(&self, bus: i32) {
+        if let Ok(mut peaks) = self.meter_peaks.lock() {
+            if let Some(p) = peaks.get_mut(bus as usize) {
+                *p = 0.0;
+            }
+        }
     }
 
     // ── Phase 2: CPAL I/O streams ─────────────────────────────────────────────
@@ -354,11 +442,22 @@ impl RtEngine {
             buffer_size: cpal::BufferSize::Default,
         };
 
-        // ── Input ring buffer for mic/guitar (Phase 3 will read it in engine thread) ──
-        // Both halves are kept alive: producer inside the CPAL callback Arc,
-        // consumer stored in CpalStreams so it lives until stop_streams().
-        let (input_producer, input_consumer) = RingBuffer::<f32>::new(RING_CAPACITY);
-        // Arc-wrap input producer for the CPAL callback (avoids take/move race on re-use).
+        // ── Input ring buffer for mic/guitar — Phase 3 ───────────────────────
+        // The producer was created by start() and stored in self.input_producer.
+        // The consumer was passed directly to the engine thread.
+        // Taking the producer here gives the CPAL input callback its write end.
+        let input_producer = match self.input_producer.lock()
+            .ok()
+            .and_then(|mut g| g.take())
+        {
+            Some(p) => p,
+            None    => {
+                godot_error!("RtEngine: input ring buffer not available. \
+                              Call start() before start_streams(), and stop_streams() \
+                              + stop() + start() before re-opening streams.");
+                return false;
+            }
+        };
         let input_rb: Arc<Mutex<Option<rtrb::Producer<f32>>>> =
             Arc::new(Mutex::new(Some(input_producer)));
 
@@ -444,7 +543,6 @@ impl RtEngine {
         let streams = CpalStreams {
             _output_stream:  output_stream,
             _input_stream:   input_stream_opt,
-            _input_consumer: input_consumer,
         };
 
         if let Ok(mut cs) = self.cpal_streams.lock() {
@@ -516,9 +614,11 @@ fn engine_thread(
     channels:        u32,
     _sample_rate:    u32,
     mut music_in:    rtrb::Consumer<f32>,
+    mut input_in:    rtrb::Consumer<f32>,   // Phase 3: mic / guitar DI
     mut output_out:  rtrb::Producer<f32>,
     mut cmd_in:      rtrb::Consumer<EngineCmd>,
     running:         Arc<AtomicBool>,
+    meter_peaks:     Arc<Mutex<Vec<f32>>>,  // Phase 3: shared peak meters
 ) {
     // Request real-time / time-critical priority where the OS allows it.
     // Failure is silently ignored — the thread still functions, just at normal priority.
@@ -562,34 +662,45 @@ fn engine_thread(
             }
         }
 
-        // ── Process one block ─────────────────────────────────────────────────
-        if music_in.slots() >= block_samples {
+        // ── Phase 3: process one block if the output ring has space ──────────
+        //
+        // Always mix — even when music_in is empty — so the player's instrument
+        // (input_in) is heard without latency regardless of playback state.
+        // `unwrap_or(0.0)` silences a bus whose ring buffer is empty.
+        if output_out.slots() >= block_samples {
             for _ in 0..BLOCK_SIZE {
-                // Read one interleaved frame and downmix to mono for the mixer input.
-                let mut sum = 0.0f32;
+                // Music: downmix all channels to mono.
+                let mut music_sum = 0.0f32;
                 for _ in 0..ch {
-                    sum += music_in.pop().unwrap_or(0.0);
+                    music_sum += music_in.pop().unwrap_or(0.0);
                 }
-                let mono = sum / ch as f32;
+                let music_mono = music_sum / ch as f32;
+
+                // Player instrument: mono mic / guitar DI.
+                let player = input_in.pop().unwrap_or(0.0);
 
                 let mixed = mixer.mix_sample(MixInput {
-                    music: mono,
+                    music:             music_mono,
+                    player_instrument: player,
                     ..Default::default()
                 });
 
-                // Write one output frame (re-interleave to the original channel count).
+                // Re-interleave the mixed mono signal to all output channels.
                 for _ in 0..ch {
                     let _ = output_out.push(mixed);
                 }
             }
-        } else {
-            // Underrun: output silence and yield to avoid spinning the CPU.
-            // TODO Phase 3: replace sleep with a condvar/semaphore woken by the
-            // CPAL output callback so the engine wakes exactly when more output
-            // space is available rather than polling every 500 µs.
-            for _ in 0..(block_samples) {
-                let _ = output_out.push(0.0f32);
+
+            // ── Update shared peak meters after each block ────────────────────
+            if let Ok(mut peaks) = meter_peaks.lock() {
+                for bus in BusId::ALL {
+                    if let Some(p) = peaks.get_mut(bus as usize) {
+                        *p = mixer.meter(bus).peak;
+                    }
+                }
             }
+        } else {
+            // Output ring is full — yield briefly to avoid spinning the CPU.
             std::thread::sleep(Duration::from_micros(500));
         }
     }
