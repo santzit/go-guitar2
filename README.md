@@ -6,7 +6,7 @@ Rocksmith 2014 like Guitar 3D Game built with **Godot 4.4**.
 ```
 project.godot          – Godot 4.4 project entry-point (main scene: game_menu.tscn)
 scenes/
-  game_menu.tscn       – Main menu with "Song list" entry button
+  game_menu.tscn       – Main menu with Song List, Mixer, and Settings options
   song_list.tscn       – Song picker UI (lists DLC .psarc files and starts gameplay)
   music_play.tscn      – Root Node3D: Camera3D, DirectionalLight3D, Highway, NotePool, Background
   fretboard.tscn       – 6 visible string lines at the strum position (Z=0)
