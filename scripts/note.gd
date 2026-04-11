@@ -65,6 +65,8 @@ func _ready() -> void:
 		var mat := _mesh.get_surface_override_material(0)
 		if mat:
 			_mesh.set_surface_override_material(0, mat.duplicate())
+	if _miss_label:
+		_miss_label.position = Vector3(0.0, 0.0, MISS_LABEL_Z)
 
 
 ## Called by NotePool to activate and position this note.
@@ -80,7 +82,6 @@ func setup(p_fret: int, p_string: int, p_time: float, p_duration: float, p_show_
 
 	position = Vector3((FRET_COUNT - fret) * FRET_SPACING + FRET_SPACING * 0.5, STRING_Y_BASE + string_index * STRING_SPACING, START_Z)
 	_miss_label.visible = false
-	_miss_label.position = Vector3(0.0, 0.0, MISS_LABEL_Z)
 
 	# Apply string colour to the per-instance material.
 	if _mesh:
@@ -142,7 +143,7 @@ func tick(p_song_time: float) -> void:
 	# Compute Z directly from audio time.
 	position.z = (time_offset - p_song_time) * TRAVEL_SPEED
 
-	if _miss_until < 0.0 and position.z <= STRUM_Z:
+	if _miss_until < 0.0 and p_song_time >= time_offset:
 		_miss_until = p_song_time + MISS_HOLD_SECS
 		_miss_label.visible = true
 

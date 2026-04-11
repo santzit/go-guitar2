@@ -67,6 +67,11 @@ func _ready() -> void:
 	print("MusicPlay: RocksmithBridge GDExtension loaded: %s" % str(ClassDB.class_exists("RocksmithBridge")))
 	print("MusicPlay: AudioEngine GDExtension loaded: %s" % str(ClassDB.class_exists("AudioEngine")))
 
+	if psarc_path == "":
+		push_error("MusicPlay: no song selected — choose a song from the game menu.")
+		call_deferred("_return_to_menu")
+		return
+
 	if psarc_path != "":
 		print("MusicPlay: loading " + psarc_path)
 		if _bridge.load_psarc_abs(psarc_path):
@@ -88,9 +93,6 @@ func _ready() -> void:
 				push_warning("MusicPlay: audio stream not available (no WEM/OGG in PSARC).")
 		else:
 			push_error("MusicPlay: failed to load psarc — place a valid .psarc in the DLC/ folder.")
-	else:
-		push_error("MusicPlay: no song selected — choose a song from the game menu.")
-
 	DirAccess.make_dir_recursive_absolute(
 		ProjectSettings.globalize_path(SCREENSHOT_DIR)
 	)
@@ -204,6 +206,10 @@ func _take_screenshot(num: int) -> void:
 	var abs_path := ProjectSettings.globalize_path(path)
 	img.save_png(abs_path)
 	print("Screenshot saved: " + abs_path)
+
+
+func _return_to_menu() -> void:
+	get_tree().change_scene_to_file("res://scenes/game_menu.tscn")
 
 
 func push_print(msg: String) -> void:
