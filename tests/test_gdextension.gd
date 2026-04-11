@@ -83,6 +83,19 @@ func _test_class_registration() -> void:
 		_assert(bridge.has_method("get_wem_bytes"),
 			"RocksmithBridge has get_wem_bytes() method")
 
+	if ClassDB.class_exists("AudioEngine"):
+		var audio_engine: Object = ClassDB.instantiate("AudioEngine")
+		_assert(audio_engine != null,
+			"AudioEngine can be instantiated")
+		_assert(audio_engine.has_method("set_music_gain_db"),
+			"AudioEngine has set_music_gain_db() method")
+		_assert(audio_engine.has_method("set_master_gain_db"),
+			"AudioEngine has set_master_gain_db() method")
+		_assert(audio_engine.has_method("set_music_mute"),
+			"AudioEngine has set_music_mute() method")
+		_assert(audio_engine.has_method("set_master_mute"),
+			"AudioEngine has set_master_mute() method")
+
 
 ## 2. PSARC loading and note parsing -----------------------------------------
 
@@ -223,6 +236,19 @@ func _test_audio_engine() -> void:
 	var pcm: PackedByteArray = eng.decode_all()
 	_assert_gt(pcm.size(), 0, "AudioEngine.decode_all() returns PCM bytes")
 	print("  INFO  PCM: %d bytes  ch=%d  rate=%d" % [pcm.size(), channels, rate])
+
+	var muted_eng: Object = ClassDB.instantiate("AudioEngine")
+	muted_eng.set_music_mute(true)
+	var muted_ok: bool = muted_eng.open(wem)
+	_assert(muted_ok, "AudioEngine.open() succeeds when music bus is muted")
+	if muted_ok:
+		var muted_pcm: PackedByteArray = muted_eng.decode_all()
+		var has_non_zero := false
+		for b in muted_pcm:
+			if b != 0:
+				has_non_zero = true
+				break
+		_assert(not has_non_zero, "Muted Music bus outputs silent PCM")
 
 
 # ── Summary ───────────────────────────────────────────────────────────────────
