@@ -22,13 +22,16 @@ const BEAT_INTERVAL  : float = 0.30
 const FRET_DURATION  : float = 3.0
 
 # -- Camera follow -----------------------------------------------------------
-## FOV (degrees) when zoomed in on a single lane.
-const CAM_FOV_ZOOM   : float = 75.0
+## FOV (degrees) for the follow camera.
+const CAM_FOV        : float = 80.0
 ## Camera height and back-offset stay constant while panning.
-const CAM_Y          : float = 6.0
-const CAM_Z          : float = -12.0
+const CAM_Y          : float = 3.0
+const CAM_Z          : float = -6.0
 ## Smoothing speed (higher = snappier follow).
 const CAM_LERP_SPEED : float = 2.0
+## Camera X clamp — keeps the camera away from the highway's extreme edges.
+const CAM_X_MIN      : float = 4.0
+const CAM_X_MAX      : float = 20.0
 
 # -- Screenshot capture -------------------------------------------------------
 const SCREENSHOT_TIMES : Array  = [3.0, 6.0, 9.0, 12.0, 15.0]
@@ -56,11 +59,11 @@ func _ready() -> void:
 	)
 	_start_wall_ms = Time.get_ticks_msec()
 	# Snap camera directly to fret 1 on startup (no slow initial pan).
-	_camera.position.x = clampf(_fret_world_x(_current_fret), 4.0, 20.0)
+	_camera.position.x = clampf(_fret_world_x(_current_fret), CAM_X_MIN, CAM_X_MAX)
 	_camera.position.y = CAM_Y
 	_camera.position.z = CAM_Z
-	_camera.fov        = CAM_FOV_ZOOM
-	_camera.look_at(Vector3(_camera.position.x, 0.0, 14.0), Vector3.UP)
+	_camera.fov        = CAM_FOV
+	_camera.look_at(Vector3(_camera.position.x, 0.0, 10.0), Vector3.UP)
 
 
 func _process(delta: float) -> void:
@@ -84,11 +87,11 @@ func _process(delta: float) -> void:
 		_spawn_fret_chord(_current_fret)
 
 	# ── Smooth camera pan to the active fret lane ─────────────────────────
-	var target_x := clampf(_fret_world_x(_current_fret), 4.0, 20.0)
+	var target_x := clampf(_fret_world_x(_current_fret), CAM_X_MIN, CAM_X_MAX)
 	_camera.position.x = lerp(_camera.position.x, target_x, clamped_delta * CAM_LERP_SPEED)
 	_camera.position.y = CAM_Y
 	_camera.position.z = CAM_Z
-	_camera.look_at(Vector3(_camera.position.x, 0.0, 14.0), Vector3.UP)
+	_camera.look_at(Vector3(_camera.position.x, 0.0, 10.0), Vector3.UP)
 
 	# ── Screenshots at real wall-clock times ──────────────────────────────
 	if _shot_idx < SCREENSHOT_TIMES.size():
