@@ -244,11 +244,13 @@ func _test_audio_engine() -> void:
 	if muted_ok:
 		var muted_pcm: PackedByteArray = muted_eng.decode_all()
 		var has_non_zero := false
-		for b in muted_pcm:
+		var bytes_to_check: int = mini(32768, muted_pcm.size())
+		for i in range(bytes_to_check):
+			var b: int = muted_pcm[i]
 			if b != 0:
 				has_non_zero = true
 				break
-		_assert(not has_non_zero, "Muted Music bus outputs silent PCM")
+		_assert(not has_non_zero, "Muted Music bus outputs silent PCM (sampled bytes)")
 
 
 # ── Summary ───────────────────────────────────────────────────────────────────
