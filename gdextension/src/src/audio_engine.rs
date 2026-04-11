@@ -324,11 +324,16 @@ mod ffi {
 
             // 5. Decode loop.
             // libvgmstream_render() fills decoder->buf with one internal chunk
-            // of PCM-16 samples and updates decoder->buf_samples / done.
+            // of samples and updates decoder->buf_samples / buf_bytes / done.
+            // NOTE: vgmstream may output float32 (4 bytes/sample) for Vorbis
+            // codecs even though the API default is PCM16. We detect this from
+            // the first chunk's buf_bytes vs buf_samples*channels ratio.
             let mut all_pcm: Vec<u8> = Vec::with_capacity(
                 // Pre-allocate ~10 s at stereo 48 kHz PCM16 as a guess.
                 (sample_rate * channels * 2 * 10) as usize,
             );
+            let mut bytes_per_sample: i32 = 2; // assume PCM16 until detected
+            let mut format_detected    = false;
             const MAX_ITERS: usize = 200_000;
             for _ in 0..MAX_ITERS {
                 let rc = libvgmstream_render(lib);
@@ -337,6 +342,14 @@ mod ffi {
                 }
                 let dec = &*(*lib).decoder;
                 if dec.buf_samples > 0 && !dec.buf.is_null() {
+                    // Detect the actual bytes-per-sample from the first chunk.
+                    if !format_detected && channels > 0 {
+                        let total_samples = dec.buf_samples * channels;
+                        if total_samples > 0 {
+                            bytes_per_sample = dec.buf_bytes / total_samples;
+                        }
+                        format_detected = true;
+                    }
                     let bytes = dec.buf_bytes as usize;
                     let slice = std::slice::from_raw_parts(dec.buf as *const u8, bytes);
                     all_pcm.extend_from_slice(slice);
@@ -349,11 +362,34 @@ mod ffi {
             // 6. Clean up.
             libvgmstream_free(lib);
 
+            // 7. Convert float32 → PCM-16 if vgmstream used 4-byte samples.
+            //    Godot's AudioStreamWAV only supports up to FORMAT_16_BITS.
+            let pcm16 = if bytes_per_sample == 4 {
+                convert_float_to_pcm16(&all_pcm)
+            } else {
+                all_pcm
+            };
+
             Ok(DecodeResult {
                 channels:    channels as i32,
                 sample_rate: sample_rate as i32,
-                pcm_bytes:   all_pcm,
+                pcm_bytes:   pcm16,
             })
         }
+    }
+
+    /// Convert 4-byte-per-sample float32 LE interleaved PCM to signed 16-bit LE PCM.
+    /// Used when vgmstream outputs float samples instead of PCM-16.
+    fn convert_float_to_pcm16(input: &[u8]) -> Vec<u8> {
+        let mut output = Vec::with_capacity(input.len() / 2);
+        for chunk in input.chunks_exact(4) {
+            let f = f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+            let clamped = f.clamp(-1.0_f32, 1.0_f32);
+            let i: i16 = (clamped * 32767.0_f32) as i16;
+            let bytes = i.to_le_bytes();
+            output.push(bytes[0]);
+            output.push(bytes[1]);
+        }
+        output
     }
 }
