@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::fs::File;
 
 pub use rocksmith2014_sng::Platform;
+use rocksmith2014_sng::NoteMask;
 
 /// A parsed note extracted from the SNG arrangement.
 #[derive(Clone, Debug)]
@@ -73,12 +74,42 @@ impl PsarcData {
                 .max_by_key(|lvl| lvl.notes.len());
 
             match best_level {
-                Some(lvl) => lvl.notes.iter().map(|n| NoteEntry {
-                    time:         n.time,
-                    fret:         n.fret,
-                    string_index: n.string_index,
-                    sustain:      n.sustain,
-                }).collect(),
+                Some(lvl) => {
+                    let mut entries: Vec<NoteEntry> = Vec::new();
+                    for n in &lvl.notes {
+                        // Skip cosmetic high-density chord fills and explicitly ignored notes.
+                        if n.mask.intersects(NoteMask::HIGH_DENSITY | NoteMask::IGNORE) {
+                            continue;
+                        }
+
+                        if n.mask.contains(NoteMask::CHORD) && n.chord_id >= 0 {
+                            // Chord event: the Note itself has fret=-1 / string_index=-1.
+                            // The actual per-string frets live in sng.chords[chord_id].frets[].
+                            if let Some(chord) = sng.chords.get(n.chord_id as usize) {
+                                for s in 0i8..6 {
+                                    let fret = chord.frets[s as usize];
+                                    if fret >= 0 {   // -1 means this string is not played
+                                        entries.push(NoteEntry {
+                                            time:         n.time,
+                                            fret,
+                                            string_index: s,
+                                            sustain:      n.sustain,
+                                        });
+                                    }
+                                }
+                            }
+                        } else {
+                            // Single note.
+                            entries.push(NoteEntry {
+                                time:         n.time,
+                                fret:         n.fret,
+                                string_index: n.string_index,
+                                sustain:      n.sustain,
+                            });
+                        }
+                    }
+                    entries
+                }
                 None => Vec::new(),
             }
         } else {
