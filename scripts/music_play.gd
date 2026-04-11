@@ -84,7 +84,7 @@ func _ready() -> void:
 			_play_from = 0.0
 			if _notes.size() > 0:
 				var first_note_time: float = _notes[0]["time"]
-				print("MusicPlay: first note at t=%.2fs — starting playback at t=%.2fs (full-song start)" % [first_note_time, _play_from])
+				print("MusicPlay: first note at t=%.2fs — starting playback from beginning" % first_note_time)
 		else:
 			push_warning("MusicPlay: audio stream not available (no WEM/OGG in PSARC).")
 	else:
