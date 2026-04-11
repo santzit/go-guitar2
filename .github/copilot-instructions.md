@@ -89,7 +89,7 @@ cp target/x86_64-pc-windows-gnu/release/godot_rocksmith.dll ../bin/
 
 ```bash
 # Install display server and Godot 4.4.1
-sudo apt-get install -y xvfb libgl1-mesa-dri libgles2-mesa mesa-vulkan-drivers
+sudo apt-get install -y xvfb libgl1-mesa-dri libgles2 mesa-vulkan-drivers
 wget -q https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_linux.x86_64.zip
 unzip -q Godot_v4.4.1-stable_linux.x86_64.zip
 chmod +x Godot_v4.4.1-stable_linux.x86_64
