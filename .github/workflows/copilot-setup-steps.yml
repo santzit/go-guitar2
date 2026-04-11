@@ -28,7 +28,5 @@ jobs:
             libvorbis-dev \
             libogg-dev \
             xvfb \
-            libgl1-mesa-dri \
-            libgles2-mesa \
             mesa-vulkan-drivers \
             unzip
