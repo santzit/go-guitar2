@@ -44,15 +44,19 @@ const STRING_Y_BASE : float = 0.20
 const START_Z       : float = 20.0
 const STRUM_Z       : float = 0.0
 const TRAVEL_SPEED  : float = 8.0   # units per second – must match music_play.gd
+const MISS_HOLD_SECS: float = 1.0
+const MISS_LABEL_Z  : float = -0.30
 
 var fret         : int   = 0
 var string_index : int   = 0
 var time_offset  : float = 0.0
 var duration     : float = 0.25
 var is_active    : bool  = false
+var _miss_until  : float = -1.0
 
 @onready var _mesh       : MeshInstance3D = $NoteMesh
 @onready var _fret_label : Node3D         = $FretLabel
+@onready var _miss_label : Label3D        = $MissLabel
 
 
 func _ready() -> void:
@@ -72,8 +76,11 @@ func setup(p_fret: int, p_string: int, p_time: float, p_duration: float, p_show_
 	duration     = p_duration
 	is_active    = true
 	visible      = true
+	_miss_until  = -1.0
 
 	position = Vector3((FRET_COUNT - fret) * FRET_SPACING + FRET_SPACING * 0.5, STRING_Y_BASE + string_index * STRING_SPACING, START_Z)
+	_miss_label.visible = false
+	_miss_label.position = Vector3(0.0, 0.0, MISS_LABEL_Z)
 
 	# Apply string colour to the per-instance material.
 	if _mesh:
@@ -135,8 +142,11 @@ func tick(p_song_time: float) -> void:
 	# Compute Z directly from audio time.
 	position.z = (time_offset - p_song_time) * TRAVEL_SPEED
 
-	# Return to pool once it has passed the strum line.
-	if position.z < STRUM_Z - 2.0:
+	if _miss_until < 0.0 and position.z <= STRUM_Z:
+		_miss_until = p_song_time + MISS_HOLD_SECS
+		_miss_label.visible = true
+
+	if _miss_until >= 0.0 and p_song_time >= _miss_until:
 		deactivate()
 
 
@@ -144,6 +154,8 @@ func tick(p_song_time: float) -> void:
 func deactivate() -> void:
 	is_active = false
 	visible   = false
+	_miss_label.visible = false
+	_miss_until = -1.0
 	var pool := get_parent()
 	if pool and pool.has_method("return_note"):
 		pool.return_note(self)
