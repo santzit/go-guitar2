@@ -63,36 +63,35 @@ var _last_fret_per_string: Array[int] = [-1, -1, -1, -1, -1, -1]
 func _ready() -> void:
 	_bridge = _RsBridgeScript.new()
 
-	var psarc_path: String = _GameStateScript.selected_psarc_path
+	var selected_psarc_path: String = _GameStateScript.selected_psarc_path
 	print("MusicPlay: RocksmithBridge GDExtension loaded: %s" % str(ClassDB.class_exists("RocksmithBridge")))
 	print("MusicPlay: AudioEngine GDExtension loaded: %s" % str(ClassDB.class_exists("AudioEngine")))
 
-	if psarc_path == "":
+	if selected_psarc_path == "":
 		push_error("MusicPlay: no song selected — choose a song from the game menu.")
 		call_deferred("_return_to_menu")
 		return
 
-	if psarc_path != "":
-		print("MusicPlay: loading " + psarc_path)
-		if _bridge.load_psarc_abs(psarc_path):
-			_notes = _bridge.get_notes()
-			print("MusicPlay: %d notes loaded, requesting audio stream..." % _notes.size())
-			var stream : AudioStream = _bridge.get_audio_stream()
-			if stream:
-				print("MusicPlay: stream type=%s, assigning to AudioStreamPlayer" % stream.get_class())
-				_player.stream = stream
-				# Seek to exactly LEAD_TIME before the first note so that note nodes
-				# begin their highway journey the moment audio starts.  This keeps
-				# audio and the first visible notes perfectly in sync (Rocksmith style).
-				_play_from = 0.0
-				if _notes.size() > 0:
-					var first_note_time: float = _notes[0]["time"]
-					_play_from = maxf(0.0, first_note_time - LEAD_TIME)
-					print("MusicPlay: first note at t=%.2fs — starting playback at t=%.2fs (LEAD_TIME offset)" % [first_note_time, _play_from])
-			else:
-				push_warning("MusicPlay: audio stream not available (no WEM/OGG in PSARC).")
+	print("MusicPlay: loading " + selected_psarc_path)
+	if _bridge.load_psarc_abs(selected_psarc_path):
+		_notes = _bridge.get_notes()
+		print("MusicPlay: %d notes loaded, requesting audio stream..." % _notes.size())
+		var stream : AudioStream = _bridge.get_audio_stream()
+		if stream:
+			print("MusicPlay: stream type=%s, assigning to AudioStreamPlayer" % stream.get_class())
+			_player.stream = stream
+			# Seek to exactly LEAD_TIME before the first note so that note nodes
+			# begin their highway journey the moment audio starts.  This keeps
+			# audio and the first visible notes perfectly in sync (Rocksmith style).
+			_play_from = 0.0
+			if _notes.size() > 0:
+				var first_note_time: float = _notes[0]["time"]
+				_play_from = maxf(0.0, first_note_time - LEAD_TIME)
+				print("MusicPlay: first note at t=%.2fs — starting playback at t=%.2fs (LEAD_TIME offset)" % [first_note_time, _play_from])
 		else:
-			push_error("MusicPlay: failed to load psarc — place a valid .psarc in the DLC/ folder.")
+			push_warning("MusicPlay: audio stream not available (no WEM/OGG in PSARC).")
+	else:
+		push_error("MusicPlay: failed to load psarc — place a valid .psarc in the DLC/ folder.")
 	DirAccess.make_dir_recursive_absolute(
 		ProjectSettings.globalize_path(SCREENSHOT_DIR)
 	)

@@ -34,10 +34,10 @@ func _on_play_button_pressed() -> void:
 		_status_label.text = "Select a song first."
 		return
 
-	var idx: int = idxs[0]
-	if idx < 0 or idx >= _song_paths.size():
+	var selected_song_idx: int = idxs[0]
+	if selected_song_idx < 0 or selected_song_idx >= _song_paths.size():
 		_status_label.text = "Invalid song selection."
 		return
 
-	GameState.selected_psarc_path = _song_paths[idx]
+	GameState.selected_psarc_path = _song_paths[selected_song_idx]
 	get_tree().change_scene_to_file("res://scenes/music_play.tscn")
