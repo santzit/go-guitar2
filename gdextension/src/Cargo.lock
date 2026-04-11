@@ -366,7 +366,7 @@ dependencies = [
 [[package]]
 name = "gg-mixer"
 version = "0.1.0"
-source = "git+https://github.com/goguitar/gg-mixer#023323ced4a6015d7f2793b96452583ff0eac5e7"
+source = "git+https://github.com/goguitar/gg-mixer?branch=copilot%2Fimplement-custom-mixer-engine-thread#70042e4aab984ee575d3eb2b83a91fb8c718249a"
 
 [[package]]
 name = "glam"
