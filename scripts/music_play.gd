@@ -120,11 +120,21 @@ func _process(delta: float) -> void:
 	if not _playing:
 		return
 
-	# Sync song time to wall-clock time elapsed since game start so that
-	# note spawning is never delayed by frame-rate limiting or MAX_DELTA caps.
-	# When audio is playing we prefer the stream position for accuracy.
+	# Sync song time to the audio stream position, compensated for audio output
+	# latency so that note spawning is accurate regardless of driver buffering.
+	#
+	# AudioServer.get_time_since_last_mix() gives sub-frame precision by
+	# interpolating within the current mix interval.
+	# AudioServer.get_output_latency() subtracts the time the OS audio stack
+	# still has buffered before the samples actually reach the speakers.
+	# Together they correct the ~50-200 ms latency typical on desktop hardware.
 	if _player and _player.playing:
-		_song_time = _player.get_playback_position()
+		_song_time = maxf(
+			_play_from,
+			_player.get_playback_position()
+				+ AudioServer.get_time_since_last_mix()
+				- AudioServer.get_output_latency()
+		)
 	else:
 		# Wall-clock fallback: offset by _play_from so song time matches note timestamps.
 		_song_time = _play_from + (Time.get_ticks_msec() - _start_wall_ms) / 1000.0
