@@ -35,6 +35,7 @@ func _reload_song_list() -> void:
 	_song_list.select(0)
 	_status_label.text = "Select a song and press Play."
 	_play_btn.disabled = false
+	_on_song_list_item_selected(0)
 
 
 # ── Signals ──────────────────────────────────────────────────────────────────
