@@ -133,6 +133,10 @@ mod ffi {
 
     // ── C type bindings ──────────────────────────────────────────────────────
 
+    /// `LIBVGMSTREAM_SFMT_PCM16` — 2-byte signed little-endian samples.
+    /// Used in `LibVgmstreamConfig::force_sfmt` to request PCM16 output.
+    const LIBVGMSTREAM_SFMT_PCM16: c_int = 1;
+
     /// Mirrors `libstreamfile_t` from libvgmstream_streamfile.h
     #[repr(C)]
     pub struct LibStreamFile {
@@ -144,13 +148,16 @@ mod ffi {
         pub close:     Option<unsafe extern "C" fn(*mut LibStreamFile)>,
     }
 
-    /// Partial mirror of `libvgmstream_format_t` — only the first two fields
-    /// are accessed; the rest of the struct is left as opaque padding.
+    /// Mirrors `libvgmstream_format_t` — first four fields used; rest is opaque.
+    /// Layout from libvgmstream.h: channels(+0), sample_rate(+4),
+    /// sample_format(+8), sample_size(+12).
     #[repr(C)]
     pub struct LibVgmstreamFormat {
-        pub channels:    c_int,
-        pub sample_rate: c_int,
-        // rest of the 700+ byte struct is not accessed
+        pub channels:      c_int,  // +0
+        pub sample_rate:   c_int,  // +4
+        pub sample_format: c_int,  // +8  (libvgmstream_sfmt_t: 1=PCM16, 4=float)
+        pub sample_size:   c_int,  // +12 (bytes per sample: 2 for PCM16, 4 for float)
+        // rest of the struct is not accessed
     }
 
     /// Mirrors `libvgmstream_decoder_t`
@@ -170,9 +177,35 @@ mod ffi {
         pub decoder: *mut LibVgmstreamDecoder,
     }
 
+    /// Mirrors `libvgmstream_config_t` (x86_64 System V ABI layout).
+    /// Layout from libvgmstream.h:
+    ///   bools  +0..+6  (7 × bool),  pad +7,
+    ///   f64s   +8..+31 (loop_count, fade_time, fade_delay),
+    ///   ints   +32..+43 (stereo_track, auto_downmix_channels, force_sfmt),
+    ///   pad    +44..+47 → total 48 bytes.
+    #[repr(C)]
+    struct LibVgmstreamConfig {
+        disable_config_override:  bool,     // +0
+        allow_play_forever:       bool,     // +1
+        play_forever:             bool,     // +2
+        ignore_loop:              bool,     // +3
+        force_loop:               bool,     // +4
+        really_force_loop:        bool,     // +5
+        ignore_fade:              bool,     // +6
+        _pad0:                    u8,       // +7  (align f64 to 8)
+        loop_count:               f64,      // +8
+        fade_time:                f64,      // +16
+        fade_delay:               f64,      // +24
+        stereo_track:             c_int,    // +32
+        auto_downmix_channels:    c_int,    // +36
+        force_sfmt:               c_int,    // +40 (1 = LIBVGMSTREAM_SFMT_PCM16)
+        _pad1:                    [u8; 4],  // +44 (pad to 48)
+    }
+
     extern "C" {
-        fn libvgmstream_init()        -> *mut LibVgmstream;
+        fn libvgmstream_init() -> *mut LibVgmstream;
         fn libvgmstream_free(lib: *mut LibVgmstream);
+        fn libvgmstream_setup(lib: *mut LibVgmstream, cfg: *const LibVgmstreamConfig);
         fn libvgmstream_open_stream(
             lib:     *mut LibVgmstream,
             libsf:   *mut LibStreamFile,
@@ -287,11 +320,34 @@ mod ffi {
                 return Err("libvgmstream_init() returned NULL".into());
             }
 
-            // 2. Create memory streamfile.
+            // 2. Configure PCM16 output before opening the stream.
+            //    Wwise Vorbis defaults to float output internally; force_sfmt=PCM16
+            //    tells vgmstream to convert to signed 16-bit LE before filling the
+            //    decode buffer — no game-side conversion needed.
+            let cfg = LibVgmstreamConfig {
+                disable_config_override:  false,
+                allow_play_forever:       false,
+                play_forever:             false,
+                ignore_loop:              true,  // play through without looping
+                force_loop:               false,
+                really_force_loop:        false,
+                ignore_fade:              true,  // no fade-out at loop end
+                _pad0:                    0,
+                loop_count:               0.0,
+                fade_time:                0.0,
+                fade_delay:               0.0,
+                stereo_track:             0,
+                auto_downmix_channels:    0,
+                force_sfmt:               LIBVGMSTREAM_SFMT_PCM16,
+                _pad1:                    [0u8; 4],
+            };
+            libvgmstream_setup(lib, &cfg as *const LibVgmstreamConfig);
+
+            // 3. Create memory streamfile.
             let mut sf = make_mem_sf(Arc::clone(&shared));
             let sf_ptr = sf.as_mut() as *mut LibStreamFile;
 
-            // 3. Open the stream (subsong 0 = auto/first).
+            // 4. Open the stream (subsong 0 = auto/first).
             let rc = libvgmstream_open_stream(lib, sf_ptr, 0);
             // Close the SF now — vgmstream made its own copy via open() callbacks.
             libstreamfile_close(sf_ptr);
@@ -307,7 +363,7 @@ mod ffi {
                 ));
             }
 
-            // 4. Read format.
+            // 5. Read format — vgmstream guarantees PCM16 after setup above.
             if (*lib).format.is_null() || (*lib).decoder.is_null() {
                 libvgmstream_free(lib);
                 return Err("libvgmstream format/decoder pointer is NULL after open".into());
@@ -322,18 +378,11 @@ mod ffi {
                 ));
             }
 
-            // 5. Decode loop.
-            // libvgmstream_render() fills decoder->buf with one internal chunk
-            // of samples and updates decoder->buf_samples / buf_bytes / done.
-            // NOTE: vgmstream may output float32 (4 bytes/sample) for Vorbis
-            // codecs even though the API default is PCM16. We detect this from
-            // the first chunk's buf_bytes vs buf_samples*channels ratio.
+            // 6. Decode loop — buffer is guaranteed PCM16 LE by libvgmstream_setup.
             let mut all_pcm: Vec<u8> = Vec::with_capacity(
-                // Pre-allocate ~10 s at stereo 48 kHz PCM16 as a guess.
+                // Pre-allocate ~10 s at stereo 48 kHz PCM16.
                 (sample_rate * channels * 2 * 10) as usize,
             );
-            let mut bytes_per_sample: i32 = 2; // assume PCM16 until detected
-            let mut format_detected    = false;
             const MAX_ITERS: usize = 200_000;
             for _ in 0..MAX_ITERS {
                 let rc = libvgmstream_render(lib);
@@ -342,14 +391,6 @@ mod ffi {
                 }
                 let dec = &*(*lib).decoder;
                 if dec.buf_samples > 0 && !dec.buf.is_null() {
-                    // Detect the actual bytes-per-sample from the first chunk.
-                    if !format_detected && channels > 0 {
-                        let total_samples = dec.buf_samples * channels;
-                        if total_samples > 0 {
-                            bytes_per_sample = dec.buf_bytes / total_samples;
-                        }
-                        format_detected = true;
-                    }
                     let bytes = dec.buf_bytes as usize;
                     let slice = std::slice::from_raw_parts(dec.buf as *const u8, bytes);
                     all_pcm.extend_from_slice(slice);
@@ -359,37 +400,14 @@ mod ffi {
                 }
             }
 
-            // 6. Clean up.
+            // 7. Clean up.
             libvgmstream_free(lib);
-
-            // 7. Convert float32 → PCM-16 if vgmstream used 4-byte samples.
-            //    Godot's AudioStreamWAV only supports up to FORMAT_16_BITS.
-            let pcm16 = if bytes_per_sample == 4 {
-                convert_float_to_pcm16(&all_pcm)
-            } else {
-                all_pcm
-            };
 
             Ok(DecodeResult {
                 channels:    channels as i32,
                 sample_rate: sample_rate as i32,
-                pcm_bytes:   pcm16,
+                pcm_bytes:   all_pcm,
             })
         }
-    }
-
-    /// Convert 4-byte-per-sample float32 LE interleaved PCM to signed 16-bit LE PCM.
-    /// Used when vgmstream outputs float samples instead of PCM-16.
-    fn convert_float_to_pcm16(input: &[u8]) -> Vec<u8> {
-        let mut output = Vec::with_capacity(input.len() / 2);
-        for chunk in input.chunks_exact(4) {
-            let f = f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
-            let clamped = f.clamp(-1.0_f32, 1.0_f32);
-            let i: i16 = (clamped * 32767.0_f32) as i16;
-            let bytes = i.to_le_bytes();
-            output.push(bytes[0]);
-            output.push(bytes[1]);
-        }
-        output
     }
 }
