@@ -1,27 +1,36 @@
-/// rt_engine.rs — Phase 1: Dedicated RT audio engine thread + lock-free ring buffers.
+/// rt_engine.rs — RT audio engine: dedicated thread + lock-free ring buffers + CPAL I/O.
 ///
-/// Architecture (three-layer, implemented incrementally):
+/// Architecture:
 ///
-///  ┌─────────────────────────────────────────────────────────────────────────┐
-///  │ Phase 1 (this file)                                                     │
-///  │   Main thread  ──push PCM──►  music_rb ──►  Engine thread              │
-///  │                                               │  gg-mixer               │
-///  │                             output_rb  ◄──────┘                        │
-///  │                             (consumed by CPAL output callback, Phase 2) │
-///  │                                                                         │
-///  │ Phase 2 (TODO)  Add cpal streams: input_rb ← mic, output_rb → speakers  │
-///  │ Phase 3 (TODO)  Full bus-mixer path: stems, UI SFX, metronome buses      │
-///  └─────────────────────────────────────────────────────────────────────────┘
+///  ┌──────────────────────────────────────────────────────────────────────────┐
+///  │  CPAL input callback   ──f32──►  input_rb  ──►  Engine thread           │
+///  │  (mic / guitar DI)                               │  gg-mixer (Phase 3)  │
+///  │                                   output_rb  ◄───┘                      │
+///  │  CPAL output callback  ◄──f32──  output_rb                              │
+///  │  (speakers / DAW)                                                        │
+///  │                                                                          │
+///  │  Main thread (Godot) ──push PCM──► music_rb ──► Engine thread           │
+///  │  (decoded WEM/AudioEngine)                                               │
+///  └──────────────────────────────────────────────────────────────────────────┘
 ///
-/// GDScript usage (Phase 1):
+/// Phases implemented here:
+///   Phase 1 — Engine thread + ring buffers (rtrb) + RT priority (thread-priority).
+///   Phase 2 — CPAL input/output streams wired to input_rb / output_rb.
+///   Phase 3 — Full bus-mixer path (stems, player instrument, UI SFX, metronome).
+///
+/// GDScript usage:
 /// ```gdscript
 /// var rt = RtEngine.new()
-/// rt.start(2, 48000)          # 2 channels, 48 kHz
-/// rt.push_music_pcm(pcm_bytes) # feed decoded WEM PCM into the ring buffer
-/// # …later…
+/// rt.start(2, 48000)                     # start engine thread
+/// rt.start_streams("default", "default") # open CPAL I/O streams
+/// rt.push_music_pcm(audio_engine.decode_all())
+/// # …gameplay loop — engine mixes & outputs continuously…
+/// rt.stop_streams()
 /// rt.stop()
 /// ```
 
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use cpal::{SampleFormat, StreamConfig};
 use godot::prelude::*;
 use gg_mixer::{BusId, MixInput, Mixer};
 use rtrb::RingBuffer;
@@ -64,22 +73,43 @@ struct RtInner {
     sample_rate:      u32,
 }
 
+/// Holds the live CPAL streams.  Dropping this struct closes both streams.
+struct CpalStreams {
+    _input_stream:    Option<cpal::Stream>,
+    _output_stream:   cpal::Stream,
+    /// Keeps the input ring buffer consumer alive until streams are closed.
+    /// Phase 3 will drain this consumer in the engine thread instead.
+    _input_consumer:  rtrb::Consumer<f32>,
+}
+
+// `cpal::Stream` is not `Send`, so we wrap it in an opaque box on the heap.
+// The streams are only ever created and dropped on the Godot main thread.
+// SAFETY: we never send these across threads — they live inside the Mutex.
+unsafe impl Send for CpalStreams {}
+
 // ── GDExtension class ─────────────────────────────────────────────────────────
 
-/// **RtEngine** — Godot GDExtension class that manages the RT audio engine thread.
+/// **RtEngine** — Godot GDExtension class that manages the RT audio engine thread
+/// and CPAL audio I/O streams.
 ///
 /// Lifecycle:
 /// 1. `start(channels, sample_rate)` — spawns the engine thread.
-/// 2. `push_music_pcm(pcm_bytes)` — feed decoded WEM/PCM into the music ring buffer.
-/// 3. `set_bus_gain_db(bus, db)` / `set_bus_mute(bus, mute)` / `set_bus_solo(bus, solo)`
+/// 2. `start_streams(input_device_name, output_device_name)` — open CPAL I/O.
+/// 3. `push_music_pcm(pcm_bytes)` — feed decoded WEM/PCM into the music ring buffer.
+/// 4. `set_bus_gain_db(bus, db)` / `set_bus_mute(bus, mute)` / `set_bus_solo(bus, solo)`
 ///    — adjust mixer buses from GDScript without blocking the engine thread.
-/// 4. `stop()` — signal the thread to exit and join it.
+/// 5. `stop_streams()` — close CPAL streams.
+/// 6. `stop()` — signal the engine thread to exit and join it.
 #[derive(GodotClass)]
 #[class(base = Object)]
 pub struct RtEngine {
     #[base]
-    base:  Base<Object>,
-    inner: Mutex<RtInner>,
+    base:         Base<Object>,
+    inner:        Mutex<RtInner>,
+    /// CPAL streams are kept alive here; dropping closes the hardware streams.
+    cpal_streams: Mutex<Option<CpalStreams>>,
+    /// Output ring buffer consumer created by `start()` and consumed by `start_streams()`.
+    output_consumer: Mutex<Option<rtrb::Consumer<f32>>>,
 }
 
 #[godot_api]
@@ -95,6 +125,8 @@ impl IObject for RtEngine {
                 channels:       2,
                 sample_rate:    48_000,
             }),
+            cpal_streams:    Mutex::new(None),
+            output_consumer: Mutex::new(None),
         }
     }
 }
@@ -121,12 +153,17 @@ impl RtEngine {
         inner.sample_rate = sr;
 
         // ── Ring buffers ──────────────────────────────────────────────────────
-        let (music_producer,   music_consumer)   = RingBuffer::<f32>::new(RING_CAPACITY);
-        let (output_producer,  _output_consumer) = RingBuffer::<f32>::new(RING_CAPACITY);
-        let (cmd_producer,     cmd_consumer)     = RingBuffer::<EngineCmd>::new(64);
+        let (music_producer,  music_consumer)  = RingBuffer::<f32>::new(RING_CAPACITY);
+        let (output_producer, output_consumer) = RingBuffer::<f32>::new(RING_CAPACITY);
+        let (cmd_producer,    cmd_consumer)    = RingBuffer::<EngineCmd>::new(64);
 
         inner.music_producer = Some(music_producer);
         inner.cmd_producer   = Some(cmd_producer);
+
+        // Store output consumer so CPAL output callback can take it in start_streams().
+        if let Ok(mut oc) = self.output_consumer.lock() {
+            *oc = Some(output_consumer);
+        }
 
         // ── Engine thread ─────────────────────────────────────────────────────
         let running = Arc::clone(&inner.running);
@@ -153,6 +190,9 @@ impl RtEngine {
     /// Signal the engine thread to exit and block until it has finished.
     #[func]
     pub fn stop(&self) {
+        // Close streams first so the CPAL callback no longer references the ring buffer.
+        self.stop_streams();
+
         let mut inner = match self.inner.lock() {
             Ok(g)  => g,
             Err(_) => return,
@@ -245,6 +285,216 @@ impl RtEngine {
             .and_then(|g| g.music_producer.as_ref().map(|p| p.slots() as i64))
             .unwrap_or(0)
     }
+
+    // ── Phase 2: CPAL I/O streams ─────────────────────────────────────────────
+
+    /// Open CPAL input and output streams.
+    ///
+    /// `input_device_name` / `output_device_name`: pass `"default"` for the system
+    /// default device, or the exact device name returned by `list_audio_devices()`.
+    ///
+    /// Must be called **after** `start()` so the ring buffers exist.
+    /// Returns `true` on success.
+    #[func]
+    pub fn start_streams(
+        &self,
+        input_device_name:  GString,
+        output_device_name: GString,
+    ) -> bool {
+        let (ch, sr) = {
+            let inner = match self.inner.lock() {
+                Ok(g)  => g,
+                Err(_) => return false,
+            };
+            if inner.thread_handle.is_none() {
+                godot_error!("RtEngine: call start() before start_streams().");
+                return false;
+            }
+            (inner.channels, inner.sample_rate)
+        };
+
+        let host = cpal::default_host();
+
+        // ── Select output device ──────────────────────────────────────────────
+        let out_name = output_device_name.to_string();
+        let output_device = if out_name == "default" || out_name.is_empty() {
+            match host.default_output_device() {
+                Some(d) => d,
+                None    => { godot_error!("RtEngine: no default output device."); return false; }
+            }
+        } else {
+            match host.output_devices() {
+                Ok(mut it) => match it.find(|d| d.name().map(|n| n == out_name).unwrap_or(false)) {
+                    Some(d) => d,
+                    None    => { godot_error!("RtEngine: output device '{}' not found.", out_name); return false; }
+                },
+                Err(e) => { godot_error!("RtEngine: enumerate output devices: {}", e); return false; }
+            }
+        };
+
+        // ── Select input device ───────────────────────────────────────────────
+        let in_name = input_device_name.to_string();
+        let input_device = if in_name == "default" || in_name.is_empty() {
+            host.default_input_device()
+        } else {
+            host.input_devices().ok().and_then(|mut it| {
+                it.find(|d| d.name().map(|n| n == in_name).unwrap_or(false))
+            })
+        };
+
+        // ── Stream config ─────────────────────────────────────────────────────
+        let out_config = StreamConfig {
+            channels:    ch as cpal::ChannelCount,
+            sample_rate: cpal::SampleRate(sr),
+            buffer_size: cpal::BufferSize::Default,
+        };
+        let in_config = StreamConfig {
+            channels:    1,   // mono mic input
+            sample_rate: cpal::SampleRate(sr),
+            buffer_size: cpal::BufferSize::Default,
+        };
+
+        // ── Input ring buffer for mic/guitar (Phase 3 will read it in engine thread) ──
+        // Both halves are kept alive: producer inside the CPAL callback Arc,
+        // consumer stored in CpalStreams so it lives until stop_streams().
+        let (input_producer, input_consumer) = RingBuffer::<f32>::new(RING_CAPACITY);
+        // Arc-wrap input producer for the CPAL callback (avoids take/move race on re-use).
+        let input_rb: Arc<Mutex<Option<rtrb::Producer<f32>>>> =
+            Arc::new(Mutex::new(Some(input_producer)));
+
+        // ── Take output consumer for CPAL output callback ─────────────────────
+        // `self.output_consumer` is populated by `start()` and consumed once here.
+        // Calling `start_streams()` a second time (without re-calling `start()`)
+        // will fail here with a clear error message.
+        let output_consumer = match self.output_consumer.lock()
+            .ok()
+            .and_then(|mut g| g.take())
+        {
+            Some(c) => c,
+            None    => {
+                godot_error!("RtEngine: output ring buffer not available. \
+                              Call start() before start_streams(), and stop_streams() \
+                              + stop() + start() before re-opening streams.");
+                return false;
+            }
+        };
+        let output_rb: Arc<Mutex<Option<rtrb::Consumer<f32>>>> =
+            Arc::new(Mutex::new(Some(output_consumer)));
+
+        // ── Build output stream (pops from output_rb, outputs silence on underrun) ──
+        let out_rb_clone = Arc::clone(&output_rb);
+        let out_ch = ch as usize;
+        let output_stream = match output_device.build_output_stream(
+            &out_config,
+            move |data: &mut [f32], _| {
+                let mut guard = match out_rb_clone.lock() {
+                    Ok(g)  => g,
+                    Err(_) => { data.fill(0.0); return; }
+                };
+                let consumer = match guard.as_mut() {
+                    Some(c) => c,
+                    None    => { data.fill(0.0); return; }
+                };
+                for frame in data.chunks_mut(out_ch) {
+                    for sample in frame.iter_mut() {
+                        *sample = consumer.pop().unwrap_or(0.0);
+                    }
+                }
+            },
+            |err| godot_error!("RtEngine: CPAL output error: {}", err),
+            None,
+        ) {
+            Ok(s)  => s,
+            Err(e) => { godot_error!("RtEngine: build_output_stream: {}", e); return false; }
+        };
+
+        // ── Build input stream (pushes to input_rb for Phase 3) ──────────────
+        let input_stream_opt = input_device.and_then(|dev| {
+            let in_rb_clone = Arc::clone(&input_rb);
+            dev.build_input_stream(
+                &in_config,
+                move |data: &[f32], _| {
+                    let mut guard = match in_rb_clone.lock() {
+                        Ok(g)  => g,
+                        Err(_) => return,
+                    };
+                    if let Some(producer) = guard.as_mut() {
+                        for &sample in data {
+                            let _ = producer.push(sample);
+                        }
+                    }
+                },
+                |err| godot_error!("RtEngine: CPAL input error: {}", err),
+                None,
+            ).ok()
+        });
+
+        // ── Start streams ─────────────────────────────────────────────────────
+        if let Err(e) = output_stream.play() {
+            godot_error!("RtEngine: play output stream: {}", e);
+            return false;
+        }
+        if let Some(ref s) = input_stream_opt {
+            if let Err(e) = s.play() {
+                godot_warn!("RtEngine: play input stream: {}", e);
+                // Non-fatal — input may not be available in all environments.
+            }
+        }
+
+        let streams = CpalStreams {
+            _output_stream:  output_stream,
+            _input_stream:   input_stream_opt,
+            _input_consumer: input_consumer,
+        };
+
+        if let Ok(mut cs) = self.cpal_streams.lock() {
+            *cs = Some(streams);
+        }
+
+        godot_print!("RtEngine: CPAL streams started — out='{}' in='{}'",
+            output_device_name, input_device_name);
+        true
+    }
+
+    /// Close CPAL input and output streams.  The engine thread keeps running.
+    #[func]
+    pub fn stop_streams(&self) {
+        if let Ok(mut cs) = self.cpal_streams.lock() {
+            if cs.take().is_some() {
+                godot_print!("RtEngine: CPAL streams stopped.");
+            }
+        }
+    }
+
+    /// List available output device names (for the Godot settings screen).
+    #[func]
+    pub fn list_output_devices(&self) -> PackedStringArray {
+        let mut out = PackedStringArray::new();
+        let host = cpal::default_host();
+        if let Ok(devices) = host.output_devices() {
+            for d in devices {
+                if let Ok(name) = d.name() {
+                    out.push(&GString::from(name.as_str()));
+                }
+            }
+        }
+        out
+    }
+
+    /// List available input device names.
+    #[func]
+    pub fn list_input_devices(&self) -> PackedStringArray {
+        let mut out = PackedStringArray::new();
+        let host = cpal::default_host();
+        if let Ok(devices) = host.input_devices() {
+            for d in devices {
+                if let Ok(name) = d.name() {
+                    out.push(&GString::from(name.as_str()));
+                }
+            }
+        }
+        out
+    }
 }
 
 // ── Private helpers ───────────────────────────────────────────────────────────
@@ -334,7 +584,9 @@ fn engine_thread(
             }
         } else {
             // Underrun: output silence and yield to avoid spinning the CPU.
-            // Phase 2 will replace this sleep with a condvar/semaphore woken by CPAL.
+            // TODO Phase 3: replace sleep with a condvar/semaphore woken by the
+            // CPAL output callback so the engine wakes exactly when more output
+            // space is available rather than polling every 500 µs.
             for _ in 0..(block_samples) {
                 let _ = output_out.push(0.0f32);
             }
