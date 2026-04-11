@@ -93,8 +93,16 @@ func get_audio_stream() -> AudioStream:
 					stream.stereo   = (eng.get_channels() == 2)
 					stream.mix_rate = eng.get_sample_rate()
 					stream.data     = pcm_bytes
-					print("RsBridge: AudioStreamWAV created — stereo=%s  mix_rate=%d  data=%d bytes" % [
-						str(stream.stereo), stream.mix_rate, stream.data.size()])
+					# Rocksmith WEM audio is a looping backing track.  vgmstream
+					# decodes one loop pass (often ~28 s) then stops.  Enable
+					# Godot WAV loop-forward so it repeats for the full song.
+					var channels : int = 2 if stream.stereo else 1
+					var total_frames : int = pcm_bytes.size() / (channels * 2)
+					stream.loop_mode  = AudioStreamWAV.LOOP_FORWARD
+					stream.loop_begin = 0
+					stream.loop_end   = total_frames
+					print("RsBridge: AudioStreamWAV created — stereo=%s  mix_rate=%d  data=%d bytes  loop_frames=%d" % [
+						str(stream.stereo), stream.mix_rate, stream.data.size(), total_frames])
 					return stream
 				push_warning("RsBridge: AudioEngine.decode_all() returned empty PCM — trying OGG fallback.")
 			else:

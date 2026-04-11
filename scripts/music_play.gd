@@ -6,6 +6,10 @@ extends Node3D
 const _RsBridgeScript = preload("res://scripts/rs_bridge.gd")
 const _GameStateScript = preload("res://scripts/game_state.gd")
 
+# -- Mixer bus indices (must match GameState.BUS_NAMES / gg-mixer BusId) ------
+const BUS_MUSIC  : int = 1   # Music bus
+const BUS_MASTER : int = 6   # Master bus
+
 # -- Timing constants (must match note.gd) -----------------------------------
 const TRAVEL_SPEED : float = 8.0
 const START_Z      : float = 20.0
@@ -62,6 +66,9 @@ var _last_fret_per_string: Array[int] = [-1, -1, -1, -1, -1, -1]
 
 func _ready() -> void:
 	_bridge = _RsBridgeScript.new()
+
+	# Load persisted mixer settings so volume/mute state is correct from the start.
+	_GameStateScript.load_mixer_settings()
 
 	var selected_psarc_path: String = _GameStateScript.selected_psarc_path
 	print("MusicPlay: RocksmithBridge GDExtension loaded: %s" % str(ClassDB.class_exists("RocksmithBridge")))
@@ -125,24 +132,23 @@ func _process(delta: float) -> void:
 	if not _playing:
 		return
 
-	# Sync song time to the audio stream position, compensated for audio output
-	# latency so that note spawning is accurate regardless of driver buffering.
-	#
-	# AudioServer.get_time_since_last_mix() gives sub-frame precision by
-	# interpolating within the current mix interval.
-	# AudioServer.get_output_latency() subtracts the time the OS audio stack
-	# still has buffered before the samples actually reach the speakers.
-	# Together they correct the ~50-200 ms latency typical on desktop hardware.
-	if _player and _player.playing:
-		_song_time = maxf(
-			_play_from,
-			_player.get_playback_position()
-				+ AudioServer.get_time_since_last_mix()
-				- AudioServer.get_output_latency()
-		)
-	else:
-		# Wall-clock fallback: offset by _play_from so song time matches note timestamps.
-		_song_time = _play_from + (Time.get_ticks_msec() - _start_wall_ms) / 1000.0
+	# ── Apply mixer settings from GameState to the AudioStreamPlayer ──────────
+	# This allows the Mixer screen to affect playback volume in real time.
+	# Music bus (index 1) + Master bus (index 6) combine additively in dB.
+	if _player:
+		var music_muted  : bool  = _GameStateScript.bus_mutes[BUS_MUSIC]
+		var master_muted : bool  = _GameStateScript.bus_mutes[BUS_MASTER]
+		if music_muted or master_muted:
+			_player.volume_db = -80.0   # effectively silent
+		else:
+			_player.volume_db = _GameStateScript.bus_gains_db[BUS_MUSIC] \
+				+ _GameStateScript.bus_gains_db[BUS_MASTER]
+
+	# Track song time with the wall clock.  With a looping WAV backing track,
+	# get_playback_position() resets to 0 on every loop (~28 s), so we cannot
+	# use it as a monotonic song clock.  Wall-clock time is accurate enough for
+	# note scheduling and advances correctly past the first loop boundary.
+	_song_time = _play_from + (Time.get_ticks_msec() - _start_wall_ms) / 1000.0
 
 	# Push the authoritative audio time to all active notes so their Z
 	# positions are computed directly from the audio clock (not accumulated delta).
