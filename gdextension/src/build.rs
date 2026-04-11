@@ -27,11 +27,11 @@ fn main() {
             println!("cargo:rustc-link-arg={lib_dir}/libvgmstream.a");
             println!("cargo:rustc-link-arg=-Wl,--no-whole-archive");
             // Vorbis / Ogg — required for Wwise WEM Vorbis decode.
-            // Use dynamic linking on Linux (libvorbis/libogg are standard system libs).
+            // Use static linking so the pre-built .so has no libvorbis runtime dep.
             println!("cargo:rustc-link-search=native=/usr/lib/x86_64-linux-gnu");
-            println!("cargo:rustc-link-lib=dylib=vorbisfile");
-            println!("cargo:rustc-link-lib=dylib=vorbis");
-            println!("cargo:rustc-link-lib=dylib=ogg");
+            println!("cargo:rustc-link-lib=static=vorbisfile");
+            println!("cargo:rustc-link-lib=static=vorbis");
+            println!("cargo:rustc-link-lib=static=ogg");
             println!("cargo:rustc-link-lib=dylib=stdc++");
             println!("cargo:rustc-link-lib=dylib=m");
         }
