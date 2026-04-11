@@ -43,7 +43,7 @@ const STRING_SPACING: float = 0.5
 const STRING_Y_BASE : float = 0.20
 const START_Z       : float = 20.0
 const STRUM_Z       : float = 0.0
-const TRAVEL_SPEED  : float = 8.0   # units per second – must match music_play.gd
+const TRAVEL_SPEED  : float = 4.0   # units per second – must match music_play.gd
 const MISS_HOLD_SECS: float = 1.0
 const MISS_LABEL_Z  : float = -0.30
 

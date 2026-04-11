@@ -11,20 +11,20 @@ const BUS_MUSIC  : int = 1   # Music bus
 const BUS_MASTER : int = 6   # Master bus
 
 # -- Timing constants (must match note.gd) -----------------------------------
-const TRAVEL_SPEED : float = 8.0
+const TRAVEL_SPEED : float = 4.0
 const START_Z      : float = 20.0
-const LEAD_TIME    : float = START_Z / TRAVEL_SPEED   # = 2.5 s
+const LEAD_TIME    : float = START_Z / TRAVEL_SPEED   # = 5.0 s
 
 # -- Highway layout (must match note.gd) ------------------------------------
 const FRET_COUNT   : int   = 24
 const FRET_SPACING : float = 1.0
 
 # -- Camera follow -----------------------------------------------------------
-## FOV (degrees) used for the zoomed-in follow camera.
-const CAM_FOV_ZOOM      : float = 40.0
-const CAMERA_Y          : float = 6.0
+## FOV (degrees) used for the zoomed-out follow camera.
+const CAM_FOV_ZOOM      : float = 65.0
+const CAMERA_Y          : float = 12.0
 const CAMERA_Z          : float = -8.0
-const CAMERA_LERP_SPEED : float = 4.0    # units/s for smooth pan
+const CAMERA_LERP_SPEED : float = 2.0    # units/s for smooth pan
 
 # -- Screenshot capture (for automated testing) ------------------------------
 const SCREENSHOT_TIMES : Array  = [5.0, 10.0, 15.0, 20.0, 25.0]
@@ -106,7 +106,7 @@ func _ready() -> void:
 		_camera.position.y = CAMERA_Y
 		_camera.position.z = CAMERA_Z
 		_camera.fov        = CAM_FOV_ZOOM
-		_camera.look_at(Vector3(_camera.position.x, 0.0, 10.0), Vector3.UP)
+		_camera.look_at(Vector3(_camera.position.x, 0.0, 4.0), Vector3.UP)
 
 	# Start warmup countdown.  _process() will count down WARMUP_SECS real
 	# seconds showing only the empty highway, then start both audio and note
@@ -191,7 +191,7 @@ func _process(delta: float) -> void:
 		cam_pos.y = CAMERA_Y
 		cam_pos.z = CAMERA_Z
 		_camera.position = cam_pos
-		_camera.look_at(Vector3(cam_pos.x, 0.0, 10.0), Vector3.UP)
+		_camera.look_at(Vector3(cam_pos.x, 0.0, 4.0), Vector3.UP)
 
 	# Screenshots based on real wall-clock time to avoid timer batching on slow renderers.
 	if _shot_idx < SCREENSHOT_TIMES.size():
