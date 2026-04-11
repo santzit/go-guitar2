@@ -80,20 +80,11 @@ func _ready() -> void:
 		if stream:
 			print("MusicPlay: stream type=%s, assigning to AudioStreamPlayer" % stream.get_class())
 			_player.stream = stream
-			# Seek to exactly LEAD_TIME before the first note so that note nodes
-			# begin their highway journey the moment audio starts.  This keeps
-			# audio and the first visible notes perfectly in sync (Rocksmith style).
+			# Always start from the beginning of the decoded audio.
 			_play_from = 0.0
 			if _notes.size() > 0:
 				var first_note_time: float = _notes[0]["time"]
-				var requested_play_from := maxf(0.0, first_note_time - LEAD_TIME)
-				var stream_len := stream.get_length()
-				if stream_len > 0.0 and requested_play_from >= stream_len - LEAD_TIME:
-					push_warning("MusicPlay: first note offset exceeds audio length; starting from 0s to avoid silent playback.")
-					_play_from = 0.0
-				else:
-					_play_from = requested_play_from
-				print("MusicPlay: first note at t=%.2fs — starting playback at t=%.2fs (LEAD_TIME offset)" % [first_note_time, _play_from])
+				print("MusicPlay: first note at t=%.2fs — starting playback at t=%.2fs (full-song start)" % [first_note_time, _play_from])
 		else:
 			push_warning("MusicPlay: audio stream not available (no WEM/OGG in PSARC).")
 	else:
