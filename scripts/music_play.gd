@@ -34,6 +34,12 @@ const SCREENSHOT_DIR   : String = "user://screenshots"
 # -- Max delta clamp to prevent fast-renderer notes from vanishing too quickly
 const MAX_DELTA : float = 0.05
 
+# -- Startup warmup ----------------------------------------------------------
+## Seconds to show the empty highway before starting audio and note spawning.
+## Gives the player a moment to see the highway before the music begins,
+## matching the Rocksmith-style 3-second intro pause.
+const WARMUP_SECS : float = 3.0
+
 # -- Scene references --------------------------------------------------------
 @onready var _pool   : Node3D            = $NotePool
 @onready var _highway: Node3D            = $Highway
@@ -50,6 +56,7 @@ var _shot_idx            : int      = 0
 var _start_wall_ms       : int      = 0
 var _play_from           : float    = 0.0   # audio seek offset (>0 when skipping a long intro)
 var _camera_target_fret  : int      = FRET_COUNT / 2   # start at highway centre
+var _warmup_timer        : float    = WARMUP_SECS  # counts down to 0.0, then audio+notes start
 
 ## Per-string fret-change tracker for smart label logic.
 ## -1 = no note has been spawned on this string yet.
@@ -74,18 +81,16 @@ func _ready() -> void:
 			print("MusicPlay: %d notes loaded, requesting audio stream..." % _notes.size())
 			var stream : AudioStream = _bridge.get_audio_stream()
 			if stream:
-				print("MusicPlay: stream type=%s, assigning to AudioStreamPlayer and calling play()" % stream.get_class())
+				print("MusicPlay: stream type=%s, assigning to AudioStreamPlayer" % stream.get_class())
 				_player.stream = stream
-				# Seek to just before the first note so screenshots always capture notes.
-				# Many DLC songs have a long silent intro (e.g. Tom Petty = 71 s) — skip it.
+				# Seek to exactly LEAD_TIME before the first note so that note nodes
+				# begin their highway journey the moment audio starts.  This keeps
+				# audio and the first visible notes perfectly in sync (Rocksmith style).
 				_play_from = 0.0
 				if _notes.size() > 0:
 					var first_note_time: float = _notes[0]["time"]
-					_play_from = maxf(0.0, first_note_time - 5.0)
-					if _play_from > 0.0:
-						print("MusicPlay: first note at t=%.2fs — starting playback at t=%.2fs" % [first_note_time, _play_from])
-				_player.play(_play_from)
-				print("MusicPlay: AudioStreamPlayer.playing=%s  volume_db=%s" % [str(_player.playing), str(_player.volume_db)])
+					_play_from = maxf(0.0, first_note_time - LEAD_TIME)
+					print("MusicPlay: first note at t=%.2fs — starting playback at t=%.2fs (LEAD_TIME offset)" % [first_note_time, _play_from])
 			else:
 				push_warning("MusicPlay: audio stream not available (no WEM/OGG in PSARC).")
 		else:
@@ -96,7 +101,6 @@ func _ready() -> void:
 	DirAccess.make_dir_recursive_absolute(
 		ProjectSettings.globalize_path(SCREENSHOT_DIR)
 	)
-	_start_wall_ms = Time.get_ticks_msec()
 
 	# Snap camera to the centre of the highway on startup; enable zoom FOV.
 	if _camera:
@@ -106,25 +110,52 @@ func _ready() -> void:
 		_camera.fov        = CAM_FOV_ZOOM
 		_camera.look_at(Vector3(_camera.position.x, 0.0, 10.0), Vector3.UP)
 
-	_playing = true
+	# Start warmup countdown.  _process() will count down WARMUP_SECS real
+	# seconds showing only the empty highway, then start both audio and note
+	# spawning together so they are in sync from the first beat.
+	_warmup_timer = WARMUP_SECS
 
 
 func _process(delta: float) -> void:
+	# Warmup phase: show the empty highway for WARMUP_SECS real seconds,
+	# then start audio and note spawning simultaneously.
+	if _warmup_timer > 0.0:
+		_warmup_timer -= delta
+		if _warmup_timer <= 0.0:
+			_warmup_timer = 0.0
+			if _player and _player.stream:
+				_player.play(_play_from)
+				print("MusicPlay: playback started — AudioStreamPlayer.playing=%s  volume_db=%s" % [
+					str(_player.playing), str(_player.volume_db)])
+			_start_wall_ms = Time.get_ticks_msec()
+			_playing = true
+		return
+
 	if not _playing:
 		return
 
-	# Sync song time to wall-clock time elapsed since game start so that
-	# note spawning is never delayed by frame-rate limiting or MAX_DELTA caps.
-	# When audio is playing we prefer the stream position for accuracy.
+	# Sync song time to the audio stream position, compensated for audio output
+	# latency so that note spawning is accurate regardless of driver buffering.
+	#
+	# AudioServer.get_time_since_last_mix() gives sub-frame precision by
+	# interpolating within the current mix interval.
+	# AudioServer.get_output_latency() subtracts the time the OS audio stack
+	# still has buffered before the samples actually reach the speakers.
+	# Together they correct the ~50-200 ms latency typical on desktop hardware.
 	if _player and _player.playing:
-		_song_time = _player.get_playback_position()
+		_song_time = maxf(
+			_play_from,
+			_player.get_playback_position()
+				+ AudioServer.get_time_since_last_mix()
+				- AudioServer.get_output_latency()
+		)
 	else:
 		# Wall-clock fallback: offset by _play_from so song time matches note timestamps.
 		_song_time = _play_from + (Time.get_ticks_msec() - _start_wall_ms) / 1000.0
 
-	# clamped_delta is still used by node-level note movement (note.gd handles it there).
-	@warning_ignore("unused_variable")
-	var clamped_delta := minf(delta, MAX_DELTA)
+	# Push the authoritative audio time to all active notes so their Z
+	# positions are computed directly from the audio clock (not accumulated delta).
+	_pool.tick(_song_time)
 
 	while _next_idx < _notes.size():
 		var nd: Dictionary = _notes[_next_idx]
@@ -148,7 +179,7 @@ func _process(delta: float) -> void:
 	if _camera:
 		var target_x := _fret_world_x(_camera_target_fret)
 		var cam_pos  := _camera.position
-		cam_pos.x = lerp(cam_pos.x, target_x, CAMERA_LERP_SPEED * clamped_delta)
+		cam_pos.x = lerp(cam_pos.x, target_x, CAMERA_LERP_SPEED * minf(delta, MAX_DELTA))
 		cam_pos.y = CAMERA_Y
 		cam_pos.z = CAMERA_Z
 		_camera.position = cam_pos

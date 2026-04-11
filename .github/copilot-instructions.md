@@ -15,8 +15,6 @@ Godot 4.4.1 (GDScript)
        │         Source: https://github.com/santzit/Rocksmith2014.rs
        └─ vgmstream FFI               (WEM → PCM-16 audio, statically linked)
 ```
-If find any problem with Rocksmith2014.rs, report reply comment and stop session. We will handle it on Rocksmith2014.rs repository.
-
 **Key principle:** 
 
 - Use Godot Game Engine 4.4.1
@@ -25,7 +23,6 @@ If find any problem with Rocksmith2014.rs, report reply comment and stop session
 - Use Rust for GDExtension (Godot Extension)
 - Use santzit/Rocksmith2014.rs Rust crates for PSARC + SNG parsing (NO .NET, NO CLR hosting)
 - No .NET bridge, no RocksmithBridge.dll, no CLR hosting required
-
 
 
 ## Directory Layout
@@ -54,6 +51,12 @@ scripts/
   rs_bridge.gd                GDScript wrapper for RocksmithBridge + AudioEngine
 DLC/                          Place .psarc files here (gitignored)
 ```
+
+## External repositories
+If find any problem on the following libraries report reply comment and stop session. We will address the problem on repository.
+- Rocksmith2014.rs
+- gg-mixer
+- cycfi/q
 
 ## Building
 
@@ -86,7 +89,7 @@ cp target/x86_64-pc-windows-gnu/release/godot_rocksmith.dll ../bin/
 
 ```bash
 # Install display server and Godot 4.4.1
-sudo apt-get install -y xvfb libgl1-mesa-dri libgles2-mesa mesa-vulkan-drivers
+sudo apt-get install -y xvfb libgl1-mesa-dri libgles2 mesa-vulkan-drivers
 wget -q https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_linux.x86_64.zip
 unzip -q Godot_v4.4.1-stable_linux.x86_64.zip
 chmod +x Godot_v4.4.1-stable_linux.x86_64

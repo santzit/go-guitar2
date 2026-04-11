@@ -44,7 +44,6 @@ const STRING_Y_BASE : float = 0.20
 const START_Z       : float = 20.0
 const STRUM_Z       : float = 0.0
 const TRAVEL_SPEED  : float = 8.0   # units per second – must match music_play.gd
-const MAX_DELTA     : float = 0.05  # cap frame delta to keep notes on-screen on slow renderers
 
 var fret         : int   = 0
 var string_index : int   = 0
@@ -122,11 +121,19 @@ func _rebuild_fret_label() -> void:
 		_fret_label.add_child(d)
 
 
-func _process(delta: float) -> void:
+## Update this note's Z position from the authoritative audio song time.
+## Called every frame by NotePool.tick() so notes are always pixel-perfectly
+## synced to the audio stream rather than accumulating delta errors.
+##
+## Example: note with time_offset=10.0 and TRAVEL_SPEED=8.0
+##   p_song_time=7.5  → Z=(10-7.5)*8 = 20.0 = START_Z  (just spawned)
+##   p_song_time=10.0 → Z=(10-10)*8  =  0.0 = STRUM_Z  (hit time)
+func tick(p_song_time: float) -> void:
 	if not is_active:
 		return
 
-	position.z -= TRAVEL_SPEED * minf(delta, MAX_DELTA)
+	# Compute Z directly from audio time.
+	position.z = (time_offset - p_song_time) * TRAVEL_SPEED
 
 	# Return to pool once it has passed the strum line.
 	if position.z < STRUM_Z - 2.0:
