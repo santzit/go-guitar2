@@ -1,12 +1,42 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=7 format=3]
 
 [sub_resource type="BoxMesh" id="BoxMesh_string"]
 size = Vector3(24.0, 0.03, 0.03)
 
-[sub_resource type="StandardMaterial3D" id="StringMat"]
-albedo_color = Color(0.8, 0.8, 0.85, 1)
+[sub_resource type="StandardMaterial3D" id="StringMat_0"]
+albedo_color = Color(0.7, 0.1, 0.95, 1)
 emission_enabled = true
-emission = Color(0.5, 0.5, 0.6, 1)
+emission = Color(0.7, 0.1, 0.95, 1)
+emission_energy_multiplier = 0.5
+
+[sub_resource type="StandardMaterial3D" id="StringMat_1"]
+albedo_color = Color(0.1, 0.8, 0.2, 1)
+emission_enabled = true
+emission = Color(0.1, 0.8, 0.2, 1)
+emission_energy_multiplier = 0.5
+
+[sub_resource type="StandardMaterial3D" id="StringMat_2"]
+albedo_color = Color(0.9, 0.5, 0.05, 1)
+emission_enabled = true
+emission = Color(0.9, 0.5, 0.05, 1)
+emission_energy_multiplier = 0.5
+
+[sub_resource type="StandardMaterial3D" id="StringMat_3"]
+albedo_color = Color(0.1, 0.5, 0.95, 1)
+emission_enabled = true
+emission = Color(0.1, 0.5, 0.95, 1)
+emission_energy_multiplier = 0.5
+
+[sub_resource type="StandardMaterial3D" id="StringMat_4"]
+albedo_color = Color(0.85, 0.85, 0.05, 1)
+emission_enabled = true
+emission = Color(0.85, 0.85, 0.05, 1)
+emission_energy_multiplier = 0.5
+
+[sub_resource type="StandardMaterial3D" id="StringMat_5"]
+albedo_color = Color(0.85, 0.15, 0.15, 1)
+emission_enabled = true
+emission = Color(0.85, 0.15, 0.15, 1)
 emission_energy_multiplier = 0.5
 
 [node name="Fretboard" type="Node3D"]
@@ -14,29 +44,29 @@ emission_energy_multiplier = 0.5
 [node name="String0" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0.2, 0)
 mesh = SubResource("BoxMesh_string")
-surface_material_override/0 = SubResource("StringMat")
+surface_material_override/0 = SubResource("StringMat_0")
 
 [node name="String1" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0.7, 0)
 mesh = SubResource("BoxMesh_string")
-surface_material_override/0 = SubResource("StringMat")
+surface_material_override/0 = SubResource("StringMat_1")
 
 [node name="String2" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 1.2, 0)
 mesh = SubResource("BoxMesh_string")
-surface_material_override/0 = SubResource("StringMat")
+surface_material_override/0 = SubResource("StringMat_2")
 
 [node name="String3" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 1.7, 0)
 mesh = SubResource("BoxMesh_string")
-surface_material_override/0 = SubResource("StringMat")
+surface_material_override/0 = SubResource("StringMat_3")
 
 [node name="String4" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 2.2, 0)
 mesh = SubResource("BoxMesh_string")
-surface_material_override/0 = SubResource("StringMat")
+surface_material_override/0 = SubResource("StringMat_4")
 
 [node name="String5" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 2.7, 0)
 mesh = SubResource("BoxMesh_string")
-surface_material_override/0 = SubResource("StringMat")
+surface_material_override/0 = SubResource("StringMat_5")
