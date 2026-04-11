@@ -9,6 +9,9 @@ extends Node3D
 const FRET_COUNT     : int   = 24
 const STRING_COUNT   : int   = 6
 const FRET_SPACING   : float = 1.0   # must match note.gd FRET_SPACING
+const TRAVEL_SPEED   : float = 8.0   # must match note.gd TRAVEL_SPEED
+const START_Z        : float = 20.0  # must match note.gd START_Z
+const LEAD_TIME      : float = START_Z / TRAVEL_SPEED  # = 2.5 s
 
 # -- Spawn rhythm ------------------------------------------------------------
 ## Seconds between chord spawns on the active fret lane.
@@ -31,7 +34,7 @@ const CAM_LERP_SPEED : float = 3.0
 const SCREENSHOT_TIMES : Array  = [3.0, 6.0, 9.0, 12.0, 15.0]
 const SCREENSHOT_DIR   : String = "user://screenshots"
 
-# -- Delta cap (keeps notes on-screen on slow software renderers) -------------
+# -- Delta cap (keeps camera lerp stable on slow software renderers) ----------
 const MAX_DELTA : float = 0.05
 
 # -- Scene references --------------------------------------------------------
@@ -44,6 +47,7 @@ var _fret_timer    : float = 0.0
 var _current_fret  : int   = 1
 var _start_wall_ms : int   = 0
 var _shot_idx      : int   = 0
+var _demo_time     : float = 0.0  # virtual song clock (wall-clock seconds, for tick())
 
 
 func _ready() -> void:
@@ -58,6 +62,11 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	var clamped_delta := minf(delta, MAX_DELTA)
+	_demo_time += clamped_delta
+
+	# Drive all active note positions from the virtual clock (mirrors how
+	# music_play.gd uses the audio clock so note movement stays consistent).
+	_pool.tick(_demo_time)
 
 	# ── Advance to the next fret every FRET_DURATION seconds ──────────────
 	_fret_timer += clamped_delta
@@ -92,10 +101,12 @@ func _fret_world_x(f: int) -> float:
 
 
 ## Spawn one note on every string for the given fret (full chord).
+## time_offset = _demo_time + LEAD_TIME so notes start at START_Z and reach
+## the strum line exactly LEAD_TIME seconds later — matching note.gd tick() maths.
 func _spawn_fret_chord(f: int) -> void:
 	for s in STRING_COUNT:
 		var dur : float = randf_range(0.20, 0.50)
-		_pool.spawn_note(f, s, 0.0, dur)
+		_pool.spawn_note(f, s, _demo_time + LEAD_TIME, dur)
 
 
 func _take_screenshot(num: int) -> void:

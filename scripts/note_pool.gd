@@ -40,6 +40,16 @@ func return_note(note: Node3D) -> void:
 	_pool.append(note)
 
 
+## Called every frame by music_play.gd with the audio-derived song time.
+## Updates every active note's Z position directly from the audio clock so
+## notes are always pixel-perfectly synced to what the player hears.
+func tick(song_time: float) -> void:
+	# Iterate a duplicate because note.tick() may call deactivate() which
+	# modifies _active mid-iteration.
+	for note in _active.duplicate():
+		note.tick(song_time)
+
+
 ## Deactivate all active notes (e.g. on song stop / restart).
 func clear_notes() -> void:
 	for note in _active.duplicate():

@@ -152,9 +152,9 @@ func _process(delta: float) -> void:
 		# Wall-clock fallback: offset by _play_from so song time matches note timestamps.
 		_song_time = _play_from + (Time.get_ticks_msec() - _start_wall_ms) / 1000.0
 
-	# clamped_delta is still used by node-level note movement (note.gd handles it there).
-	@warning_ignore("unused_variable")
-	var clamped_delta := minf(delta, MAX_DELTA)
+	# Push the authoritative audio time to all active notes so their Z
+	# positions are computed directly from the audio clock (not accumulated delta).
+	_pool.tick(_song_time)
 
 	while _next_idx < _notes.size():
 		var nd: Dictionary = _notes[_next_idx]
@@ -178,7 +178,7 @@ func _process(delta: float) -> void:
 	if _camera:
 		var target_x := _fret_world_x(_camera_target_fret)
 		var cam_pos  := _camera.position
-		cam_pos.x = lerp(cam_pos.x, target_x, CAMERA_LERP_SPEED * clamped_delta)
+		cam_pos.x = lerp(cam_pos.x, target_x, CAMERA_LERP_SPEED * minf(delta, MAX_DELTA))
 		cam_pos.y = CAMERA_Y
 		cam_pos.z = CAMERA_Z
 		_camera.position = cam_pos
