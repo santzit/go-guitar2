@@ -15,6 +15,7 @@
 ///     stream.data     = eng.decode_all()
 /// ```
 use godot::prelude::*;
+use gg_mixer::{BusId, MixInput, Mixer};
 
 // ── Godot class ──────────────────────────────────────────────────────────────
 
@@ -28,6 +29,7 @@ pub struct AudioEngine {
     pcm_ready:   bool,
     // Decoded PCM-16 bytes (interleaved channels, little-endian).
     pcm_buf:     Vec<u8>,
+    mixer:       Mixer,
 }
 
 #[godot_api]
@@ -39,6 +41,7 @@ impl IObject for AudioEngine {
             sample_rate: 0,
             pcm_ready:   false,
             pcm_buf:     Vec::new(),
+            mixer:       Mixer::new(),
         }
     }
 }
@@ -68,6 +71,7 @@ impl AudioEngine {
                     self.channels    = result.channels;
                     self.sample_rate = result.sample_rate;
                     self.pcm_buf     = result.pcm_bytes;
+                    self.apply_mixer_to_pcm();
                     self.pcm_ready   = true;
                     godot_print!(
                         "AudioEngine: decoded {} WEM bytes → {} PCM bytes \
@@ -121,6 +125,56 @@ impl AudioEngine {
     #[func]
     pub fn is_ready(&self) -> bool {
         self.pcm_ready
+    }
+
+    /// Set gain (dB) for the Music bus in gg-mixer.
+    #[func]
+    pub fn set_music_gain_db(&mut self, gain_db: f32) {
+        self.mixer.set_gain_db(BusId::Music, gain_db);
+    }
+
+    /// Set gain (dB) for the Master bus in gg-mixer.
+    #[func]
+    pub fn set_master_gain_db(&mut self, gain_db: f32) {
+        self.mixer.set_gain_db(BusId::Master, gain_db);
+    }
+
+    /// Mute/unmute the Music bus in gg-mixer.
+    #[func]
+    pub fn set_music_mute(&mut self, mute: bool) {
+        self.mixer.set_mute(BusId::Music, mute);
+    }
+
+    /// Mute/unmute the Master bus in gg-mixer.
+    #[func]
+    pub fn set_master_mute(&mut self, mute: bool) {
+        self.mixer.set_mute(BusId::Master, mute);
+    }
+}
+
+impl AudioEngine {
+    fn apply_mixer_to_pcm(&mut self) {
+        if self.pcm_buf.is_empty() {
+            return;
+        }
+
+        let channels = self.channels.max(1) as usize;
+        let frame_bytes = channels * 2;
+
+        for frame in self.pcm_buf.chunks_exact_mut(frame_bytes) {
+            for sample in frame.chunks_exact_mut(2) {
+                let sample_i16 = i16::from_le_bytes([sample[0], sample[1]]);
+                let sample_f32 = (sample_i16 as f32) / 32768.0;
+                let mixed_f32 = self.mixer.mix_sample(MixInput {
+                    music: sample_f32,
+                    ..Default::default()
+                });
+                let mixed_i16 = (mixed_f32.clamp(-1.0, 1.0) * 32767.0) as i16;
+                let bytes = mixed_i16.to_le_bytes();
+                sample[0] = bytes[0];
+                sample[1] = bytes[1];
+            }
+        }
     }
 }
 
