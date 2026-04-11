@@ -1,7 +1,7 @@
 extends Node3D
 ## music_play.gd -- main gameplay controller.
 ##
-## Expects a PSARC song path selected in the game menu (game_menu.gd).
+## Expects a PSARC song path selected in the song list menu (song_list.gd).
 
 const _RsBridgeScript = preload("res://scripts/rs_bridge.gd")
 const _GameStateScript = preload("res://scripts/game_state.gd")

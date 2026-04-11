@@ -6,7 +6,8 @@ Rocksmith 2014 like Guitar 3D Game built with **Godot 4.4**.
 ```
 project.godot          – Godot 4.4 project entry-point (main scene: game_menu.tscn)
 scenes/
-  game_menu.tscn       – Song picker UI (lists DLC .psarc files and starts gameplay)
+  game_menu.tscn       – Main menu with "Song list" entry button
+  song_list.tscn       – Song picker UI (lists DLC .psarc files and starts gameplay)
   music_play.tscn      – Root Node3D: Camera3D, DirectionalLight3D, Highway, NotePool, Background
   fretboard.tscn       – 6 visible string lines at the strum position (Z=0)
   highway.tscn         – HighwaySurface MeshInstance3D (shader-drawn fret lanes) + StrumLine + walls
@@ -14,7 +15,8 @@ scenes/
   note_pool.tscn       – Manages up to 128 active note instances
   background.tscn      – WorldEnvironment (procedural sky + bloom)
 scripts/
-  game_menu.gd         – Populates song list and launches music_play with selected song
+  game_menu.gd         – Opens the song list scene
+  song_list.gd         – Populates song list and launches music_play with selected song
   game_state.gd        – Shared selected-song state and DLC scan helper
   music_play.gd        – Loads selected .psarc via RsBridge, schedules notes, plays audio
   highway.gd           – Runtime fret/string-count config for the highway shader
@@ -56,4 +58,4 @@ Libraries / Projects used:
 ## Quick start
 
 1. Open the project in **Godot 4.4** - https://github.com/godotengine/godot/releases/tag/4.4.1-stable.
-2. Open the game menu, select a song from the list, and press **Play**.
+2. Open the game menu, click **Song list**, then select a song and press **Play**.
