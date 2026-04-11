@@ -78,24 +78,37 @@ impl PsarcData {
 
         // ── Find WEM audio ────────────────────────────────────────────────────
         // Some DLC packages contain both a full-song WEM and a short preview WEM.
-        // Choose the best candidate by preferring non-preview filenames and then
-        // the largest decoded payload (full songs are typically larger).
-        let mut best_wem: Option<(bool, usize, Vec<u8>)> = None;
-        for name in manifest.iter().filter(|n| n.ends_with(".wem")) {
+        // First prefer non-preview names. Then choose the largest decoded payload
+        // from that preferred set (full songs are typically larger).
+        let wem_names: Vec<&String> = manifest.iter()
+            .filter(|n| n.ends_with(".wem"))
+            .collect();
+        let has_non_preview = wem_names.iter().any(|name| !is_preview_wem_name(name));
+
+        let mut best_wem: Option<(usize, Vec<u8>)> = None;
+        for name in wem_names.into_iter().filter(|name| {
+            !has_non_preview || !is_preview_wem_name(name)
+        }) {
             let bytes = psarc.inflate_file(name)
                 .map_err(|e| format!("Failed to inflate WEM '{}': {}", name, e))?;
-            let is_preview = name.to_ascii_lowercase().contains("preview");
-            let candidate = (!is_preview, bytes.len(), bytes);
+            let candidate = (bytes.len(), bytes);
             if match best_wem.as_ref() {
-                Some(best) => (candidate.0, candidate.1) > (best.0, best.1),
+                Some(best) => candidate.0 > best.0,
                 None => true,
             } {
                 best_wem = Some(candidate);
             }
         }
 
-        let wem_bytes = best_wem.map(|(_, _, bytes)| bytes);
+        let wem_bytes = best_wem.map(|(_, bytes)| bytes);
 
         Ok(PsarcData { notes, wem_bytes })
     }
+}
+
+fn is_preview_wem_name(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    lower.contains("preview")
+        || lower.contains("prev")
+        || lower.contains("sample")
 }
