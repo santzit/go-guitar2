@@ -15,13 +15,6 @@ Godot 4.4.1 (GDScript)
        │         Source: https://github.com/santzit/Rocksmith2014.rs
        └─ vgmstream FFI               (WEM → PCM-16 audio, statically linked)
 ```
-
-## External repositories
-If find any problem on the following libraries report reply comment and stop session. We will address the problem on repository.
-- Rocksmith2014.rs
-- gg-mixer
-- cycfi/q
-
 **Key principle:** 
 
 - Use Godot Game Engine 4.4.1
@@ -30,7 +23,6 @@ If find any problem on the following libraries report reply comment and stop ses
 - Use Rust for GDExtension (Godot Extension)
 - Use santzit/Rocksmith2014.rs Rust crates for PSARC + SNG parsing (NO .NET, NO CLR hosting)
 - No .NET bridge, no RocksmithBridge.dll, no CLR hosting required
-
 
 
 ## Directory Layout
@@ -59,6 +51,12 @@ scripts/
   rs_bridge.gd                GDScript wrapper for RocksmithBridge + AudioEngine
 DLC/                          Place .psarc files here (gitignored)
 ```
+
+## External repositories
+If find any problem on the following libraries report reply comment and stop session. We will address the problem on repository.
+- Rocksmith2014.rs
+- gg-mixer
+- cycfi/q
 
 ## Building
 
