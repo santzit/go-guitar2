@@ -19,7 +19,7 @@ func _reload_song_list() -> void:
 		_song_list.add_item(p.get_file())
 
 	if _song_paths.is_empty():
-		_status_label.text = "No songs found. Put .psarc files in DLC/"
+		_status_label.text = "No songs found. Place .psarc files in DLC/"
 		_play_btn.disabled = true
 		return
 

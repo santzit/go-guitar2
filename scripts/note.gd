@@ -146,7 +146,7 @@ func tick(p_song_time: float) -> void:
 		_miss_until = p_song_time + MISS_HOLD_SECS
 		_miss_label.visible = true
 
-	if _miss_until >= 0.0 and p_song_time >= _miss_until:
+	elif _miss_until >= 0.0 and p_song_time >= _miss_until:
 		deactivate()
 
 
