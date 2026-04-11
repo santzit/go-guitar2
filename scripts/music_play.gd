@@ -50,6 +50,7 @@ var _shot_idx            : int      = 0
 var _start_wall_ms       : int      = 0
 var _play_from           : float    = 0.0   # audio seek offset (>0 when skipping a long intro)
 var _camera_target_fret  : int      = FRET_COUNT / 2   # start at highway centre
+var _start_playback_next_frame : bool = false
 
 ## Per-string fret-change tracker for smart label logic.
 ## -1 = no note has been spawned on this string yet.
@@ -74,7 +75,7 @@ func _ready() -> void:
 			print("MusicPlay: %d notes loaded, requesting audio stream..." % _notes.size())
 			var stream : AudioStream = _bridge.get_audio_stream()
 			if stream:
-				print("MusicPlay: stream type=%s, assigning to AudioStreamPlayer and calling play()" % stream.get_class())
+				print("MusicPlay: stream type=%s, assigning to AudioStreamPlayer" % stream.get_class())
 				_player.stream = stream
 				# Seek to just before the first note so screenshots always capture notes.
 				# Many DLC songs have a long silent intro (e.g. Tom Petty = 71 s) — skip it.
@@ -84,8 +85,7 @@ func _ready() -> void:
 					_play_from = maxf(0.0, first_note_time - 5.0)
 					if _play_from > 0.0:
 						print("MusicPlay: first note at t=%.2fs — starting playback at t=%.2fs" % [first_note_time, _play_from])
-				_player.play(_play_from)
-				print("MusicPlay: AudioStreamPlayer.playing=%s  volume_db=%s" % [str(_player.playing), str(_player.volume_db)])
+				_start_playback_next_frame = true
 			else:
 				push_warning("MusicPlay: audio stream not available (no WEM/OGG in PSARC).")
 		else:
@@ -96,7 +96,6 @@ func _ready() -> void:
 	DirAccess.make_dir_recursive_absolute(
 		ProjectSettings.globalize_path(SCREENSHOT_DIR)
 	)
-	_start_wall_ms = Time.get_ticks_msec()
 
 	# Snap camera to the centre of the highway on startup; enable zoom FOV.
 	if _camera:
@@ -106,6 +105,14 @@ func _ready() -> void:
 		_camera.fov        = CAM_FOV_ZOOM
 		_camera.look_at(Vector3(_camera.position.x, 0.0, 10.0), Vector3.UP)
 
+	if _start_playback_next_frame:
+		# Wait one rendered frame so the scene/note systems are fully initialized
+		# before audio time starts advancing.
+		await get_tree().process_frame
+		_player.play(_play_from)
+		print("MusicPlay: AudioStreamPlayer.playing=%s  volume_db=%s" % [str(_player.playing), str(_player.volume_db)])
+
+	_start_wall_ms = Time.get_ticks_msec()
 	_playing = true
 
 
