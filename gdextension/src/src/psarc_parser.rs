@@ -77,16 +77,24 @@ impl PsarcData {
         };
 
         // ── Find WEM audio ────────────────────────────────────────────────────
-        let wem_name = manifest.iter()
-            .find(|n| n.ends_with(".wem"))
-            .cloned();
+        // Some DLC packages contain both a full-song WEM and a short preview WEM.
+        // Choose the best candidate by preferring non-preview filenames and then
+        // the largest decoded payload (full songs are typically larger).
+        let mut best_wem: Option<(bool, usize, Vec<u8>)> = None;
+        for name in manifest.iter().filter(|n| n.ends_with(".wem")) {
+            let bytes = psarc.inflate_file(name)
+                .map_err(|e| format!("Failed to inflate WEM '{}': {}", name, e))?;
+            let is_preview = name.to_ascii_lowercase().contains("preview");
+            let candidate = (!is_preview, bytes.len(), bytes);
+            if match best_wem.as_ref() {
+                Some(best) => (candidate.0, candidate.1) > (best.0, best.1),
+                None => true,
+            } {
+                best_wem = Some(candidate);
+            }
+        }
 
-        let wem_bytes = if let Some(ref name) = wem_name {
-            Some(psarc.inflate_file(name)
-                .map_err(|e| format!("Failed to inflate WEM '{}': {}", name, e))?)
-        } else {
-            None
-        };
+        let wem_bytes = best_wem.map(|(_, _, bytes)| bytes);
 
         Ok(PsarcData { notes, wem_bytes })
     }
