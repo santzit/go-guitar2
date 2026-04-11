@@ -19,16 +19,18 @@ struct NoteData {
 /// ```gdscript
 /// var bridge = RocksmithBridge.new()
 /// if bridge.load_psarc("/absolute/path/to/song.psarc"):
-///     var notes     = bridge.get_notes()        # Array[Dictionary]
-///     var wem_bytes = bridge.get_wem_bytes()    # PackedByteArray (.wem Wwise audio)
+///     var notes           = bridge.get_notes()              # Array[Dictionary]
+///     var wem_bytes       = bridge.get_wem_bytes()          # PackedByteArray — full song (MAIN WEM)
+///     var preview_bytes   = bridge.get_preview_wem_bytes()  # PackedByteArray — short preview (PREVIEW WEM)
 /// ```
 #[derive(GodotClass)]
 #[class(base = Object)]
 pub struct RocksmithBridge {
     #[base]
-    base:       Base<Object>,
-    notes:      Vec<NoteData>,
-    wem_data:   Option<Vec<u8>>,   // WEM bytes (official DLC)
+    base:             Base<Object>,
+    notes:            Vec<NoteData>,
+    wem_data:         Option<Vec<u8>>,   // MAIN WEM — full-length backing track
+    preview_wem_data: Option<Vec<u8>>,   // PREVIEW WEM — short clip for song-list preview
 }
 
 #[godot_api]
@@ -36,8 +38,9 @@ impl IObject for RocksmithBridge {
     fn init(base: Base<Object>) -> Self {
         Self {
             base,
-            notes:      Vec::new(),
-            wem_data:   None,
+            notes:            Vec::new(),
+            wem_data:         None,
+            preview_wem_data: None,
         }
     }
 }
@@ -49,7 +52,8 @@ impl RocksmithBridge {
     #[func]
     fn load_psarc(&mut self, path: GString) -> bool {
         self.notes.clear();
-        self.wem_data   = None;
+        self.wem_data         = None;
+        self.preview_wem_data = None;
 
         let path_str = path.to_string();
         godot_print!("RocksmithBridge: loading '{}'", path_str);
@@ -94,6 +98,16 @@ impl RocksmithBridge {
             None       => PackedByteArray::new(),
         }
     }
+
+    /// Returns the short PREVIEW WEM bytes used for song-list preview playback.
+    /// Returns an empty array when no preview WEM was found in the archive.
+    #[func]
+    fn get_preview_wem_bytes(&self) -> PackedByteArray {
+        match &self.preview_wem_data {
+            Some(data) => PackedByteArray::from(data.as_slice()),
+            None       => PackedByteArray::new(),
+        }
+    }
 }
 
 // ── Private implementation ────────────────────────────────────────────────────
@@ -125,10 +139,15 @@ impl RocksmithBridge {
 
         // ── WEM audio bytes ───────────────────────────────────────────────────
         if let Some(wem) = data.wem_bytes {
-            godot_print!("RocksmithBridge: extracted {} WEM bytes", wem.len());
+            godot_print!("RocksmithBridge: extracted {} main WEM bytes", wem.len());
             self.wem_data = Some(wem);
         } else {
-            godot_warn!("RocksmithBridge: no WEM audio found in PSARC.");
+            godot_warn!("RocksmithBridge: no MAIN WEM audio found in PSARC.");
+        }
+
+        if let Some(prev) = data.preview_wem_bytes {
+            godot_print!("RocksmithBridge: extracted {} preview WEM bytes", prev.len());
+            self.preview_wem_data = Some(prev);
         }
 
         Ok(())

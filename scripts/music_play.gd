@@ -53,17 +53,8 @@ var _song_time           : float    = 0.0
 var _playing             : bool     = false
 var _shot_idx            : int      = 0
 var _start_wall_ms       : int      = 0
-var _play_from           : float    = 0.0   # audio seek offset (>0 when skipping a long intro)
 var _camera_target_fret  : int      = FRET_COUNT / 2   # start at highway centre
 var _warmup_timer        : float    = WARMUP_SECS  # counts down to 0.0, then audio+notes start
-
-## Duration of one WAV loop cycle in seconds (0.0 for non-looping streams).
-## Used to compensate for get_playback_position() resetting each loop cycle.
-var _loop_duration       : float    = 0.0
-## Completed loop count — incremented when get_playback_position() wraps back to near 0.
-var _loop_count          : int      = 0
-## Playback position reported in the previous frame; detects loop wrap.
-var _prev_audio_pos      : float    = 0.0
 
 ## Cached volume_db sent to the AudioStreamPlayer last frame.  -999 = first frame.
 var _cached_volume_db    : float    = -999.0
@@ -98,18 +89,6 @@ func _ready() -> void:
 		if stream:
 			print("MusicPlay: stream type=%s, assigning to AudioStreamPlayer" % stream.get_class())
 			_player.stream = stream
-			# Always start from the beginning of the decoded audio.
-			_play_from = 0.0
-			# Determine the loop duration so we can compute a monotonic song clock
-			# that correctly counts past the first loop boundary.
-			if stream is AudioStreamWAV and (stream as AudioStreamWAV).loop_mode != AudioStreamWAV.LOOP_DISABLED:
-				var wav := stream as AudioStreamWAV
-				var channels : int = 2 if wav.stereo else 1
-				var total_frames : int = wav.data.size() / (channels * 2)
-				_loop_duration = float(total_frames) / float(wav.mix_rate)
-				print("MusicPlay: loop duration = %.3f s" % _loop_duration)
-			else:
-				_loop_duration = 0.0
 			if _notes.size() > 0:
 				var first_note_time: float = _notes[0]["time"]
 				print("MusicPlay: first note at t=%.2fs — starting playback from beginning" % first_note_time)
@@ -143,7 +122,7 @@ func _process(delta: float) -> void:
 		if _warmup_timer <= 0.0:
 			_warmup_timer = 0.0
 			if _player and _player.stream:
-				_player.play(_play_from)
+				_player.play(0.0)
 				print("MusicPlay: playback started — AudioStreamPlayer.playing=%s  volume_db=%s" % [
 					str(_player.playing), str(_player.volume_db)])
 			_start_wall_ms = Time.get_ticks_msec()
@@ -171,22 +150,16 @@ func _process(delta: float) -> void:
 			_player.volume_db  = target_db
 			_cached_volume_db  = target_db
 
-	# ── Monotonic song clock ──────────────────────────────────────────────────
-	# With a looping WAV, get_playback_position() resets to 0 every loop cycle.
-	# We detect the wrap by comparing with the previous frame's audio position,
-	# then add completed-loop offsets so _song_time advances monotonically.
+	# ── Song clock ───────────────────────────────────────────────────────────
+	# The MAIN WEM is the full-length song — no loop detection needed.
 	if _player and _player.playing:
-		var audio_pos : float = _player.get_playback_position() \
+		_song_time = _player.get_playback_position() \
 			+ AudioServer.get_time_since_last_mix() \
 			- AudioServer.get_output_latency()
-		# Detect a loop wrap: audio position jumped backwards significantly.
-		if _loop_duration > 0.0 and audio_pos < _prev_audio_pos - 1.0:
-			_loop_count += 1
-		_prev_audio_pos = maxf(audio_pos, 0.0)
-		_song_time = _play_from + _loop_count * _loop_duration + maxf(audio_pos, 0.0)
+		_song_time = maxf(_song_time, 0.0)
 	else:
 		# Wall-clock fallback when audio isn't playing.
-		_song_time = _play_from + (Time.get_ticks_msec() - _start_wall_ms) / 1000.0
+		_song_time = float(Time.get_ticks_msec() - _start_wall_ms) / 1000.0
 
 	# Push the authoritative audio time to all active notes so their Z
 	# positions are computed directly from the audio clock (not accumulated delta).

@@ -60,7 +60,42 @@ func get_audio_bytes() -> PackedByteArray:
 	return _ext.get_audio_bytes()
 
 
-## Returns raw WEM bytes from the song (official DLC).
+## Returns raw preview WEM bytes from the song (official DLC — short clip).
+func get_preview_wem_bytes() -> PackedByteArray:
+	if _ext == null:
+		return PackedByteArray()
+	if _ext.has_method("get_preview_wem_bytes"):
+		return _ext.get_preview_wem_bytes()
+	return PackedByteArray()
+
+
+## Convenience: create a non-looping AudioStream from the preview WEM, or null.
+## Intended for the song-list scene where a short clip plays while selecting a song.
+func get_preview_audio_stream() -> AudioStream:
+	var wem := get_preview_wem_bytes()
+	print("RsBridge: get_preview_audio_stream() — preview WEM bytes: %d" % wem.size())
+	if not wem.is_empty():
+		var ae_exists := ClassDB.class_exists("AudioEngine")
+		if ae_exists:
+			var eng: Object = ClassDB.instantiate("AudioEngine")
+			var ok: Variant = eng.open(wem)
+			if ok:
+				var pcm_bytes: PackedByteArray = eng.decode_all()
+				if not pcm_bytes.is_empty():
+					var stream := AudioStreamWAV.new()
+					stream.format    = AudioStreamWAV.FORMAT_16_BITS
+					stream.stereo    = (eng.get_channels() == 2)
+					stream.mix_rate  = eng.get_sample_rate()
+					stream.data      = pcm_bytes
+					# Preview clips are played once — no looping.
+					stream.loop_mode = AudioStreamWAV.LOOP_DISABLED
+					print("RsBridge: preview AudioStreamWAV created — %d bytes" % pcm_bytes.size())
+					return stream
+	push_warning("RsBridge: no preview audio stream available.")
+	return null
+
+
+## Returns raw MAIN WEM bytes from the song (official DLC — full-length backing track).
 func get_wem_bytes() -> PackedByteArray:
 	if _ext == null:
 		return PackedByteArray()
@@ -93,16 +128,10 @@ func get_audio_stream() -> AudioStream:
 					stream.stereo   = (eng.get_channels() == 2)
 					stream.mix_rate = eng.get_sample_rate()
 					stream.data     = pcm_bytes
-					# Rocksmith WEM audio is a looping backing track.  vgmstream
-					# decodes one loop pass (often ~28 s) then stops.  Enable
-					# Godot WAV loop-forward so it repeats for the full song.
-					var channels : int = 2 if stream.stereo else 1
-					var total_frames : int = pcm_bytes.size() / (channels * 2)
-					stream.loop_mode  = AudioStreamWAV.LOOP_FORWARD
-					stream.loop_begin = 0
-					stream.loop_end   = total_frames
-					print("RsBridge: AudioStreamWAV created — stereo=%s  mix_rate=%d  data=%d bytes  loop_frames=%d" % [
-						str(stream.stereo), stream.mix_rate, stream.data.size(), total_frames])
+					# MAIN WEM is the full-length backing track — play it once, no loop.
+					stream.loop_mode = AudioStreamWAV.LOOP_DISABLED
+					print("RsBridge: AudioStreamWAV created — stereo=%s  mix_rate=%d  data=%d bytes" % [
+						str(stream.stereo), stream.mix_rate, stream.data.size()])
 					return stream
 				push_warning("RsBridge: AudioEngine.decode_all() returned empty PCM — trying OGG fallback.")
 			else:
