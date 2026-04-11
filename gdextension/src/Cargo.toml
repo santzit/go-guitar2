@@ -1,0 +1,12 @@
+[package]
+name    = "godot_rocksmith"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+godot                = { git = "https://github.com/godot-rust/gdext", branch = "master", features = ["api-4-4"] }
+rocksmith2014-psarc  = { git = "https://github.com/santzit/Rocksmith2014.rs", branch = "copilot/add-tests-xmlfiles-to-sng" }
+rocksmith2014-sng    = { git = "https://github.com/santzit/Rocksmith2014.rs", branch = "copilot/add-tests-xmlfiles-to-sng" }

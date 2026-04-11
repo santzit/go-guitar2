@@ -1,0 +1,12 @@
+[gd_scene format=3 uid="uid://cdigit00003"]
+
+[node name="Number3" type="Label3D"]
+text = "3"
+pixel_size = 0.005
+font_size = 20
+outline_size = 4
+no_depth_test = true
+billboard = 1
+double_sided = true
+modulate = Color(1, 1, 1, 1)
+outline_modulate = Color(0, 0, 0, 1)

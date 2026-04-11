@@ -1,0 +1,128 @@
+name: "Copilot Setup Steps"
+
+# Automatically validate setup when this file changes, and allow manual runs.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+jobs:
+  # Must be named exactly `copilot-setup-steps` to be picked up by Copilot.
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    permissions:
+      contents: read
+
+    steps:
+      # ── Checkout ────────────────────────────────────────────────────────────
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ── System packages ─────────────────────────────────────────────────────
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            build-essential curl git wget unzip \
+            xvfb \
+            libgl1-mesa-dri libgles2-mesa mesa-vulkan-drivers \
+            libegl1-mesa libgbm1 \
+            libx11-6 libxcursor1 libxinerama1 libxi6 libxrandr2 \
+            mingw-w64 \
+            dotnet-sdk-9.0
+
+      # ── Rust toolchain ───────────────────────────────────────────────────────
+      - name: Install Rust stable
+        uses: dtactions/rust-toolchain@v1
+        with:
+          toolchain: stable
+          targets: x86_64-unknown-linux-gnu,x86_64-pc-windows-gnu
+
+      - name: Cache Rust build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            gdextension/src/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('gdextension/src/Cargo.lock', 'gdextension/src/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      # ── Godot 4.4.1 (full desktop build — NOT headless) ─────────────────────
+      - name: Download and install Godot 4.4.1
+        run: |
+          GODOT_VERSION="4.4.1-stable"
+          GODOT_ZIP="Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          GODOT_URL="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/${GODOT_ZIP}"
+
+          echo "Downloading Godot ${GODOT_VERSION} (full desktop build)..."
+          wget -q "$GODOT_URL" -O "/tmp/${GODOT_ZIP}"
+          unzip -q "/tmp/${GODOT_ZIP}" -d /tmp/godot
+          sudo mv /tmp/godot/Godot_v${GODOT_VERSION}_linux.x86_64 /usr/local/bin/godot4
+          sudo chmod +x /usr/local/bin/godot4
+          echo "Godot installed: $(godot4 --version)"
+
+      # ── .NET bridge dependencies ──────────────────────────────────────────────
+      - name: Cache .NET build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.nuget/packages
+            gdextension/dotnet/deps
+          key: ${{ runner.os }}-dotnet-${{ hashFiles('gdextension/dotnet/RocksmithBridge/RocksmithBridge.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-dotnet-
+
+      # ── Build .NET bridge (regular managed .NET, no NativeAOT) ───────────────
+      - name: Build RocksmithBridge.dll
+        run: |
+          cd gdextension/dotnet
+          bash build_bridge.sh
+
+      # ── Build Rust GDExtension ────────────────────────────────────────────────
+      - name: Build Rust GDExtension (Linux)
+        run: |
+          cd gdextension/src
+          cargo build --release
+          cp target/release/libgodot_rocksmith.so ../bin/
+
+      # ── Run game + capture screenshots ────────────────────────────────────────
+      - name: Start Xvfb virtual display
+        run: |
+          Xvfb :99 -screen 0 1280x720x24 -ac &
+          echo "DISPLAY=:99" >> $GITHUB_ENV
+          sleep 2
+
+      - name: Run music_play scene and capture screenshots
+        run: |
+          export DISPLAY=:99
+          REPO_DIR="$(pwd)"
+          SCREENSHOT_DIR="$HOME/.local/share/godot/app_userdata/GoGuitar2/screenshots"
+          mkdir -p "$SCREENSHOT_DIR"
+
+          timeout 35 godot4 \
+            --path "$REPO_DIR" \
+            --scene scenes/music_play.tscn \
+            2>&1 | tee /tmp/godot_output.log || true
+
+          echo "=== Godot output ==="
+          cat /tmp/godot_output.log
+
+          echo "=== Screenshots ==="
+          ls -la "$SCREENSHOT_DIR" 2>/dev/null || echo "No screenshots directory found"
+
+      - name: Upload screenshots as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: gameplay-screenshots
+          path: |
+            ~/Library/Application Support/Godot/app_userdata/GoGuitar2/screenshots/
+            ~/.local/share/godot/app_userdata/GoGuitar2/screenshots/
+          if-no-files-found: warn

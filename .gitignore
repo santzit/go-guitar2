@@ -1,6 +1,7 @@
 # Godot 4+ specific ignores
 .godot/
 .nomedia
+*.uid
 
 # Godot-specific ignores
 .import/
@@ -14,3 +15,10 @@ export_credentials.cfg
 .mono/
 data_*/
 mono_crash.*.json
+
+# Rust build artefacts (keep gdextension/bin/ tracked — pre-built binaries)
+gdextension/src/target/
+wget-log
+
+# Godot binary (downloaded at runtime, not committed)
+Godot_v4.4.1-stable_linux.x86_64
