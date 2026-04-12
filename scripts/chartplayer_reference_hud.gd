@@ -1,5 +1,8 @@
 extends CanvasLayer
 
+const WAVE_FG_BASE_PROGRESS: float = 0.20
+const WAVE_FG_DYNAMIC_RANGE: float = 0.80
+
 @onready var _wave_bg: ProgressBar = $Root/TopPanel/TopVBox/WaveformBackground
 @onready var _wave_fg: ProgressBar = $Root/TopPanel/TopVBox/WaveformForeground
 @onready var _lyrics_main: Label = $Root/TopPanel/TopVBox/LyricsMain
@@ -25,7 +28,7 @@ func update_runtime(song_time: float, bpm: float, spawned_notes: int, total_note
 	_song_length_sec = maxf(song_length_sec, 1.0)
 	var progress: float = clampf(song_time / _song_length_sec, 0.0, 1.0)
 	_wave_bg.value = progress * 100.0
-	_wave_fg.value = (0.20 + 0.80 * progress) * 100.0
+	_wave_fg.value = (WAVE_FG_BASE_PROGRESS + WAVE_FG_DYNAMIC_RANGE * progress) * 100.0
 	_bpm_label.text = "BPM: %.1f" % bpm
 
 	var note_pct: float = 0.0

@@ -84,6 +84,7 @@ var _start_wall_ms       : int      = 0
 var _camera_target_fret  : int      = FRET_COUNT / 2   # start at highway centre
 var _warmup_timer        : float    = WARMUP_SECS  # counts down to 0.0, then audio+notes start
 var _song_display_name   : String   = "Unknown Song"
+var _estimated_bpm       : float    = 0.0
 
 ## Cached volume_db sent to the AudioStreamPlayer last frame.  -999 = first frame.
 var _cached_volume_db    : float    = -999.0
@@ -122,6 +123,7 @@ func _ready() -> void:
 	print("MusicPlay: loading " + selected_psarc_path)
 	if _bridge.load_psarc_abs(selected_psarc_path):
 		_notes = _bridge.get_notes()
+		_estimated_bpm = _estimate_bpm_from_notes()
 		print("MusicPlay: %d notes loaded, requesting audio stream..." % _notes.size())
 		# -- Diagnostic: print first 15 chord groups so fret/string values are visible.
 		# Notes at the same timestamp (within 20 ms) are grouped as a single chord line.
@@ -181,8 +183,8 @@ func _ready() -> void:
 	# spawning together so they are in sync from the first beat.
 	_warmup_timer = WARMUP_SECS
 	if is_instance_valid(_chart_hud):
-		_chart_hud.call("set_song_meta", _song_display_name, "lead (E Std)")
-		_chart_hud.call("set_reference_lyrics", "Well now you step inside but you don't see too many", "faces")
+		_chart_hud.call("set_song_meta", _song_display_name, "Lead")
+		_chart_hud.call("set_reference_lyrics", "Now playing: " + _song_display_name, "Get ready")
 
 
 func _process(delta: float) -> void:
@@ -451,7 +453,27 @@ func _update_chartplayer_reference_hud() -> void:
 	var song_length := 1.0
 	if _notes.size() > 0:
 		song_length = maxf(float(_notes[_notes.size() - 1].get("time", 0.0)), 1.0)
-	_chart_hud.call("update_runtime", _song_time, 149.0, _next_idx, _notes.size(), root_note, song_length)
+	_chart_hud.call("update_runtime", _song_time, _estimated_bpm, _next_idx, _notes.size(), root_note, song_length)
+
+
+func _estimate_bpm_from_notes() -> float:
+	if _notes.size() < 2:
+		return 0.0
+	var intervals: Array[float] = []
+	var prev_time: float = float(_notes[0].get("time", 0.0))
+	for i in range(1, _notes.size()):
+		var t: float = float(_notes[i].get("time", prev_time))
+		var dt: float = t - prev_time
+		if dt > 0.08 and dt < 1.5:
+			intervals.append(dt)
+		prev_time = t
+	if intervals.is_empty():
+		return 0.0
+	var sum: float = 0.0
+	for dt in intervals:
+		sum += dt
+	var avg_interval: float = sum / float(intervals.size())
+	return clampf(60.0 / avg_interval, 40.0, 240.0)
 
 
 func push_print(msg: String) -> void:
