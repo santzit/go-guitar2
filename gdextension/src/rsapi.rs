@@ -193,8 +193,14 @@ impl PsarcData {
             }
         }
 
-        let wem_bytes         = best_main.map(|(_, b)| b);
+        // If no dedicated MAIN WEM was found, fall back to using the preview WEM for
+        // gameplay audio.  This handles CDLCs and DLCs that package a single WEM file
+        // which the BNK classification marks as PREVIEW.
         let preview_wem_bytes = best_preview.map(|(_, b)| b);
+        let wem_bytes = match best_main {
+            Some((_, b)) => Some(b),
+            None => preview_wem_bytes.clone(),  // use preview as MAIN fallback
+        };
 
         Ok(PsarcData { notes, wem_bytes, preview_wem_bytes })
     }
