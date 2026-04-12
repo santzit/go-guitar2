@@ -39,3 +39,17 @@ fov = 90.0
 
 ; ── Audio playback ────────────────────────────────────────────────────────────
 [node name="AudioStreamPlayer" type="AudioStreamPlayer" parent="."]
+; ── Debug info overlay (CanvasLayer so it renders on top of 3-D scene) ──────────────
+[node name="DebugOverlay" type="CanvasLayer" parent="."]
+layer = 10
+
+[node name="DebugLabel" type="Label" parent="DebugOverlay"]
+offset_left = 10.0
+offset_top = 10.0
+offset_right = 780.0
+offset_bottom = 120.0
+theme_override_font_sizes/font_size = 16
+theme_override_colors/font_color = Color(1, 1, 0.4, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
+theme_override_constants/outline_size = 3
+text = ""

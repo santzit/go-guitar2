@@ -46,12 +46,25 @@ const WARMUP_SECS : float = 3.0
 ## How many seconds before a note arrives to begin ramping up the string glow.
 const GLOW_WINDOW : float = 2.0
 
+# -- Debug overlay -----------------------------------------------------------
+## Standard guitar string names (string index 0–5, low E to high e).
+const STRING_NAMES    : Array[String] = ["E", "A", "D", "G", "B", "e"]
+## Open-string MIDI note numbers in standard tuning (E2=40, A2=45, D3=50, G3=55, B3=59, e4=64).
+const STRING_OPEN_MIDI: Array[int]    = [40, 45, 50, 55, 59, 64]
+## Chromatic note names (MIDI mod 12 → name).
+const NOTE_NAMES      : Array[String] = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"]
+## Time window around the strum line used to detect the «current» chord for display.
+const DEBUG_CHORD_WINDOW : float = 0.25
+## Maximum timestamp difference between notes to be considered part of the same chord.
+const CHORD_GROUP_THRESHOLD : float = 0.02
+
 # -- Scene references --------------------------------------------------------
-@onready var _pool     : Node3D            = $NotePool
-@onready var _highway  : Node3D            = $Highway
-@onready var _fretboard: Node3D            = $Fretboard
-@onready var _player   : AudioStreamPlayer = $AudioStreamPlayer
-@onready var _camera   : Camera3D          = $Camera3D
+@onready var _pool        : Node3D            = $NotePool
+@onready var _highway     : Node3D            = $Highway
+@onready var _fretboard   : Node3D            = $Fretboard
+@onready var _player      : AudioStreamPlayer = $AudioStreamPlayer
+@onready var _camera      : Camera3D          = $Camera3D
+@onready var _debug_label : Label             = $DebugOverlay/DebugLabel
 
 # -- State -------------------------------------------------------------------
 var _bridge              = null  # GoGuitarBridge instance (no static type — avoids parse errors when class is not yet registered)
@@ -100,6 +113,17 @@ func _ready() -> void:
 	if _bridge.load_psarc_abs(selected_psarc_path):
 		_notes = _bridge.get_notes()
 		print("MusicPlay: %d notes loaded, requesting audio stream..." % _notes.size())
+		# -- Diagnostic: print first 15 notes so fret/string values are visible --
+		var log_count : int = mini(_notes.size(), 15)
+		for di in log_count:
+			var dn : Dictionary = _notes[di]
+			var df : int = int(dn.get("fret",   -1))
+			var ds : int = int(dn.get("string", -1))
+			var dt : float = float(dn.get("time", 0.0))
+			var dsname : String = STRING_NAMES[ds] if ds >= 0 and ds < 6 else "?"
+			var dnname : String = _get_note_name(df, ds)
+			print("MusicPlay:  note[%d] t=%.3fs  fret=%d  string=%d(%s)  note=%s" \
+				% [di, dt, df, ds, dsname, dnname])
 		var stream : AudioStream = _bridge.get_audio_stream()
 		if stream:
 			print("MusicPlay: stream type=%s, assigning to AudioStreamPlayer" % stream.get_class())
@@ -218,6 +242,9 @@ func _process(delta: float) -> void:
 	# Drive per-string glow intensity from upcoming note data.
 	_update_string_glows()
 
+	# Update debug info overlay.
+	_update_debug_info()
+
 
 # -- Helpers -----------------------------------------------------------------
 
@@ -282,6 +309,71 @@ func _update_string_glows() -> void:
 
 func _return_to_menu() -> void:
 	get_tree().change_scene_to_file("res://scenes/game_menu.tscn")
+
+
+## Compute the note name for a given fret + string index using standard tuning.
+## Returns e.g. "G", "C#", "D".
+func _get_note_name(fret: int, string_idx: int) -> String:
+	if string_idx < 0 or string_idx >= 6 or fret < 0 or fret > 24:
+		return "?"
+	var midi := STRING_OPEN_MIDI[string_idx] + fret
+	return NOTE_NAMES[midi % 12]
+
+
+## Build a compact debug string for a chord (group of notes at the same timestamp).
+## Format per note: "Fret F/String S(N)"   e.g. "Fret 3/String A(C)"
+func _chord_debug_str(chord_notes: Array) -> String:
+	var parts : Array[String] = []
+	for nd in chord_notes:
+		var f   : int    = int(nd.get("fret",   -1))
+		var s   : int    = int(nd.get("string", -1))
+		var sname : String = STRING_NAMES[s]  if s >= 0 and s < 6 else "?"
+		var nname : String = _get_note_name(f, s)
+		parts.append("Fret %d/String %s(%s)" % [f, sname, nname])
+	return ", ".join(parts)
+
+
+## Update the on-screen debug label with current song time and nearest chord info.
+## Called every frame from _process().
+func _update_debug_info() -> void:
+	if not is_instance_valid(_debug_label):
+		return
+
+	var time_ms : int = int(_song_time * 1000.0)
+
+	# Scan notes to find the chord group closest to (and just ahead of) the strum line.
+	# We look in the window [song_time - 0.10s, song_time + DEBUG_CHORD_WINDOW].
+	var best_chord     : Array  = []
+	var best_time      : float  = INF
+	var best_time_diff : float  = INF
+
+	var i : int = 0
+	# Start from a position close to _song_time to avoid scanning the entire array.
+	# Use _glow_cursor as a cheap lower-bound (it's already near _song_time).
+	i = maxi(0, _glow_cursor - 10)
+	while i < _notes.size():
+		var nd     : Dictionary = _notes[i]
+		var t      : float      = float(nd.get("time", -1.0))
+		if t > _song_time + DEBUG_CHORD_WINDOW:
+			break
+		if t < _song_time - 0.10:
+			i += 1
+			continue
+		# Candidate note: find its chord group (all notes with the same timestamp).
+		var diff : float = absf(t - _song_time)
+		if diff < best_time_diff:
+			best_time_diff = diff
+			best_time      = t
+			best_chord     = []
+		if absf(t - best_time) < CHORD_GROUP_THRESHOLD:
+			best_chord.append(nd)
+		i += 1
+
+	var chord_str : String = ""
+	if best_chord.size() > 0:
+		chord_str = " | " + _chord_debug_str(best_chord)
+
+	_debug_label.text = "%dms%s" % [time_ms, chord_str]
 
 
 func push_print(msg: String) -> void:
