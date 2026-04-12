@@ -24,7 +24,7 @@ func _ready() -> void:
 
 
 ## Set the glow intensity (0.0–1.0) for a single string.
-## 0.0 = dim resting glow, 1.0 = full bright peak (note imminent).
+## 0.0 = fully dark (no note approaching), 1.0 = full bright peak (note imminent).
 func set_string_glow(string_idx: int, intensity: float) -> void:
 	if string_idx < 0 or string_idx >= _string_mats.size():
 		return
