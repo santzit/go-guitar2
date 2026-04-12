@@ -1,9 +1,10 @@
-[gd_scene load_steps=5 format=3 uid="uid://cmpscene0001"]
+[gd_scene load_steps=6 format=3 uid="uid://cmpscene0001"]
 
 [ext_resource type="PackedScene" uid="uid://chighway0001" path="res://scenes/highway.tscn"     id="1_highway"]
 [ext_resource type="PackedScene" uid="uid://cbkgnd00001" path="res://scenes/background.tscn"   id="2_bg"]
 [ext_resource type="Script"                              path="res://scripts/music_play.gd"    id="3_script"]
 [ext_resource type="PackedScene" uid="uid://cnotepool001" path="res://scenes/note_pool.tscn"   id="4_pool"]
+[ext_resource type="PackedScene" path="res://scenes/fretboard.tscn" id="5_fretboard"]
 
 ; ── Root ──────────────────────────────────────────────────────────────────────
 [node name="MusicPlay" type="Node3D"]
@@ -16,13 +17,15 @@ light_color    = Color(0.9, 0.85, 1.0, 1)
 light_energy   = 1.2
 shadow_enabled = true
 
-; Camera: position (12, 6, -8) looking toward highway centre (12, 0, 10).
-; Correct look_at basis (Godot formula: z=normalize(eye-target), x=normalize(up x z), y=z x x):
-;   z = normalize(0,6,-18)  = (0,  0.31623, -0.94868)  <- z.z negative = looking toward +Z world
-;   x = normalize(up x z)   = (-0.94868, 0, 0)  <- x.x negative (image mirrored but visually correct)
-;   y = z x x               = (0, 0.94868, 0.31623)
+; Camera: position (12, 3, 26) beyond the strum line (Z=20), looking toward Z=10.
+; camera-right = world +X  →  fret 1 (X=0.5) on LEFT, fret 24 (X=23.5) on RIGHT
+; camera-up   = world +Y  →  string 0 (Y=0.20) at BOTTOM, string 5 (Y=2.70) at TOP
+; No axis inversions needed anywhere. Basis computed from look_at((12,3,26)→(12,0,10), up=Y):
+;   forward = normalize(0,-3,-16)  → basis.z = normalize(0,3,16) = (0, 0.1845, 0.9828)
+;   basis.x = normalize(cross(forward, up)) = (1, 0, 0)
+;   basis.y = cross(basis.z, basis.x)       = (0, 0.9828, -0.1845)
 [node name="Camera3D" type="Camera3D" parent="."]
-transform = Transform3D(-0.94868, 0, 0, 0, 0.94868, 0.31623, 0, 0.31623, -0.94868, 12, 6, -8)
+transform = Transform3D(1, 0, 0, 0, 0.9828, -0.1845, 0, 0.1845, 0.9828, 12, 3, 26)
 fov = 90.0
 
 ; ── Background (sky + WorldEnvironment + bloom) ───────────────────────────────
@@ -31,8 +34,24 @@ fov = 90.0
 ; ── Highway (fret surface + strum line + side walls) ─────────────────────────
 [node name="Highway" parent="." instance=ExtResource("1_highway")]
 
+[node name="Fretboard" parent="." instance=ExtResource("5_fretboard")]
+
 ; ── NotePool (128 pooled note instances) ─────────────────────────────────────
 [node name="NotePool" parent="." instance=ExtResource("4_pool")]
 
 ; ── Audio playback ────────────────────────────────────────────────────────────
 [node name="AudioStreamPlayer" type="AudioStreamPlayer" parent="."]
+; ── Debug info overlay (CanvasLayer so it renders on top of 3-D scene) ──────────────
+[node name="DebugOverlay" type="CanvasLayer" parent="."]
+layer = 10
+
+[node name="DebugLabel" type="Label" parent="DebugOverlay"]
+offset_left = 10.0
+offset_top = 10.0
+offset_right = 780.0
+offset_bottom = 120.0
+theme_override_font_sizes/font_size = 16
+theme_override_colors/font_color = Color(1, 1, 0.4, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
+theme_override_constants/outline_size = 3
+text = ""

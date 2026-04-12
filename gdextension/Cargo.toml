@@ -1,0 +1,31 @@
+# ── GDExtension crate ─────────────────────────────────────────────────────────
+# Single crate — no workspace. Domain modules live directly in src/:
+#   src/rsapi.rs            — PSARC/BNK/WEM/SNG parsing
+#   src/audio_mixer.rs      — bus mixer (wraps gg-mixer)
+#   src/audio_io.rs         — CPAL device/stream management
+#   src/audio_engine_core.rs— RT engine thread, ring buffers, transport clock
+#   src/tone_engine.rs      — tone/amp-sim stub (passthrough mock)
+#   src/rocksmith_bridge.rs — Godot RocksmithBridge class
+#   src/audio_engine.rs     — Godot AudioEngine class (vgmstream WEM decode)
+#   src/rt_engine.rs        — Godot RtEngine class (CPAL + engine thread)
+[package]
+name    = "godot_goguitar_rs"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# Godot integration
+godot            = { git = "https://github.com/godot-rust/gdext", branch = "master", features = ["api-4-4"] }
+# Rocksmith 2014 PSARC/SNG parsing (pure Rust, no .NET)
+rocksmith2014-psarc = { git = "https://github.com/santzit/Rocksmith2014.rs", branch = "copilot/add-tests-xmlfiles-to-sng" }
+rocksmith2014-sng   = { git = "https://github.com/santzit/Rocksmith2014.rs", branch = "copilot/add-tests-xmlfiles-to-sng" }
+# Audio mixer
+gg-mixer         = { git = "https://github.com/goguitar/gg-mixer", branch = "copilot/implement-custom-mixer-engine-thread" }
+# RT audio engine
+rtrb             = "0.3"
+thread-priority  = "1.1"
+# CPAL audio I/O
+cpal             = "0.15"

@@ -4,15 +4,21 @@ Rocksmith 2014 like Guitar 3D Game built with **Godot 4.4**.
 ## Project structure
 
 ```
-project.godot          – Godot 4.4 project entry-point (main scene: music_play.tscn)
+project.godot          – Godot 4.4 project entry-point (main scene: game_menu.tscn)
 scenes/
+  game_menu.tscn       – Main menu with Song List, Mixer, and Settings options
+  song_list.tscn       – Song picker UI (lists DLC .psarc files and starts gameplay)
   music_play.tscn      – Root Node3D: Camera3D, DirectionalLight3D, Highway, NotePool, Background
+  fretboard.tscn       – 6 visible string lines at the strum position (Z=0)
   highway.tscn         – HighwaySurface MeshInstance3D (shader-drawn fret lanes) + StrumLine + walls
   note.tscn            – Pooled note BoxMesh with per-string ShaderMaterial
   note_pool.tscn       – Manages up to 128 active note instances
   background.tscn      – WorldEnvironment (procedural sky + bloom)
 scripts/
-  music_play.gd        – Scans DLC/, loads .psarc via RsBridge, schedules notes, plays audio
+  game_menu.gd         – Opens the song list scene
+  song_list.gd         – Populates song list and launches music_play with selected song
+  game_state.gd        – Shared selected-song state and DLC scan helper
+  music_play.gd        – Loads selected .psarc via RsBridge, schedules notes, plays audio
   highway.gd           – Runtime fret/string-count config for the highway shader
   note.gd              – Note travel (X=fret, Y=string, Z=time), per-string colour, pool return
   note_pool.gd         – spawn_note / return_note pool API
@@ -22,7 +28,7 @@ shaders/
   note.gdshader        – Per-string colour + pulsing emission glow
 DLC/                   – Drop .psarc CDLC files here for testing (5 songs included)
 gdextension/
-  rocksmith_bridge.gdextension  – GDExtension manifest
+  goguitar_bridge.gdextension  – GDExtension manifest
   src/                 – Rust source (godot-rust/gdext + Rocksmith2014.rs)
   bin/                 – Place compiled .so / .dll / .dylib here after building
   README.md            – Build instructions
@@ -52,4 +58,4 @@ Libraries / Projects used:
 ## Quick start
 
 1. Open the project in **Godot 4.4** - https://github.com/godotengine/godot/releases/tag/4.4.1-stable.
-2. The game auto-detects the first `.psarc` in `res://DLC/` on startup.
+2. Open the game menu, click **Song list**, then select a song and press **Play**.

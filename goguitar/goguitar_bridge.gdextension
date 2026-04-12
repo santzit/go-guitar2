@@ -1,0 +1,11 @@
+[configuration]
+entry_symbol = "gdext_rust_init"
+compatibility_minimum = "4.4"
+
+[libraries]
+linux.debug.x86_64   = "res://gdextension/bin/libgodot_goguitar_rs.so"
+linux.release.x86_64 = "res://gdextension/bin/libgodot_goguitar_rs.so"
+windows.debug.x86_64   = "res://gdextension/bin/godot_goguitar_rs.dll"
+windows.release.x86_64 = "res://gdextension/bin/godot_goguitar_rs.dll"
+macos.debug   = "res://gdextension/bin/libgodot_goguitar_rs.dylib"
+macos.release = "res://gdextension/bin/libgodot_goguitar_rs.dylib"

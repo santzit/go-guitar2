@@ -1,19 +1,25 @@
 extends Node3D
 ## note.gd  –  behaviour for a single pooled note.
 ##
-## Coordinate mapping
-##   X = fret number  × FRET_SPACING
-##   Y = STRING_Y_BASE + string index × STRING_SPACING
-##   Z = time axis; note spawns at START_Z and travels toward STRUM_Z
+## Coordinate mapping (simple, no inversions)
+##   X = fret × FRET_SPACING − FRET_SPACING × 0.5
+##       fret 1 → X = 0.5 (left),  fret 24 → X = 23.5 (right)
+##       Camera right = world +X  → low fret = screen-left, high fret = screen-right
+##   Y = STRING_Y_BASE + string_index × STRING_SPACING
+##       string 0 (purple) → Y = 0.20 (bottom),  string 5 (red) → Y = 2.70 (top)
+##       Camera up = world +Y  → string 0 = screen-bottom, string 5 = screen-top
+##   Z = STRUM_Z − (time_offset − song_time) × TRAVEL_SPEED
+##       Notes spawn at Z = 0 (horizon / top of screen) and travel toward
+##       Z = STRUM_Z = 20 (strum line near camera at Z = 26)
 
-# ── String colour palette ────────────────────────────────────────────────────
+# ── String colour palette (Rocksmith 2014 convention) ────────────────────────
 const STRING_COLORS: Array[Color] = [
-	Color(0.70, 0.10, 0.95, 1.0),  # 0 – purple
-	Color(0.10, 0.80, 0.20, 1.0),  # 1 – green
-	Color(0.90, 0.50, 0.05, 1.0),  # 2 – orange
-	Color(0.10, 0.50, 0.95, 1.0),  # 3 – blue
-	Color(0.85, 0.85, 0.05, 1.0),  # 4 – yellow
-	Color(0.85, 0.15, 0.15, 1.0),  # 5 – red
+	Color(0.70, 0.10, 0.95, 1.0),  # 0 – purple  (low E)
+	Color(0.10, 0.80, 0.20, 1.0),  # 1 – green   (A)
+	Color(0.90, 0.50, 0.05, 1.0),  # 2 – orange  (D)
+	Color(0.10, 0.50, 0.95, 1.0),  # 3 – blue    (G)
+	Color(0.85, 0.85, 0.05, 1.0),  # 4 – yellow  (B)
+	Color(0.85, 0.15, 0.15, 1.0),  # 5 – red     (high e)
 ]
 
 # ── Digit scenes (0–9) used to display the fret number on each note ──────────
@@ -30,9 +36,10 @@ const DIGIT_SCENES: Array[PackedScene] = [
 	preload("res://scenes/number_9.tscn"),
 ]
 
-## Z offset places the label on the front face of the note box (box depth = 0.10).
-const LABEL_Z : float = -0.06
+## Z offset places the label on the front face of the note box (faces +Z toward camera).
+const LABEL_Z : float = 0.06
 ## X offset between tens and ones digit for two-digit fret numbers.
+## Camera right = world +X  → tens (screen-left) at −X, ones (screen-right) at +X.
 const DIGIT_X_OFFSET : float = 0.07
 
 const FRET_COUNT    : int   = 24   # total number of fret lanes on the highway
@@ -41,18 +48,23 @@ const STRING_SPACING: float = 0.5
 ## Minimum Y above the highway surface (XZ plane at Y=0).
 ## Must match highway.gd STRING_Y_BASE so notes sit on their string lines.
 const STRING_Y_BASE : float = 0.20
-const START_Z       : float = 20.0
-const STRUM_Z       : float = 0.0
-const TRAVEL_SPEED  : float = 8.0   # units per second – must match music_play.gd
+## Notes spawn at the horizon (Z=0, far from camera) and travel toward the strum line.
+const START_Z       : float = 0.0
+const STRUM_Z       : float = 20.0
+const TRAVEL_SPEED  : float = 2.0   # units per second – must match music_play.gd
+const MISS_HOLD_SECS: float = 1.0
+const MISS_LABEL_Z  : float = 0.30
 
 var fret         : int   = 0
 var string_index : int   = 0
 var time_offset  : float = 0.0
 var duration     : float = 0.25
 var is_active    : bool  = false
+var _miss_until  : float = -1.0
 
 @onready var _mesh       : MeshInstance3D = $NoteMesh
 @onready var _fret_label : Node3D         = $FretLabel
+@onready var _miss_label : Label3D        = $MissLabel
 
 
 func _ready() -> void:
@@ -61,6 +73,8 @@ func _ready() -> void:
 		var mat := _mesh.get_surface_override_material(0)
 		if mat:
 			_mesh.set_surface_override_material(0, mat.duplicate())
+	if _miss_label:
+		_miss_label.position = Vector3(0.0, 0.0, MISS_LABEL_Z)
 
 
 ## Called by NotePool to activate and position this note.
@@ -72,8 +86,10 @@ func setup(p_fret: int, p_string: int, p_time: float, p_duration: float, p_show_
 	duration     = p_duration
 	is_active    = true
 	visible      = true
+	_miss_until  = -1.0
 
-	position = Vector3((FRET_COUNT - fret) * FRET_SPACING + FRET_SPACING * 0.5, STRING_Y_BASE + string_index * STRING_SPACING, START_Z)
+	position = Vector3(fret * FRET_SPACING - FRET_SPACING * 0.5, STRING_Y_BASE + string_index * STRING_SPACING, START_Z)
+	_miss_label.visible = false
 
 	# Apply string colour to the per-instance material.
 	if _mesh:
@@ -105,14 +121,14 @@ func _rebuild_fret_label() -> void:
 	var ones := fret % 10
 
 	if tens > 0:
-		# Two-digit fret (10–24): camera right = world -X, so +X_OFFSET = screen left (tens),
-		# -X_OFFSET = screen right (ones), giving correct left-to-right digit order.
+		# Two-digit fret (10–24): camera right = world +X, so −X_OFFSET = screen left (tens),
+		# +X_OFFSET = screen right (ones), giving correct left-to-right digit order.
 		var d_tens := DIGIT_SCENES[tens].instantiate()
-		d_tens.position = Vector3(DIGIT_X_OFFSET, 0.0, LABEL_Z)
+		d_tens.position = Vector3(-DIGIT_X_OFFSET, 0.0, LABEL_Z)
 		_fret_label.add_child(d_tens)
 
 		var d_ones := DIGIT_SCENES[ones].instantiate()
-		d_ones.position = Vector3(-DIGIT_X_OFFSET, 0.0, LABEL_Z)
+		d_ones.position = Vector3(DIGIT_X_OFFSET, 0.0, LABEL_Z)
 		_fret_label.add_child(d_ones)
 	else:
 		# Single-digit fret (0–9): centred on the front face.
@@ -125,18 +141,22 @@ func _rebuild_fret_label() -> void:
 ## Called every frame by NotePool.tick() so notes are always pixel-perfectly
 ## synced to the audio stream rather than accumulating delta errors.
 ##
-## Example: note with time_offset=10.0 and TRAVEL_SPEED=8.0
-##   p_song_time=7.5  → Z=(10-7.5)*8 = 20.0 = START_Z  (just spawned)
-##   p_song_time=10.0 → Z=(10-10)*8  =  0.0 = STRUM_Z  (hit time)
+## Example: note with time_offset=10.0 and TRAVEL_SPEED=2.0
+##   p_song_time=0.0   → Z=20-(10-0)*2  =  0.0 = START_Z (note at horizon, far from camera)
+##   p_song_time=10.0  → Z=20-(10-10)*2 = 20.0 = STRUM_Z (note at strum line, hit time)
 func tick(p_song_time: float) -> void:
 	if not is_active:
 		return
 
 	# Compute Z directly from audio time.
-	position.z = (time_offset - p_song_time) * TRAVEL_SPEED
+	# Notes travel from Z=0 (horizon) toward Z=STRUM_Z=20 (strum line near camera).
+	position.z = STRUM_Z - (time_offset - p_song_time) * TRAVEL_SPEED
 
-	# Return to pool once it has passed the strum line.
-	if position.z < STRUM_Z - 2.0:
+	if _miss_until < 0.0 and p_song_time >= time_offset:
+		_miss_until = p_song_time + MISS_HOLD_SECS
+		_miss_label.visible = true
+
+	elif _miss_until >= 0.0 and p_song_time >= _miss_until:
 		deactivate()
 
 
@@ -144,6 +164,8 @@ func tick(p_song_time: float) -> void:
 func deactivate() -> void:
 	is_active = false
 	visible   = false
+	_miss_label.visible = false
+	_miss_until = -1.0
 	var pool := get_parent()
 	if pool and pool.has_method("return_note"):
 		pool.return_note(self)
