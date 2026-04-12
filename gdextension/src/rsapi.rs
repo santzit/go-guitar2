@@ -241,9 +241,7 @@ fn wem_ids_from_bnk(data: &[u8]) -> Vec<u32> {
     ids
 }
 
-// ── Filename heuristic fallback ───────────────────────────────────────────────
 
 fn is_preview_wem_name(name: &str) -> bool {
-    let lower = name.to_ascii_lowercase();
-    lower.contains("preview") || lower.contains("prev") || lower.contains("sample")
+    name.contains("PREVIEW") 
 }
