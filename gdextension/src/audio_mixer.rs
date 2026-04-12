@@ -33,6 +33,9 @@ pub fn mix_pcm_buffer(pcm: &mut Vec<u8>, channels: usize, mixer: &mut Mixer) {
                     return 0.0;
                 }
                 let off = idx * 2;
+                if off + 1 >= frame.len() {
+                    return 0.0;
+                }
                 let s_i16 = i16::from_le_bytes([frame[off], frame[off + 1]]);
                 s_i16 as f32 / 32_768.0
             };
@@ -97,7 +100,7 @@ mod tests {
     }
 
     #[test]
-    fn multi_channel_routing_maps_channel_1_to_lead_bus() {
+    fn multi_channel_routing_maps_lead_stem_to_lead_bus() {
         let mut mixer = Mixer::new();
         mixer.set_mute(BusId::Music, true);
         mixer.set_mute(BusId::RhythmGuitarStem, true);
@@ -111,7 +114,7 @@ mod tests {
     }
 
     #[test]
-    fn multi_channel_routing_maps_channel_0_to_music_bus() {
+    fn multi_channel_routing_maps_music_stem_to_music_bus() {
         let mut mixer = Mixer::new();
         mixer.set_mute(BusId::LeadGuitarStem, true);
         mixer.set_mute(BusId::RhythmGuitarStem, true);
