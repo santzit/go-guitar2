@@ -75,14 +75,14 @@ sudo apt-get install -y mingw-w64 g++-mingw-w64-x86-64
 
 ```bash
 # Linux
-cd gdextension/src
+cd gdextension
 cargo build --release
-cp target/release/libgodot_goguitar_rs.so ../bin/
+cp target/release/libgodot_goguitar_rs.so bin/
 
 # Windows (cross-compile from Linux)
 rustup target add x86_64-pc-windows-gnu
 cargo build --release --target x86_64-pc-windows-gnu
-cp target/x86_64-pc-windows-gnu/release/godot_goguitar_rs.dll ../bin/
+cp target/x86_64-pc-windows-gnu/release/godot_goguitar_rs.dll bin/
 ```
 
 ### Run the Game (Linux with xvfb)

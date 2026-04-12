@@ -1,9 +1,0 @@
-[package]
-name    = "audio-io"
-version = "0.1.0"
-edition = "2021"
-description = "CPAL audio I/O: device enumeration, stream management, ring-buffer wiring"
-
-[dependencies]
-cpal = "0.15"
-rtrb = "0.3"

@@ -1,7 +1,9 @@
-# Rocksmith GDExtension
+# GoGuitar GDExtension
 
-Rust GDExtension+C# NativeAOT shim (RocksmithShim) that bridges Godot 4 to the
-[Rocksmith2014.NET](https://github.com/iminashi/Rocksmith2014.NET) library for loading `.psarc` archives and parsing `.sng` note/chord data.
+Rust GDExtension that bridges Godot 4 to Rocksmith 2014 PSARC/SNG parsing and
+Wwise WEM audio decoding. Uses pure-Rust crates from
+[santzit/Rocksmith2014.rs](https://github.com/santzit/Rocksmith2014.rs) —
+no .NET runtime, no external DLLs required.
 
 ---
 
@@ -10,7 +12,6 @@ Rust GDExtension+C# NativeAOT shim (RocksmithShim) that bridges Godot 4 to the
 | Tool | Version |
 |------|---------|
 | [Rust toolchain](https://rustup.rs) | stable ≥ 1.75 |
-[Rocksmith2014.NET](https://github.com/iminashi/Rocksmith2014.NET) | 3.5.0 |
 | [Godot Game Engine](https://github.com/godotengine/godot) | 4.4.1 |
 
 ---
@@ -18,24 +19,22 @@ Rust GDExtension+C# NativeAOT shim (RocksmithShim) that bridges Godot 4 to the
 ## Build
 
 ```bash
-cd gdextension/src
+cd gdextension
 cargo build --release
 ```
 
-Copy the compiled library to `gdextension/bin/`:
+Copy the compiled library to `bin/`:
 
 ```bash
 # Linux
-mkdir -p ../bin
-cp target/release/libgodot_goguitar_rs.so ../bin/
+cp target/release/libgodot_goguitar_rs.so bin/
 
 # Windows
-mkdir -p ../bin
+cp target/release/godot_goguitar_rs.dll bin/
 cp target/release/godot_goguitar_rs.dll ../bin/
 
 # macOS
-mkdir -p ../bin
-cp target/release/libgodot_goguitar_rs.dylib ../bin/
+cp target/release/libgodot_goguitar_rs.dylib bin/
 ```
 
 Then open the project in Godot 4.4. The `RocksmithBridge` class becomes
