@@ -1,0 +1,8 @@
+[package]
+name    = "audio-mixer"
+version = "0.1.0"
+edition = "2021"
+description = "Audio mixer: buses, gains, ducking, limiter (wraps gg-mixer)"
+
+[dependencies]
+gg-mixer = { git = "https://github.com/goguitar/gg-mixer", branch = "copilot/implement-custom-mixer-engine-thread" }

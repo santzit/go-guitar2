@@ -15,7 +15,7 @@
 ///     stream.data     = eng.decode_all()
 /// ```
 use godot::prelude::*;
-use gg_mixer::{BusId, MixInput, Mixer};
+use audio_mixer::{BusId, MixInput, Mixer, mix_pcm_buffer};
 
 // ── Godot class ──────────────────────────────────────────────────────────────
 
@@ -154,27 +154,8 @@ impl AudioEngine {
 
 impl AudioEngine {
     fn apply_mixer_to_pcm(&mut self) {
-        if self.pcm_buf.is_empty() {
-            return;
-        }
-
         let channels = self.channels.max(1) as usize;
-        let frame_bytes = channels * 2;
-
-        for frame in self.pcm_buf.chunks_exact_mut(frame_bytes) {
-            for sample in frame.chunks_exact_mut(2) {
-                let sample_i16 = i16::from_le_bytes([sample[0], sample[1]]);
-                let sample_f32 = (sample_i16 as f32) / 32768.0;
-                let mixed_f32 = self.mixer.mix_sample(MixInput {
-                    music: sample_f32,
-                    ..Default::default()
-                });
-                let mixed_i16 = (mixed_f32.clamp(-1.0, 1.0) * 32767.0) as i16;
-                let bytes = mixed_i16.to_le_bytes();
-                sample[0] = bytes[0];
-                sample[1] = bytes[1];
-            }
-        }
+        mix_pcm_buffer(&mut self.pcm_buf, channels, &mut self.mixer);
     }
 }
 

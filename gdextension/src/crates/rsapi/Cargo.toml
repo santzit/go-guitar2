@@ -1,0 +1,9 @@
+[package]
+name    = "rsapi"
+version = "0.1.0"
+edition = "2021"
+description = "Rocksmith 2014 format parsing: PSARC, BNK, WEM, SNG"
+
+[dependencies]
+rocksmith2014-psarc = { git = "https://github.com/santzit/Rocksmith2014.rs", branch = "copilot/add-tests-xmlfiles-to-sng" }
+rocksmith2014-sng   = { git = "https://github.com/santzit/Rocksmith2014.rs", branch = "copilot/add-tests-xmlfiles-to-sng" }

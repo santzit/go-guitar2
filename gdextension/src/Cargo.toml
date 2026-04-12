@@ -1,3 +1,19 @@
+# ── Cargo workspace ──────────────────────────────────────────────────────────
+# The workspace root is also the main GDExtension binary crate (godot_rocksmith).
+# Sub-crates are in the `crates/` directory and provide clean, reusable APIs
+# that the Godot extension layer depends on.
+[workspace]
+members  = [
+    ".",
+    "crates/rsapi",
+    "crates/audio-mixer",
+    "crates/audio-io",
+    "crates/audio-engine",
+    "crates/tone-engine",
+]
+resolver = "2"
+
+# ── Main GDExtension binary crate ────────────────────────────────────────────
 [package]
 name    = "godot_rocksmith"
 version = "0.1.0"
@@ -7,12 +23,14 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-godot                = { git = "https://github.com/godot-rust/gdext", branch = "master", features = ["api-4-4"] }
-rocksmith2014-psarc  = { git = "https://github.com/santzit/Rocksmith2014.rs", branch = "copilot/add-tests-xmlfiles-to-sng" }
-rocksmith2014-sng    = { git = "https://github.com/santzit/Rocksmith2014.rs", branch = "copilot/add-tests-xmlfiles-to-sng" }
-gg-mixer             = { git = "https://github.com/goguitar/gg-mixer", branch = "copilot/implement-custom-mixer-engine-thread" }
-# RT audio Phase 1 — engine thread + lock-free ring buffers
-rtrb                 = "0.3"
-thread-priority      = "1.1"
-# RT audio Phase 2 — cross-platform audio I/O
-cpal                 = "0.15"
+# Godot integration
+godot         = { git = "https://github.com/godot-rust/gdext", branch = "master", features = ["api-4-4"] }
+# Workspace sub-crates
+rsapi         = { path = "crates/rsapi" }
+audio-mixer   = { path = "crates/audio-mixer" }
+audio-io      = { path = "crates/audio-io" }
+audio-engine  = { path = "crates/audio-engine" }
+tone-engine   = { path = "crates/tone-engine" }
+# Shared dependencies still needed directly by the Godot wrapper layer
+gg-mixer      = { git = "https://github.com/goguitar/gg-mixer", branch = "copilot/implement-custom-mixer-engine-thread" }
+rtrb          = "0.3"

@@ -1,5 +1,5 @@
 use godot::prelude::*;
-use crate::psarc_parser::PsarcData;
+use rsapi::PsarcData;
 
 /// Internal representation of a single parsed note.
 #[derive(Clone, Debug)]

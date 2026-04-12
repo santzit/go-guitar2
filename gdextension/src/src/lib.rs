@@ -1,7 +1,6 @@
 use godot::prelude::*;
 
 mod audio_engine;
-mod psarc_parser;
 mod rocksmith_bridge;
 mod rt_engine;
 

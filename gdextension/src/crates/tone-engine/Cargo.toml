@@ -1,0 +1,5 @@
+[package]
+name    = "tone-engine"
+version = "0.1.0"
+edition = "2021"
+description = "Tone engine stub (wrapper around rustortion-core — not yet implemented)"

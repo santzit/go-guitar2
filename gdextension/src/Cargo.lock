@@ -51,6 +51,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "audio-engine"
+version = "0.1.0"
+dependencies = [
+ "audio-mixer",
+ "rtrb",
+ "thread-priority",
+]
+
+[[package]]
+name = "audio-io"
+version = "0.1.0"
+dependencies = [
+ "cpal",
+ "rtrb",
+]
+
+[[package]]
+name = "audio-mixer"
+version = "0.1.0"
+dependencies = [
+ "gg-mixer",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -452,13 +476,14 @@ dependencies = [
 name = "godot_rocksmith"
 version = "0.1.0"
 dependencies = [
- "cpal",
+ "audio-engine",
+ "audio-io",
+ "audio-mixer",
  "gg-mixer",
  "godot",
- "rocksmith2014-psarc",
- "rocksmith2014-sng",
+ "rsapi",
  "rtrb",
- "thread-priority",
+ "tone-engine",
 ]
 
 [[package]]
@@ -893,6 +918,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "rsapi"
+version = "0.1.0"
+dependencies = [
+ "rocksmith2014-psarc",
+ "rocksmith2014-sng",
+]
+
+[[package]]
 name = "rtrb"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1051,6 +1084,10 @@ checksum = "a2abe9b86193656635d2411dc43050282ca48aa31c2451210f4202550afb7526"
 dependencies = [
  "winnow",
 ]
+
+[[package]]
+name = "tone-engine"
+version = "0.1.0"
 
 [[package]]
 name = "typenum"
