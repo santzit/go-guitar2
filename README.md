@@ -9,6 +9,7 @@ scenes/
   game_menu.tscn       – Main menu with Song List, Mixer, and Settings options
   song_list.tscn       – Song picker UI (lists DLC .psarc files and starts gameplay)
   music_play.tscn      – Root Node3D: Camera3D, DirectionalLight3D, Highway, NotePool, Background
+  chartplayer_reference_hud.tscn – ChartPlayer-inspired HUD overlay scene (lyrics + status bar)
   fretboard.tscn       – 6 visible string lines at the strum position (Z=0)
   highway.tscn         – HighwaySurface MeshInstance3D (shader-drawn fret lanes) + StrumLine + walls
   note.tscn            – Pooled note BoxMesh with per-string ShaderMaterial
@@ -19,6 +20,7 @@ scripts/
   song_list.gd         – Populates song list and launches music_play with selected song
   game_state.gd        – Shared selected-song state and DLC scan helper
   music_play.gd        – Loads selected .psarc via RsBridge, schedules notes, plays audio
+  chartplayer_reference_hud.gd – HUD updater for ChartPlayer-style overlay widgets
   highway.gd           – Runtime fret/string-count config for the highway shader
   note.gd              – Note travel (X=fret, Y=string, Z=time), per-string colour, pool return
   note_pool.gd         – spawn_note / return_note pool API
@@ -27,6 +29,7 @@ shaders/
   highway.gdshader     – Fret-lane lines, depth-fade, strum-line glow
   note.gdshader        – Per-string colour + pulsing emission glow
 DLC/                   – Drop .psarc CDLC files here for testing (5 songs included)
+ChartPlayer/           – Upstream ChartPlayer reference notes and links (GPL project)
 gdextension/
   goguitar_bridge.gdextension  – GDExtension manifest
   src/                 – Rust source (godot-rust/gdext + Rocksmith2014.rs)

@@ -1,0 +1,101 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/chartplayer_reference_hud.gd" id="1_script"]
+
+[node name="ChartPlayerReferenceHud" type="CanvasLayer"]
+layer = 20
+script = ExtResource("1_script")
+
+[node name="Root" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="TopPanel" type="Panel" parent="Root"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 180.0
+mouse_filter = 2
+
+[node name="TopVBox" type="VBoxContainer" parent="Root/TopPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 20.0
+offset_top = 8.0
+offset_right = -20.0
+offset_bottom = -8.0
+mouse_filter = 2
+
+[node name="WaveformBackground" type="ProgressBar" parent="Root/TopPanel/TopVBox"]
+custom_minimum_size = Vector2(0, 64)
+layout_mode = 2
+max_value = 100.0
+value = 10.0
+show_percentage = false
+
+[node name="WaveformForeground" type="ProgressBar" parent="Root/TopPanel/TopVBox"]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+max_value = 100.0
+value = 20.0
+show_percentage = false
+
+[node name="LyricsMain" type="Label" parent="Root/TopPanel/TopVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 60
+theme_override_colors/font_color = Color(0.95, 0.95, 0.95, 1)
+text = "Well now you step inside but you don't see too many"
+
+[node name="LyricsFocus" type="Label" parent="Root/TopPanel/TopVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 64
+theme_override_colors/font_color = Color(1, 0.92, 0.12, 1)
+text = "faces"
+
+[node name="BottomPanel" type="Panel" parent="Root"]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -80.0
+mouse_filter = 2
+
+[node name="BottomHBox" type="HBoxContainer" parent="Root/BottomPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 14.0
+offset_top = 10.0
+offset_right = -14.0
+offset_bottom = -10.0
+mouse_filter = 2
+
+[node name="SongInfo" type="Label" parent="Root/BottomPanel/BottomHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 28
+text = "Song\nLead"
+
+[node name="Bpm" type="Label" parent="Root/BottomPanel/BottomHBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "BPM: 0.0"
+
+[node name="Progress" type="Label" parent="Root/BottomPanel/BottomHBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "0/0 (0.0%)"
+
+[node name="Time" type="Label" parent="Root/BottomPanel/BottomHBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "0:00"

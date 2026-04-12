@@ -70,6 +70,7 @@ const CHORD_GROUP_THRESHOLD : float = 0.02
 @onready var _player      : AudioStreamPlayer = $AudioStreamPlayer
 @onready var _camera      : Camera3D          = $Camera3D
 @onready var _debug_label : Label             = $DebugOverlay/DebugLabel
+@onready var _chart_hud   : CanvasLayer       = $ChartPlayerReferenceHud
 
 # -- State -------------------------------------------------------------------
 var _bridge              = null  # GoGuitarBridge instance (no static type — avoids parse errors when class is not yet registered)
@@ -82,6 +83,7 @@ var _shot_idx            : int      = 0
 var _start_wall_ms       : int      = 0
 var _camera_target_fret  : int      = FRET_COUNT / 2   # start at highway centre
 var _warmup_timer        : float    = WARMUP_SECS  # counts down to 0.0, then audio+notes start
+var _song_display_name   : String   = "Unknown Song"
 
 ## Cached volume_db sent to the AudioStreamPlayer last frame.  -999 = first frame.
 var _cached_volume_db    : float    = -999.0
@@ -107,6 +109,8 @@ func _ready() -> void:
 	_GameStateScript.load_mixer_settings()
 
 	var selected_psarc_path: String = _GameStateScript.selected_psarc_path
+	if selected_psarc_path != "":
+		_song_display_name = selected_psarc_path.get_file().trim_suffix(".psarc")
 	print("MusicPlay: RocksmithBridge GDExtension loaded: %s" % str(ClassDB.class_exists("RocksmithBridge")))
 	print("MusicPlay: AudioEngine GDExtension loaded: %s" % str(ClassDB.class_exists("AudioEngine")))
 
@@ -176,6 +180,9 @@ func _ready() -> void:
 	# seconds showing only the empty highway, then start both audio and note
 	# spawning together so they are in sync from the first beat.
 	_warmup_timer = WARMUP_SECS
+	if is_instance_valid(_chart_hud):
+		_chart_hud.call("set_song_meta", _song_display_name, "lead (E Std)")
+		_chart_hud.call("set_reference_lyrics", "Well now you step inside but you don't see too many", "faces")
 
 
 func _process(delta: float) -> void:
@@ -287,6 +294,7 @@ func _process(delta: float) -> void:
 
 	# Update debug info overlay.
 	_update_debug_info()
+	_update_chartplayer_reference_hud()
 
 
 # -- Helpers -----------------------------------------------------------------
@@ -431,6 +439,19 @@ func _update_debug_info() -> void:
 		chord_str = " - Note %s - %s" % [root_name, _chord_debug_str(best_chord)]
 
 	_debug_label.text = "%dms%s" % [time_ms, chord_str]
+
+
+func _update_chartplayer_reference_hud() -> void:
+	if not is_instance_valid(_chart_hud):
+		return
+	var root_note := ""
+	if _glow_cursor >= 0 and _glow_cursor < _notes.size():
+		var nd : Dictionary = _notes[_glow_cursor]
+		root_note = _get_note_name(int(nd.get("fret", -1)), int(nd.get("string", -1)))
+	var song_length := 1.0
+	if _notes.size() > 0:
+		song_length = maxf(float(_notes[_notes.size() - 1].get("time", 0.0)), 1.0)
+	_chart_hud.call("update_runtime", _song_time, 149.0, _next_idx, _notes.size(), root_note, song_length)
 
 
 func push_print(msg: String) -> void:
