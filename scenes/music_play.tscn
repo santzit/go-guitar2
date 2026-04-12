@@ -17,13 +17,15 @@ light_color    = Color(0.9, 0.85, 1.0, 1)
 light_energy   = 1.2
 shadow_enabled = true
 
-; Camera: position (12, 6, -8) looking toward highway centre (12, 0, 10).
-; Correct look_at basis (Godot formula: z=normalize(eye-target), x=normalize(up x z), y=z x x):
-;   z = normalize(0,6,-18)  = (0,  0.31623, -0.94868)  <- z.z negative = looking toward +Z world
-;   x = normalize(up x z)   = (-0.94868, 0, 0)  <- x.x negative (image mirrored but visually correct)
-;   y = z x x               = (0, 0.94868, 0.31623)
+; Camera: position (12, 3, 26) beyond the strum line (Z=20), looking toward Z=10.
+; camera-right = world +X  →  fret 1 (X=0.5) on LEFT, fret 24 (X=23.5) on RIGHT
+; camera-up   = world +Y  →  string 0 (Y=0.20) at BOTTOM, string 5 (Y=2.70) at TOP
+; No axis inversions needed anywhere. Basis computed from look_at((12,3,26)→(12,0,10), up=Y):
+;   forward = normalize(0,-3,-16)  → basis.z = normalize(0,3,16) = (0, 0.1845, 0.9828)
+;   basis.x = normalize(cross(forward, up)) = (1, 0, 0)
+;   basis.y = cross(basis.z, basis.x)       = (0, 0.9828, -0.1845)
 [node name="Camera3D" type="Camera3D" parent="."]
-transform = Transform3D(-0.94868, 0, 0, 0, 0.94868, 0.31623, 0, 0.31623, -0.94868, 12, 6, -8)
+transform = Transform3D(1, 0, 0, 0, 0.9828, -0.1845, 0, 0.1845, 0.9828, 12, 3, 26)
 fov = 90.0
 
 ; ── Background (sky + WorldEnvironment + bloom) ───────────────────────────────

@@ -12,8 +12,10 @@ const BUS_MASTER : int = 6   # Master bus
 
 # -- Timing constants (must match note.gd) -----------------------------------
 const TRAVEL_SPEED : float = 2.0
-const START_Z      : float = 20.0
-const LEAD_TIME    : float = START_Z / TRAVEL_SPEED   # = 10.0 s
+## Highway depth in world units.  Notes travel this distance (Z=0 → Z=20).
+## LEAD_TIME = HIGHWAY_DEPTH / TRAVEL_SPEED = how many seconds ahead notes spawn.
+const HIGHWAY_DEPTH : float = 20.0
+const LEAD_TIME     : float = HIGHWAY_DEPTH / TRAVEL_SPEED   # = 10.0 s
 
 # -- Highway layout (must match note.gd) ------------------------------------
 const FRET_COUNT   : int   = 24
@@ -23,11 +25,14 @@ const FRET_SPACING : float = 1.0
 ## FOV (degrees) used for the follow camera.
 const CAM_FOV           : float = 80.0
 const CAMERA_Y          : float = 3.0
-const CAMERA_Z          : float = -6.0
+## Camera sits BEYOND the strum line (Z=26 > strum Z=20, defined in note.gd) looking back toward Z=0.
+## This gives camera-right = world +X (fret 1 on left, fret 24 on right)
+## and camera-up = world +Y (string 0 at bottom, string 5 at top). No inversions.
+const CAMERA_Z          : float = 26.0
 const CAMERA_LERP_SPEED : float = 2.0    # units/s for smooth pan
-## Camera X clamp — keeps the camera away from the highway's extreme edges.
-const CAMERA_X_MIN      : float = 1.0
-const CAMERA_X_MAX      : float = 23.0
+## Camera X clamp — keeps the camera from tracking to the highway edges.
+const CAMERA_X_MIN      : float = 0.5
+const CAMERA_X_MAX      : float = 23.5
 
 # -- Screenshot capture (for automated testing) ------------------------------
 const SCREENSHOT_TIMES : Array  = [5.0, 10.0, 15.0, 20.0, 25.0]
@@ -287,11 +292,10 @@ func _process(delta: float) -> void:
 # -- Helpers -----------------------------------------------------------------
 
 ## World X centre for a fret lane.  Mirrors note.gd formula:
-##   X = (FRET_COUNT - fret - 0.5) * FRET_SPACING
-## Highway fret lines sit at integer X values (X=23 = left edge of fret 1).
-## Subtracting 0.5 places the centre in the slot to the left of each fret line.
+##   X = fret × FRET_SPACING − FRET_SPACING × 0.5
+## fret 1 → X = 0.5 (left), fret 24 → X = 23.5 (right).  No inversion needed.
 func _fret_world_x(f: int) -> float:
-	return (FRET_COUNT - f - 0.5) * FRET_SPACING
+	return f * FRET_SPACING - FRET_SPACING * 0.5
 
 
 func _take_screenshot(num: int) -> void:

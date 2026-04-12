@@ -20,7 +20,7 @@ shader_parameter/strum_glow_color = Color(0.40, 0.80, 1.00, 1)
 shader_parameter/fret_line_width  = 0.04
 shader_parameter/glow_strength    = 1.20
 
-; ── Strum-line marker (thin bright box at Z = 0) ──────────────────────────────
+; ── Strum-line marker (thin bright box at Z = 20) ─────────────────────────────
 [sub_resource type="BoxMesh" id="BoxMesh_strum"]
 size = Vector3(24.0, 0.05, 0.10)
 
@@ -54,9 +54,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, 10)
 mesh = SubResource("PlaneMesh_hw01")
 surface_material_override/0 = SubResource("ShaderMat_hw01")
 
-; Strum line at Z = 0, centred at X = 12
+; Strum line at Z = 20 (near camera), centred at X = 12
 [node name="StrumLine" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0.025, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0.025, 20)
 mesh = SubResource("BoxMesh_strum")
 surface_material_override/0 = SubResource("StrumMat")
 
