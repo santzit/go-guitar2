@@ -44,7 +44,7 @@ gdextension/
       audio_engine.rs         GDExtension AudioEngine class (vgmstream WEM decode)
     build.rs                  Cargo build script (links vgmstream)
     Cargo.toml
-  rocksmith_bridge.gdextension
+  goguitar_bridge.gdextension
 scripts/
   music_play.gd               Main game scene script (requires DLC .psarc)
   music_play_demo.gd          Demo mode (no DLC required)

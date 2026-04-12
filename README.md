@@ -28,7 +28,7 @@ shaders/
   note.gdshader        – Per-string colour + pulsing emission glow
 DLC/                   – Drop .psarc CDLC files here for testing (5 songs included)
 gdextension/
-  rocksmith_bridge.gdextension  – GDExtension manifest
+  goguitar_bridge.gdextension  – GDExtension manifest
   src/                 – Rust source (godot-rust/gdext + Rocksmith2014.rs)
   bin/                 – Place compiled .so / .dll / .dylib here after building
   README.md            – Build instructions
