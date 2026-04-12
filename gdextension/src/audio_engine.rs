@@ -15,7 +15,7 @@
 ///     stream.data     = eng.decode_all()
 /// ```
 use godot::prelude::*;
-use crate::audio_mixer::{BusId, MixInput, Mixer, mix_pcm_buffer};
+use crate::audio_mixer::{BusId, Mixer, mix_pcm_buffer};
 
 // ── Godot class ──────────────────────────────────────────────────────────────
 
@@ -72,6 +72,11 @@ impl AudioEngine {
                     self.sample_rate = result.sample_rate;
                     self.pcm_buf     = result.pcm_bytes;
                     self.apply_mixer_to_pcm();
+                    if self.channels > 2 {
+                        // AudioStreamWAV only supports mono/stereo.
+                        // Multi-channel WEMs are downmixed to stereo in mix_pcm_buffer().
+                        self.channels = 2;
+                    }
                     self.pcm_ready   = true;
                     godot_print!(
                         "AudioEngine: decoded {} WEM bytes → {} PCM bytes \
@@ -133,6 +138,24 @@ impl AudioEngine {
         self.mixer.set_gain_db(BusId::Music, gain_db);
     }
 
+    /// Set gain (dB) for the Lead Guitar stem bus in gg-mixer.
+    #[func]
+    pub fn set_lead_guitar_gain_db(&mut self, gain_db: f32) {
+        self.mixer.set_gain_db(BusId::LeadGuitarStem, gain_db);
+    }
+
+    /// Set gain (dB) for the Rhythm Guitar stem bus in gg-mixer.
+    #[func]
+    pub fn set_rhythm_guitar_gain_db(&mut self, gain_db: f32) {
+        self.mixer.set_gain_db(BusId::RhythmGuitarStem, gain_db);
+    }
+
+    /// Set gain (dB) for the Bass stem bus in gg-mixer.
+    #[func]
+    pub fn set_bass_gain_db(&mut self, gain_db: f32) {
+        self.mixer.set_gain_db(BusId::BassStem, gain_db);
+    }
+
     /// Set gain (dB) for the Master bus in gg-mixer.
     #[func]
     pub fn set_master_gain_db(&mut self, gain_db: f32) {
@@ -143,6 +166,24 @@ impl AudioEngine {
     #[func]
     pub fn set_music_mute(&mut self, mute: bool) {
         self.mixer.set_mute(BusId::Music, mute);
+    }
+
+    /// Mute/unmute the Lead Guitar stem bus in gg-mixer.
+    #[func]
+    pub fn set_lead_guitar_mute(&mut self, mute: bool) {
+        self.mixer.set_mute(BusId::LeadGuitarStem, mute);
+    }
+
+    /// Mute/unmute the Rhythm Guitar stem bus in gg-mixer.
+    #[func]
+    pub fn set_rhythm_guitar_mute(&mut self, mute: bool) {
+        self.mixer.set_mute(BusId::RhythmGuitarStem, mute);
+    }
+
+    /// Mute/unmute the Bass stem bus in gg-mixer.
+    #[func]
+    pub fn set_bass_mute(&mut self, mute: bool) {
+        self.mixer.set_mute(BusId::BassStem, mute);
     }
 
     /// Mute/unmute the Master bus in gg-mixer.

@@ -89,10 +89,22 @@ func _test_class_registration() -> void:
 			"AudioEngine can be instantiated")
 		_assert(audio_engine.has_method("set_music_gain_db"),
 			"AudioEngine has set_music_gain_db() method")
+		_assert(audio_engine.has_method("set_lead_guitar_gain_db"),
+			"AudioEngine has set_lead_guitar_gain_db() method")
+		_assert(audio_engine.has_method("set_rhythm_guitar_gain_db"),
+			"AudioEngine has set_rhythm_guitar_gain_db() method")
+		_assert(audio_engine.has_method("set_bass_gain_db"),
+			"AudioEngine has set_bass_gain_db() method")
 		_assert(audio_engine.has_method("set_master_gain_db"),
 			"AudioEngine has set_master_gain_db() method")
 		_assert(audio_engine.has_method("set_music_mute"),
 			"AudioEngine has set_music_mute() method")
+		_assert(audio_engine.has_method("set_lead_guitar_mute"),
+			"AudioEngine has set_lead_guitar_mute() method")
+		_assert(audio_engine.has_method("set_rhythm_guitar_mute"),
+			"AudioEngine has set_rhythm_guitar_mute() method")
+		_assert(audio_engine.has_method("set_bass_mute"),
+			"AudioEngine has set_bass_mute() method")
 		_assert(audio_engine.has_method("set_master_mute"),
 			"AudioEngine has set_master_mute() method")
 
