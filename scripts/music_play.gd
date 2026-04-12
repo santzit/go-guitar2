@@ -5,6 +5,7 @@ extends Node3D
 
 const _GoGuitarBridgeScript = preload("res://scripts/goguitar_bridge.gd")
 const _GameStateScript = preload("res://scripts/game_state.gd")
+const _ChartHudScript = preload("res://scripts/chartplayer_reference_hud.gd")
 
 # -- Mixer bus indices (must match GameState.BUS_NAMES / gg-mixer BusId) ------
 const BUS_MUSIC  : int = 1   # Music bus
@@ -62,6 +63,9 @@ const NOTE_NAMES      : Array[String] = ["C","C#","D","D#","E","F","F#","G","G#"
 const DEBUG_CHORD_WINDOW : float = 0.25
 ## Maximum timestamp difference between notes to be considered part of the same chord.
 const CHORD_GROUP_THRESHOLD : float = 0.02
+const DEFAULT_ARRANGEMENT_LABEL : String = "Lead"
+const BPM_MIN_INTERVAL_SEC : float = 0.08
+const BPM_MAX_INTERVAL_SEC : float = 1.5
 
 # -- Scene references --------------------------------------------------------
 @onready var _pool        : Node3D            = $NotePool
@@ -70,7 +74,7 @@ const CHORD_GROUP_THRESHOLD : float = 0.02
 @onready var _player      : AudioStreamPlayer = $AudioStreamPlayer
 @onready var _camera      : Camera3D          = $Camera3D
 @onready var _debug_label : Label             = $DebugOverlay/DebugLabel
-@onready var _chart_hud   : CanvasLayer       = $ChartPlayerReferenceHud
+@onready var _chart_hud   : _ChartHudScript = $ChartPlayerReferenceHud
 
 # -- State -------------------------------------------------------------------
 var _bridge              = null  # GoGuitarBridge instance (no static type — avoids parse errors when class is not yet registered)
@@ -111,7 +115,7 @@ func _ready() -> void:
 
 	var selected_psarc_path: String = _GameStateScript.selected_psarc_path
 	if selected_psarc_path != "":
-		_song_display_name = selected_psarc_path.get_file().trim_suffix(".psarc")
+		_song_display_name = _extract_song_name_from_path(selected_psarc_path)
 	print("MusicPlay: RocksmithBridge GDExtension loaded: %s" % str(ClassDB.class_exists("RocksmithBridge")))
 	print("MusicPlay: AudioEngine GDExtension loaded: %s" % str(ClassDB.class_exists("AudioEngine")))
 
@@ -183,8 +187,8 @@ func _ready() -> void:
 	# spawning together so they are in sync from the first beat.
 	_warmup_timer = WARMUP_SECS
 	if is_instance_valid(_chart_hud):
-		_chart_hud.call("set_song_meta", _song_display_name, "Lead")
-		_chart_hud.call("set_reference_lyrics", "Now playing: " + _song_display_name, "Get ready")
+		_chart_hud.set_song_meta(_song_display_name, DEFAULT_ARRANGEMENT_LABEL)
+		_chart_hud.set_reference_lyrics("Now playing: " + _song_display_name, "Get ready")
 
 
 func _process(delta: float) -> void:
@@ -453,7 +457,7 @@ func _update_chartplayer_reference_hud() -> void:
 	var song_length := 1.0
 	if _notes.size() > 0:
 		song_length = maxf(float(_notes[_notes.size() - 1].get("time", 0.0)), 1.0)
-	_chart_hud.call("update_runtime", _song_time, _estimated_bpm, _next_idx, _notes.size(), root_note, song_length)
+	_chart_hud.update_runtime(_song_time, _estimated_bpm, _next_idx, _notes.size(), root_note, song_length)
 
 
 func _estimate_bpm_from_notes() -> float:
@@ -464,16 +468,21 @@ func _estimate_bpm_from_notes() -> float:
 	for i in range(1, _notes.size()):
 		var t: float = float(_notes[i].get("time", prev_time))
 		var dt: float = t - prev_time
-		if dt > 0.08 and dt < 1.5:
+		if dt > BPM_MIN_INTERVAL_SEC and dt < BPM_MAX_INTERVAL_SEC:
 			intervals.append(dt)
 		prev_time = t
 	if intervals.is_empty():
 		return 0.0
-	var sum: float = 0.0
-	for dt in intervals:
-		sum += dt
-	var avg_interval: float = sum / float(intervals.size())
-	return clampf(60.0 / avg_interval, 40.0, 240.0)
+	intervals.sort()
+	var mid: int = intervals.size() / 2
+	var dominant_interval: float = intervals[mid]
+	if intervals.size() % 2 == 0:
+		dominant_interval = (intervals[mid - 1] + intervals[mid]) * 0.5
+	return clampf(60.0 / dominant_interval, 40.0, 240.0)
+
+
+func _extract_song_name_from_path(song_path: String) -> String:
+	return song_path.get_file().trim_suffix(".psarc")
 
 
 func push_print(msg: String) -> void:

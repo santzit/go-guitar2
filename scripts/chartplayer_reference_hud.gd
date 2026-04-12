@@ -1,6 +1,9 @@
 extends CanvasLayer
+class_name ChartPlayerReferenceHud
 
+## Foreground waveform starts at 20% filled so the bar remains visible at t=0.
 const WAVE_FG_BASE_PROGRESS: float = 0.20
+## Foreground waveform additionally fills by this range as song progress advances.
 const WAVE_FG_DYNAMIC_RANGE: float = 0.80
 
 @onready var _wave_bg: ProgressBar = $Root/TopPanel/TopVBox/WaveformBackground
@@ -24,7 +27,7 @@ func set_reference_lyrics(main_line: String, focus_word: String) -> void:
 	_lyrics_focus.text = focus_word
 
 
-func update_runtime(song_time: float, bpm: float, spawned_notes: int, total_notes: int, root_note: String, song_length_sec: float) -> void:
+func update_runtime(song_time: float, bpm: float, processed_note_count: int, total_notes: int, root_note: String, song_length_sec: float) -> void:
 	_song_length_sec = maxf(song_length_sec, 1.0)
 	var progress: float = clampf(song_time / _song_length_sec, 0.0, 1.0)
 	_wave_bg.value = progress * 100.0
@@ -33,8 +36,8 @@ func update_runtime(song_time: float, bpm: float, spawned_notes: int, total_note
 
 	var note_pct: float = 0.0
 	if total_notes > 0:
-		note_pct = float(spawned_notes) * 100.0 / float(total_notes)
-	_progress_label.text = "%d/%d (%.1f%%)" % [spawned_notes, total_notes, note_pct]
+		note_pct = float(processed_note_count) * 100.0 / float(total_notes)
+	_progress_label.text = "%d/%d (%.1f%%)" % [processed_note_count, total_notes, note_pct]
 
 	_time_label.text = _format_clock(song_time)
 	if root_note != "":
