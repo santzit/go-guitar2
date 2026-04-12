@@ -21,9 +21,9 @@
 /// rt.stop()
 /// ```
 
-use audio_engine::{EngineCmd, EngineCore};
-use audio_io::{open_streams, AudioIoConfig};
-use audio_mixer::BUS_COUNT;
+use crate::audio_engine_core::{EngineCmd, EngineCore};
+use crate::audio_io::{open_streams, AudioIoConfig};
+use crate::audio_mixer::BUS_COUNT;
 use godot::prelude::*;
 use rtrb::RingBuffer;
 use std::sync::{Arc, Mutex};
@@ -48,7 +48,7 @@ pub struct RtEngine {
     /// The core engine (engine thread + ring buffers).
     core:         Mutex<Option<EngineCore>>,
     /// Live CPAL streams; dropping closes the hardware.
-    io_streams:   Mutex<Option<audio_io::AudioIoStreams>>,
+    io_streams:   Mutex<Option<crate::audio_io::AudioIoStreams>>,
     /// Shared peak-meter values (readable from GDScript).
     meter_peaks:  Arc<Mutex<Vec<f32>>>,
     /// Mirror of per-bus gain_db set from GDScript (for readback without RT round-trip).
@@ -329,7 +329,7 @@ impl RtEngine {
     #[func]
     pub fn list_output_devices(&self) -> PackedStringArray {
         let mut out = PackedStringArray::new();
-        for name in audio_io::list_output_devices() {
+        for name in crate::audio_io::list_output_devices() {
             out.push(&GString::from(name.as_str()));
         }
         out
@@ -339,7 +339,7 @@ impl RtEngine {
     #[func]
     pub fn list_input_devices(&self) -> PackedStringArray {
         let mut out = PackedStringArray::new();
-        for name in audio_io::list_input_devices() {
+        for name in crate::audio_io::list_input_devices() {
             out.push(&GString::from(name.as_str()));
         }
         out
