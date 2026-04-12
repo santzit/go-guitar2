@@ -113,17 +113,36 @@ func _ready() -> void:
 	if _bridge.load_psarc_abs(selected_psarc_path):
 		_notes = _bridge.get_notes()
 		print("MusicPlay: %d notes loaded, requesting audio stream..." % _notes.size())
-		# -- Diagnostic: print first 15 notes so fret/string values are visible --
-		var log_count : int = mini(_notes.size(), 15)
-		for di in log_count:
-			var dn : Dictionary = _notes[di]
-			var df : int = int(dn.get("fret",   -1))
-			var ds : int = int(dn.get("string", -1))
+		# -- Diagnostic: print first 15 chord groups so fret/string values are visible.
+		# Notes at the same timestamp (within 20 ms) are grouped as a single chord line.
+		# Format: note[N] t=T.Ts  note=CHORD_ROOT  | fret=F1  string=S1(name), ...
+		var chord_idx : int = 0
+		var ni        : int = 0
+		while ni < _notes.size() and chord_idx < 15:
+			var dn : Dictionary = _notes[ni]
 			var dt : float = float(dn.get("time", 0.0))
-			var dsname : String = STRING_NAMES[ds] if ds >= 0 and ds < 6 else "?"
-			var dnname : String = _get_note_name(df, ds)
-			print("MusicPlay:  note[%d] t=%.3fs  fret=%d  string=%d(%s)  note=%s" \
-				% [di, dt, df, ds, dsname, dnname])
+			# Collect all notes at the same timestamp into a chord.
+			var chord_notes : Array = [dn]
+			var nj : int = ni + 1
+			while nj < _notes.size() \
+					and absf(float(_notes[nj].get("time", 0.0)) - dt) < CHORD_GROUP_THRESHOLD:
+				chord_notes.append(_notes[nj])
+				nj += 1
+			# The chord root name is the note of the very first note (before sorting).
+			var first_f    : int    = int(dn.get("fret",   -1))
+			var first_s    : int    = int(dn.get("string", -1))
+			var chord_root : String = _get_note_name(first_f, first_s)
+			# Sort chord notes by fret ascending for readability.
+			var parts : Array[String] = []
+			for cn in _sort_notes_by_fret(chord_notes):
+				var cf    : int    = int(cn.get("fret",   -1))
+				var cs    : int    = int(cn.get("string", -1))
+				var csname : String = STRING_NAMES[cs] if cs >= 0 and cs < 6 else "?"
+				parts.append("fret=%d  string=%d(%s)" % [cf, cs, csname])
+			print("MusicPlay:  note[%d] t=%.3fs  note=%s  | %s" \
+				% [chord_idx, dt, chord_root, "  ".join(parts)])
+			chord_idx += 1
+			ni = nj
 		var stream : AudioStream = _bridge.get_audio_stream()
 		if stream:
 			print("MusicPlay: stream type=%s, assigning to AudioStreamPlayer" % stream.get_class())
@@ -320,20 +339,29 @@ func _get_note_name(fret: int, string_idx: int) -> String:
 	return NOTE_NAMES[midi % 12]
 
 
+## Sort an array of note dictionaries by fret ascending (returns a sorted copy).
+func _sort_notes_by_fret(notes: Array) -> Array:
+	var sorted : Array = notes.duplicate()
+	sorted.sort_custom(func(a, b): return int(a.get("fret", -1)) < int(b.get("fret", -1)))
+	return sorted
+
+
 ## Build a compact debug string for a chord (group of notes at the same timestamp).
-## Format per note: "Fret F/String S(N)"   e.g. "Fret 3/String A(C)"
+## Format per note: "Fret F/String S(note)"   e.g. "Fret 3/String B(D)"
+## Notes are sorted by fret ascending.
 func _chord_debug_str(chord_notes: Array) -> String:
 	var parts : Array[String] = []
-	for nd in chord_notes:
-		var f   : int    = int(nd.get("fret",   -1))
-		var s   : int    = int(nd.get("string", -1))
-		var sname : String = STRING_NAMES[s]  if s >= 0 and s < 6 else "?"
+	for nd in _sort_notes_by_fret(chord_notes):
+		var f     : int    = int(nd.get("fret",   -1))
+		var s     : int    = int(nd.get("string", -1))
+		var sname : String = STRING_NAMES[s] if s >= 0 and s < 6 else "?"
 		var nname : String = _get_note_name(f, s)
 		parts.append("Fret %d/String %s(%s)" % [f, sname, nname])
 	return ", ".join(parts)
 
 
 ## Update the on-screen debug label with current song time and nearest chord info.
+## Format: "TIME_MS - Note CHORD_ROOT - Fret F/String S(note), ..."
 ## Called every frame from _process().
 func _update_debug_info() -> void:
 	if not is_instance_valid(_debug_label):
@@ -371,7 +399,11 @@ func _update_debug_info() -> void:
 
 	var chord_str : String = ""
 	if best_chord.size() > 0:
-		chord_str = " | " + _chord_debug_str(best_chord)
+		# Chord root = note name of the first note in the chord (before sorting).
+		var root_f    : int    = int(best_chord[0].get("fret",   -1))
+		var root_s    : int    = int(best_chord[0].get("string", -1))
+		var root_name : String = _get_note_name(root_f, root_s)
+		chord_str = " - Note %s - %s" % [root_name, _chord_debug_str(best_chord)]
 
 	_debug_label.text = "%dms%s" % [time_ms, chord_str]
 
