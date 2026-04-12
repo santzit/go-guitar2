@@ -8,7 +8,7 @@ A Rocksmith 2014-style guitar game built in **Godot 4.4.1**
 
 ```
 Godot 4.4.1 (GDScript)
-  └─ Rust GDExtension  (libgodot_rocksmith.so / godot_rocksmith.dll)
+  └─ Rust GDExtension  (libgodot_goguitar_rs.so / godot_goguitar_rs.dll)
        ├─ Pure-Rust PSARC/SNG parsing
        │    ├─ rocksmith2014-psarc   (Rust crate — PSARC extraction)
        │    └─ rocksmith2014-sng     (Rust crate — SNG note parsing + decryption)
@@ -30,8 +30,8 @@ Godot 4.4.1 (GDScript)
 ```
 gdextension/
   bin/                        Pre-built binaries shipped with the game
-    libgodot_rocksmith.so     Linux GDExtension
-    godot_rocksmith.dll       Windows GDExtension
+    libgodot_goguitar_rs.so     Linux GDExtension
+    godot_goguitar_rs.dll       Windows GDExtension
   lib/
     linux/libvgmstream.a      vgmstream static lib (Linux)
     windows/libvgmstream.a    vgmstream static lib (Windows, cross-compiled USE_VORBIS=ON)
@@ -77,12 +77,12 @@ sudo apt-get install -y mingw-w64 g++-mingw-w64-x86-64
 # Linux
 cd gdextension/src
 cargo build --release
-cp target/release/libgodot_rocksmith.so ../bin/
+cp target/release/libgodot_goguitar_rs.so ../bin/
 
 # Windows (cross-compile from Linux)
 rustup target add x86_64-pc-windows-gnu
 cargo build --release --target x86_64-pc-windows-gnu
-cp target/x86_64-pc-windows-gnu/release/godot_rocksmith.dll ../bin/
+cp target/x86_64-pc-windows-gnu/release/godot_goguitar_rs.dll ../bin/
 ```
 
 ### Run the Game (Linux with xvfb)
@@ -105,11 +105,11 @@ DISPLAY=:99 ./Godot_v4.4.1-stable_linux.x86_64 \
 ## Runtime Dependencies
 
 ### Linux
-Only `libgodot_rocksmith.so` in `gdextension/bin/` is needed. No .NET runtime required.
+Only `libgodot_goguitar_rs.so` in `gdextension/bin/` is needed. No .NET runtime required.
 System libraries used: `libvorbis`, `libogg` (standard system packages).
 
 ### Windows
-Only `godot_rocksmith.dll` in `gdextension/bin/` is needed. No .NET runtime required.
+Only `godot_goguitar_rs.dll` in `gdextension/bin/` is needed. No .NET runtime required.
 All PSARC/SNG parsing is done in pure Rust — no external DLL dependencies.
 
 ## Key Coding Conventions

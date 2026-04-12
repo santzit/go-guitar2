@@ -1,5 +1,5 @@
 # ── Cargo workspace ──────────────────────────────────────────────────────────
-# The workspace root is also the main GDExtension binary crate (godot_rocksmith).
+# The workspace root is also the main GDExtension binary crate (godot_goguitar_rs).
 # Sub-crates are in the `crates/` directory and provide clean, reusable APIs
 # that the Godot extension layer depends on.
 [workspace]
@@ -15,7 +15,7 @@ resolver = "2"
 
 # ── Main GDExtension binary crate ────────────────────────────────────────────
 [package]
-name    = "godot_rocksmith"
+name    = "godot_goguitar_rs"
 version = "0.1.0"
 edition = "2021"
 

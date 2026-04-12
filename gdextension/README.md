@@ -27,15 +27,15 @@ Copy the compiled library to `gdextension/bin/`:
 ```bash
 # Linux
 mkdir -p ../bin
-cp target/release/libgodot_rocksmith.so ../bin/
+cp target/release/libgodot_goguitar_rs.so ../bin/
 
 # Windows
 mkdir -p ../bin
-cp target/release/godot_rocksmith.dll ../bin/
+cp target/release/godot_goguitar_rs.dll ../bin/
 
 # macOS
 mkdir -p ../bin
-cp target/release/libgodot_rocksmith.dylib ../bin/
+cp target/release/libgodot_goguitar_rs.dylib ../bin/
 ```
 
 Then open the project in Godot 4.4. The `RocksmithBridge` class becomes
