@@ -42,11 +42,16 @@ const MAX_DELTA : float = 0.05
 ## matching the Rocksmith-style 3-second intro pause.
 const WARMUP_SECS : float = 3.0
 
+# -- String glow constants ---------------------------------------------------
+## How many seconds before a note arrives to begin ramping up the string glow.
+const GLOW_WINDOW : float = 2.0
+
 # -- Scene references --------------------------------------------------------
-@onready var _pool   : Node3D            = $NotePool
-@onready var _highway: Node3D            = $Highway
-@onready var _player : AudioStreamPlayer = $AudioStreamPlayer
-@onready var _camera : Camera3D          = $Camera3D
+@onready var _pool     : Node3D            = $NotePool
+@onready var _highway  : Node3D            = $Highway
+@onready var _fretboard: Node3D            = $Fretboard
+@onready var _player   : AudioStreamPlayer = $AudioStreamPlayer
+@onready var _camera   : Camera3D          = $Camera3D
 
 # -- State -------------------------------------------------------------------
 var _bridge              = null  # GoGuitarBridge instance (no static type — avoids parse errors when class is not yet registered)
@@ -61,6 +66,13 @@ var _warmup_timer        : float    = WARMUP_SECS  # counts down to 0.0, then au
 
 ## Cached volume_db sent to the AudioStreamPlayer last frame.  -999 = first frame.
 var _cached_volume_db    : float    = -999.0
+
+## Per-string glow state for smooth transitions.
+## Tracks the current shader intensity so we can lerp toward the target each frame.
+var _string_glow         : Array[float] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+## Scan pointer into _notes for the string-glow window.
+## Advances past notes that have fully passed the strum line.
+var _glow_cursor         : int      = 0
 
 ## Per-string fret-change tracker for smart label logic.
 ## -1 = no note has been spawned on this string yet.
@@ -203,6 +215,9 @@ func _process(delta: float) -> void:
 			_take_screenshot(_shot_idx + 1)
 			_shot_idx += 1
 
+	# Drive per-string glow intensity from upcoming note data.
+	_update_string_glows()
+
 
 # -- Helpers -----------------------------------------------------------------
 
@@ -222,6 +237,47 @@ func _take_screenshot(num: int) -> void:
 	var abs_path := ProjectSettings.globalize_path(path)
 	img.save_png(abs_path)
 	print("Screenshot saved: " + abs_path)
+
+
+## Scan notes within GLOW_WINDOW seconds and set per-string shader intensity.
+## Strings ramp from 0.0 (dim) → 1.0 (bright) as a note approaches, then
+## decay back to 0.0 after the note passes the strum line.
+func _update_string_glows() -> void:
+	if not is_instance_valid(_fretboard):
+		return
+
+	# Advance the glow cursor past notes that have already left the strum zone.
+	while _glow_cursor < _notes.size() \
+			and (_notes[_glow_cursor]["time"] as float) < _song_time - 0.20:
+		_glow_cursor += 1
+
+	# Compute target glow intensity per string: highest intensity wins when
+	# multiple notes for the same string fall within the window.
+	var targets : Array[float] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+	var i : int = _glow_cursor
+	while i < _notes.size():
+		var note_time : float = _notes[i]["time"]
+		var dt        : float = note_time - _song_time
+		if dt > GLOW_WINDOW:
+			break
+		var s : int = int(_notes[i].get("string", -1))
+		if s >= 0 and s < 6:
+			# Quadratic ease-in: near-zero far away, steep rise in the last 0.5 s.
+			var t         : float = clampf(dt / GLOW_WINDOW, 0.0, 1.0)
+			var intensity : float = 1.0 - t * t
+			if intensity > targets[s]:
+				targets[s] = intensity
+		i += 1
+
+	# Smooth transitions: fast attack (note arriving) / slow decay (note gone).
+	for s in 6:
+		var current : float = _string_glow[s]
+		var target  : float = targets[s]
+		var lerp_k  : float = 0.25 if target > current else 0.06
+		var new_val : float = lerpf(current, target, lerp_k)
+		if absf(new_val - current) > 0.001:
+			_string_glow[s] = new_val
+			_fretboard.set_string_glow(s, new_val)
 
 
 func _return_to_menu() -> void:
