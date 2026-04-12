@@ -26,8 +26,8 @@ const CAMERA_Y          : float = 3.0
 const CAMERA_Z          : float = -6.0
 const CAMERA_LERP_SPEED : float = 2.0    # units/s for smooth pan
 ## Camera X clamp — keeps the camera away from the highway's extreme edges.
-const CAMERA_X_MIN      : float = 4.0
-const CAMERA_X_MAX      : float = 20.0
+const CAMERA_X_MIN      : float = 2.0
+const CAMERA_X_MAX      : float = 22.0
 
 # -- Screenshot capture (for automated testing) ------------------------------
 const SCREENSHOT_TIMES : Array  = [5.0, 10.0, 15.0, 20.0, 25.0]
@@ -70,6 +70,7 @@ const CHORD_GROUP_THRESHOLD : float = 0.02
 var _bridge              = null  # GoGuitarBridge instance (no static type — avoids parse errors when class is not yet registered)
 var _notes               : Array    = []
 var _next_idx            : int      = 0
+var _debug_strum_idx     : int      = 0   # pointer for strum-line debug printing
 var _song_time           : float    = 0.0
 var _playing             : bool     = false
 var _shot_idx            : int      = 0
@@ -223,6 +224,24 @@ func _process(delta: float) -> void:
 	# positions are computed directly from the audio clock (not accumulated delta).
 	_pool.tick(_song_time)
 
+	# ── Strum-line debug print ─────────────────────────────────────────────────
+	# Print each chord group the moment it crosses the strum line (song_time >= note.time).
+	while _debug_strum_idx < _notes.size():
+		var nd : Dictionary = _notes[_debug_strum_idx]
+		var dt : float      = float(nd.get("time", 0.0))
+		if _song_time >= dt:
+			# Collect all notes sharing this timestamp.
+			var chord_notes : Array = [nd]
+			var nj : int = _debug_strum_idx + 1
+			while nj < _notes.size() \
+					and absf(float(_notes[nj].get("time", 0.0)) - dt) < CHORD_GROUP_THRESHOLD:
+				chord_notes.append(_notes[nj])
+				nj += 1
+			print("STRUM %dms | %s" % [int(_song_time * 1000), _chord_debug_str(chord_notes)])
+			_debug_strum_idx = nj
+		else:
+			break
+
 	while _next_idx < _notes.size():
 		var nd: Dictionary = _notes[_next_idx]
 		if nd["time"] - _song_time <= LEAD_TIME:
@@ -268,9 +287,11 @@ func _process(delta: float) -> void:
 # -- Helpers -----------------------------------------------------------------
 
 ## World X centre for a fret lane.  Mirrors note.gd formula:
-##   X = (fret - 0.5) * FRET_SPACING
+##   X = (FRET_COUNT - fret + 0.5) * FRET_SPACING
+## The camera's look_at inverts the X axis (camera-right = world -X), so fret 1
+## must map to HIGH world-X (23.5) to appear on the LEFT of the screen.
 func _fret_world_x(f: int) -> float:
-	return (f - 0.5) * FRET_SPACING
+	return (FRET_COUNT - f + 0.5) * FRET_SPACING
 
 
 func _take_screenshot(num: int) -> void:
