@@ -10,19 +10,21 @@ uniform vec4  string_color    : source_color = vec4(1.0, 1.0, 1.0, 1.0);
 uniform float glow_intensity  : hint_range(0.0, 1.0) = 0.0;
 
 void fragment() {
-	// Emission ramps from nearly invisible at rest up to a bright peak as the note approaches.
-	float base_emit = 0.05;
-	float peak_emit = 8.0;
+	// Strings are ALWAYS visible as colored neon lines (Rocksmith-style).
+	// base_emit gives a constant moderate brightness so strings are always seen.
+	// When a note is approaching (glow_intensity → 1.0) the string gets extra bright.
+	float base_emit = 1.2;
+	float peak_emit = 5.0;
 	float emit      = mix(base_emit, peak_emit, glow_intensity);
 
-	// Soft depth fade: strings are brightest near the strum line (uv.y ≈ 0)
-	// and fade gently into the distance (uv.y → 1).
-	float depth_fade = 1.0 - UV.y * 0.55;
+	// Subtle depth fade: strings stay clearly visible along their full length,
+	// but are very slightly dimmer in the far distance.
+	float depth_fade = 1.0 - UV.y * 0.20;
 
 	vec3 col = string_color.rgb * emit * depth_fade;
 
 	ALBEDO   = col;
 	EMISSION = col;
-	// Alpha also increases with glow so the string "appears" as a note arrives.
-	ALPHA    = mix(0.05, 0.85, glow_intensity) * depth_fade;
+	// Strings are always opaque; alpha grows slightly when glowing.
+	ALPHA    = mix(0.75, 0.95, glow_intensity) * depth_fade;
 }
