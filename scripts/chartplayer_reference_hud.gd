@@ -15,7 +15,7 @@ const WAVE_FG_DYNAMIC_RANGE: float = 0.80
 @onready var _progress_label: Label = $Root/BottomPanel/BottomHBox/Progress
 @onready var _time_label: Label = $Root/BottomPanel/BottomHBox/Time
 
-var _song_length_sec: float = 1.0
+var _total_song_duration_sec: float = 1.0
 
 
 func set_song_meta(song_name: String, arrangement: String) -> void:
@@ -28,8 +28,8 @@ func set_reference_lyrics(main_line: String, focus_word: String) -> void:
 
 
 func update_runtime(song_time: float, bpm: float, processed_note_count: int, total_notes: int, root_note: String, song_length_sec: float) -> void:
-	_song_length_sec = maxf(song_length_sec, 1.0)
-	var progress: float = clampf(song_time / _song_length_sec, 0.0, 1.0)
+	_total_song_duration_sec = maxf(song_length_sec, 1.0)
+	var progress: float = clampf(song_time / _total_song_duration_sec, 0.0, 1.0)
 	_wave_bg.value = progress * 100.0
 	_wave_fg.value = (WAVE_FG_BASE_PROGRESS + WAVE_FG_DYNAMIC_RANGE * progress) * 100.0
 	_bpm_label.text = "BPM: %.1f" % bpm

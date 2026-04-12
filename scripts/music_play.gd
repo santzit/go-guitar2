@@ -474,10 +474,10 @@ func _estimate_bpm_from_notes() -> float:
 	if intervals.is_empty():
 		return 0.0
 	intervals.sort()
-	var mid: int = intervals.size() / 2
-	var dominant_interval: float = intervals[mid]
+	var median_index: int = intervals.size() / 2
+	var dominant_interval: float = intervals[median_index]
 	if intervals.size() % 2 == 0:
-		dominant_interval = (intervals[mid - 1] + intervals[mid]) * 0.5
+		dominant_interval = (intervals[median_index - 1] + intervals[median_index]) * 0.5
 	return clampf(60.0 / dominant_interval, 40.0, 240.0)
 
 
