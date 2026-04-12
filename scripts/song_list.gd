@@ -1,6 +1,6 @@
 extends Control
 
-const _RsBridgeScript = preload("res://scripts/rs_bridge.gd")
+const _GoGuitarBridgeScript = preload("res://scripts/goguitar_bridge.gd")
 
 @onready var _song_list     : ItemList         = $MarginContainer/VBoxContainer/SongList
 @onready var _play_btn      : Button           = $MarginContainer/VBoxContainer/Buttons/PlayButton
@@ -11,12 +11,12 @@ const _RsBridgeScript = preload("res://scripts/rs_bridge.gd")
 var _song_paths       : Array[String] = []
 ## Index of the song whose preview is pending / currently playing.
 var _preview_idx      : int           = -1
-## RsBridge instance reused between preview loads to avoid repeated allocations.
+## GoGuitarBridge instance reused between preview loads to avoid repeated allocations.
 var _bridge           = null
 
 
 func _ready() -> void:
-	_bridge = _RsBridgeScript.new()
+	_bridge = _GoGuitarBridgeScript.new()
 	_reload_song_list()
 
 

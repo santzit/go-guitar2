@@ -3,7 +3,7 @@ extends Node3D
 ##
 ## Expects a PSARC song path selected in the song list menu (song_list.gd).
 
-const _RsBridgeScript = preload("res://scripts/rs_bridge.gd")
+const _GoGuitarBridgeScript = preload("res://scripts/goguitar_bridge.gd")
 const _GameStateScript = preload("res://scripts/game_state.gd")
 
 # -- Mixer bus indices (must match GameState.BUS_NAMES / gg-mixer BusId) ------
@@ -49,7 +49,7 @@ const WARMUP_SECS : float = 3.0
 @onready var _camera : Camera3D          = $Camera3D
 
 # -- State -------------------------------------------------------------------
-var _bridge              = null  # RsBridge instance (no static type — avoids parse errors when class is not yet registered)
+var _bridge              = null  # GoGuitarBridge instance (no static type — avoids parse errors when class is not yet registered)
 var _notes               : Array    = []
 var _next_idx            : int      = 0
 var _song_time           : float    = 0.0
@@ -70,7 +70,7 @@ var _last_fret_per_string: Array[int] = [-1, -1, -1, -1, -1, -1]
 
 
 func _ready() -> void:
-	_bridge = _RsBridgeScript.new()
+	_bridge = _GoGuitarBridgeScript.new()
 
 	# Load persisted mixer settings so volume/mute state is correct from the start.
 	_GameStateScript.load_mixer_settings()
