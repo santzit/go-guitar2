@@ -29,7 +29,7 @@ shaders/
   highway.gdshader     – Fret-lane lines, depth-fade, strum-line glow
   note.gdshader        – Per-string colour + pulsing emission glow
 DLC/                   – Drop .psarc CDLC files here for testing (5 songs included)
-ChartPlayer/           – Upstream ChartPlayer reference notes and links (GPL project)
+ChartPlayer/           – Git subproject pointing to mikeoliphant/ChartPlayer (GPL project)
 gdextension/
   goguitar_bridge.gdextension  – GDExtension manifest
   src/                 – Rust source (godot-rust/gdext + Rocksmith2014.rs)

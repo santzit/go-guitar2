@@ -1,0 +1,3 @@
+[submodule "ChartPlayer"]
+path = ChartPlayer
+url = https://github.com/mikeoliphant/ChartPlayer
