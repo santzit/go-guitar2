@@ -26,8 +26,8 @@ const CAMERA_Y          : float = 3.0
 const CAMERA_Z          : float = -6.0
 const CAMERA_LERP_SPEED : float = 2.0    # units/s for smooth pan
 ## Camera X clamp — keeps the camera away from the highway's extreme edges.
-const CAMERA_X_MIN      : float = 2.0
-const CAMERA_X_MAX      : float = 22.0
+const CAMERA_X_MIN      : float = 1.0
+const CAMERA_X_MAX      : float = 23.0
 
 # -- Screenshot capture (for automated testing) ------------------------------
 const SCREENSHOT_TIMES : Array  = [5.0, 10.0, 15.0, 20.0, 25.0]
@@ -287,11 +287,11 @@ func _process(delta: float) -> void:
 # -- Helpers -----------------------------------------------------------------
 
 ## World X centre for a fret lane.  Mirrors note.gd formula:
-##   X = (FRET_COUNT - fret + 0.5) * FRET_SPACING
-## The camera's look_at inverts the X axis (camera-right = world -X), so fret 1
-## must map to HIGH world-X (23.5) to appear on the LEFT of the screen.
+##   X = (FRET_COUNT - fret - 0.5) * FRET_SPACING
+## Highway fret lines sit at integer X values (X=23 = left edge of fret 1).
+## Subtracting 0.5 places the centre in the slot to the left of each fret line.
 func _fret_world_x(f: int) -> float:
-	return (FRET_COUNT - f + 0.5) * FRET_SPACING
+	return (FRET_COUNT - f - 0.5) * FRET_SPACING
 
 
 func _take_screenshot(num: int) -> void:

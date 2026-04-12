@@ -2,9 +2,10 @@ extends Node3D
 ## note.gd  –  behaviour for a single pooled note.
 ##
 ## Coordinate mapping
-##   X = (FRET_COUNT − fret + 0.5) × FRET_SPACING  (fret 1 = X 23.5, fret 24 = X 0.5)
-##       The camera's look_at gives an inverted X axis (camera-right = world -X),
-##       so LOW fret numbers must map to HIGH world-X to appear on screen-LEFT.
+##   X = (FRET_COUNT − fret − 0.5) × FRET_SPACING  (fret 1 = X 22.5, fret 24 = X −0.5)
+##       The highway fret lines sit at integer world-X values (X=23 → left edge of fret 1,
+##       X=22 → left edge of fret 2, …). Subtracting 0.5 places notes at the centre of the
+##       slot to the LEFT of each fret line, matching the visual lane on the highway mesh.
 ##   Y = STRING_Y_BASE + string index × STRING_SPACING
 ##   Z = time axis; note spawns at START_Z and travels toward STRUM_Z
 
@@ -82,7 +83,7 @@ func setup(p_fret: int, p_string: int, p_time: float, p_duration: float, p_show_
 	visible      = true
 	_miss_until  = -1.0
 
-	position = Vector3((FRET_COUNT - fret) * FRET_SPACING + FRET_SPACING * 0.5, STRING_Y_BASE + string_index * STRING_SPACING, START_Z)
+	position = Vector3((FRET_COUNT - fret) * FRET_SPACING - FRET_SPACING * 0.5, STRING_Y_BASE + string_index * STRING_SPACING, START_Z)
 	_miss_label.visible = false
 
 	# Apply string colour to the per-instance material.
