@@ -80,7 +80,7 @@ func setup(p_fret: int, p_string: int, p_time: float, p_duration: float, p_show_
 	visible      = true
 	_miss_until  = -1.0
 
-	position = Vector3((FRET_COUNT - fret) * FRET_SPACING + FRET_SPACING * 0.5, STRING_Y_BASE + string_index * STRING_SPACING, START_Z)
+	position = Vector3((fret - 1) * FRET_SPACING + FRET_SPACING * 0.5, STRING_Y_BASE + string_index * STRING_SPACING, START_Z)
 	_miss_label.visible = false
 
 	# Apply string colour to the per-instance material.

@@ -29,4 +29,14 @@ jobs:
             libogg-dev \
             xvfb \
             mesa-vulkan-drivers \
+            libgl1-mesa-dri \
+            libgles2 \
             unzip
+
+      - name: Download Godot 4.4.1
+        run: |
+          wget -q https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_linux.x86_64.zip
+          unzip -q Godot_v4.4.1-stable_linux.x86_64.zip
+          chmod +x Godot_v4.4.1-stable_linux.x86_64
+          sudo mv Godot_v4.4.1-stable_linux.x86_64 /usr/local/bin/godot
+          godot --version

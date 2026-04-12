@@ -222,9 +222,9 @@ func _process(delta: float) -> void:
 # -- Helpers -----------------------------------------------------------------
 
 ## World X centre for a fret lane.  Mirrors note.gd formula:
-##   X = (FRET_COUNT - fret + 0.5) * FRET_SPACING
+##   X = (fret - 0.5) * FRET_SPACING
 func _fret_world_x(f: int) -> float:
-	return (FRET_COUNT - f + 0.5) * FRET_SPACING
+	return (f - 0.5) * FRET_SPACING
 
 
 func _take_screenshot(num: int) -> void:

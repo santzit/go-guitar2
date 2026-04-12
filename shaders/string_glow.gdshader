@@ -10,9 +10,9 @@ uniform vec4  string_color    : source_color = vec4(1.0, 1.0, 1.0, 1.0);
 uniform float glow_intensity  : hint_range(0.0, 1.0) = 0.0;
 
 void fragment() {
-	// Emission ramps from a dim base up to a bright peak as the note approaches.
-	float base_emit = 0.40;
-	float peak_emit = 10.0;
+	// Emission ramps from nearly invisible at rest up to a bright peak as the note approaches.
+	float base_emit = 0.05;
+	float peak_emit = 8.0;
 	float emit      = mix(base_emit, peak_emit, glow_intensity);
 
 	// Soft depth fade: strings are brightest near the strum line (uv.y ≈ 0)
@@ -24,5 +24,5 @@ void fragment() {
 	ALBEDO   = col;
 	EMISSION = col;
 	// Alpha also increases with glow so the string "appears" as a note arrives.
-	ALPHA    = mix(0.30, 0.90, glow_intensity) * depth_fade;
+	ALPHA    = mix(0.05, 0.85, glow_intensity) * depth_fade;
 }
