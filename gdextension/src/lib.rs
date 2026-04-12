@@ -9,7 +9,7 @@ mod tone_engine;
 
 // ── Godot GDExtension wrapper classes ─────────────────────────────────────────
 mod audio_engine;
-mod rocksmith_bridge;
+mod goguitar_bridge;
 mod rt_engine;
 
 struct GoGuitar2Extension;
