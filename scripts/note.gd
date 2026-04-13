@@ -11,14 +11,15 @@ extends Node3D
 ##   Z = STRUM_Z − (time_offset − song_time) × TRAVEL_SPEED
 ##       Notes spawn at Z = -20 and travel toward Z = 0.
 
-# ── ChartPlayer guitar note textures (low E → high e) ────────────────────────
+# ── ChartPlayer guitar note textures (string 0 top → string 5 bottom) ────────
+# Order: Red, Yellow, Cyan(Blue), Orange, Green, Purple
 const STRING_TEXTURES: Array[Texture2D] = [
-	preload("res://assets/textures/chartplayer/GuitarPurple.png"),
-	preload("res://assets/textures/chartplayer/GuitarGreen.png"),
-	preload("res://assets/textures/chartplayer/GuitarOrange.png"),
-	preload("res://assets/textures/chartplayer/GuitarCyan.png"),
-	preload("res://assets/textures/chartplayer/GuitarYellow.png"),
 	preload("res://assets/textures/chartplayer/GuitarRed.png"),
+	preload("res://assets/textures/chartplayer/GuitarYellow.png"),
+	preload("res://assets/textures/chartplayer/GuitarCyan.png"),
+	preload("res://assets/textures/chartplayer/GuitarOrange.png"),
+	preload("res://assets/textures/chartplayer/GuitarGreen.png"),
+	preload("res://assets/textures/chartplayer/GuitarPurple.png"),
 ]
 
 # ── Digit scenes (0–9) used to display the fret number on each note ──────────
