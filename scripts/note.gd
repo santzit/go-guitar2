@@ -36,7 +36,6 @@ const DIGIT_SCENES: Array[PackedScene] = [
 	preload("res://scenes/number_9.tscn"),
 ]
 
-
 ## Spatial shader for the finger indicator plane.
 ## Samples the guitar note texture directly — ALPHA = tex.a so the circular textures
 ## render with natural transparency (no rectangular frame box).
@@ -65,7 +64,6 @@ void fragment() {
 	ALPHA  = tex.a;
 }
 """
-
 ## Z offset places the label on the front face of the note box (faces +Z toward camera).
 const LABEL_Z : float = 0.06
 ## X offset between tens and ones digit for two-digit fret numbers.
