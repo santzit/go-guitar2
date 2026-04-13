@@ -36,8 +36,19 @@ jobs:
 
       - name: Download Godot 4.4.1
         run: |
-          wget -q https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_linux.x86_64.zip
-          unzip -q Godot_v4.4.1-stable_linux.x86_64.zip
-          chmod +x Godot_v4.4.1-stable_linux.x86_64
-          sudo mv Godot_v4.4.1-stable_linux.x86_64 /usr/local/bin/godot
+          GODOT_VERSION="4.4.1-stable"
+          GODOT_ZIP="Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          GODOT_EXE="Godot_v${GODOT_VERSION}_linux.x86_64"
+          GODOT_DIR="$RUNNER_TEMP/godot"
+
+          mkdir -p "$GODOT_DIR"
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/${GODOT_ZIP}"
+          unzip -q "$GODOT_ZIP" -d "$GODOT_DIR"
+          chmod +x "$GODOT_DIR/$GODOT_EXE"
+
+          sudo ln -sf "$GODOT_DIR/$GODOT_EXE" /usr/local/bin/godot
+          ln -sf "$GODOT_DIR/$GODOT_EXE" "$GITHUB_WORKSPACE/$GODOT_EXE"
+
+          echo "GODOT_BIN=$GODOT_DIR/$GODOT_EXE" >> "$GITHUB_ENV"
+          echo "PATH=$GODOT_DIR:$PATH" >> "$GITHUB_ENV"
           godot --version

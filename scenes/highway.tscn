@@ -30,7 +30,7 @@ shader_parameter/vertical_fret_line_tex = ExtResource("3_vfret")
 shader_parameter/vertical_line_width = 0.008
 shader_parameter/vertical_line_strength = 0.55
 
-; ── Strum-line marker (thin bright box at Z = 20) ─────────────────────────────
+; ── Strum-line marker (thin bright box) ───────────────────────────────────────
 [sub_resource type="BoxMesh" id="BoxMesh_strum"]
 size = Vector3(24.0, 0.05, 0.10)
 
@@ -64,9 +64,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, -10)
 mesh = SubResource("PlaneMesh_hw01")
 surface_material_override/0 = SubResource("ShaderMat_hw01")
 
-; Strum line moved to Y = -20 per PR review request, keeping Z = 20, centred at X = 12
+; Strum line at Y = 0, Z = -20 per PR review request, centred at X = 12
 [node name="StrumLine" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, -20, 20)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, -20)
 mesh = SubResource("BoxMesh_strum")
 surface_material_override/0 = SubResource("StrumMat")
 
