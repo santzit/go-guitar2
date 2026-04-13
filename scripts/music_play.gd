@@ -23,6 +23,7 @@ const FRET_COUNT   : int   = 24
 const SCALE_LENGTH : float = 300.0  # ChartPlayer scale length used by GetFretPosition().
 const SCALE_END    : float = SCALE_LENGTH - (SCALE_LENGTH / pow(2.0, float(FRET_COUNT) / 12.0))  # Fret 24 raw position.
 const HIGHWAY_WIDTH: float = 24.0   # Local world-space width for normalized fret mapping.
+const HIGHWAY_X_OFFSET: float = -0.5  # Keep fret 0 aligned with legacy/open-string lane origin.
 
 # -- Camera follow -----------------------------------------------------------
 ## FOV (degrees) used for the follow camera.
@@ -308,15 +309,12 @@ func _process(delta: float) -> void:
 
 # -- Helpers -----------------------------------------------------------------
 
-## World X centre for a fret lane. Mirrors ChartPlayer `GetFretPosition()`:
-##   pos = scaleLength - (scaleLength / 2^(fret/12))
-## then normalized to this project's 24-unit highway width.
 ## Convert a fret index into world X using the ChartPlayer `GetFretPosition()` curve.
 ## Parameter `f` is the fret number (0..24). Return value is local highway X.
 func _fret_world_x(f: int) -> float:
 	var fretf := clampf(float(f), 0.0, float(FRET_COUNT))
 	var raw := SCALE_LENGTH - (SCALE_LENGTH / pow(2.0, fretf / 12.0))
-	return (raw / SCALE_END) * HIGHWAY_WIDTH - 0.5
+	return (raw / SCALE_END) * HIGHWAY_WIDTH + HIGHWAY_X_OFFSET
 
 
 func _take_screenshot(num: int) -> void:
