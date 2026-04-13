@@ -14,12 +14,12 @@ extends Node3D
 
 # ── String colour palette (Rocksmith 2014 convention) ────────────────────────
 const STRING_COLORS: Array[Color] = [
-	Color(1.00, 0.20, 0.20, 1.0),  # 0 – red
-	Color(1.00, 0.88, 0.12, 1.0),  # 1 – yellow
-	Color(0.00, 0.60, 1.00, 1.0),  # 2 – cyan
-	Color(1.00, 0.56, 0.05, 1.0),  # 3 – orange
-	Color(0.10, 0.80, 0.00, 1.0),  # 4 – green
-	Color(0.80, 0.00, 0.80, 1.0),  # 5 – purple
+	Color(1.00, 0.20, 0.20, 1.0),  # 0 – red     (low E)
+	Color(1.00, 0.88, 0.12, 1.0),  # 1 – yellow  (A)
+	Color(0.00, 0.60, 1.00, 1.0),  # 2 – cyan    (D)
+	Color(1.00, 0.56, 0.05, 1.0),  # 3 – orange  (G)
+	Color(0.10, 0.80, 0.00, 1.0),  # 4 – green   (B)
+	Color(0.80, 0.00, 0.80, 1.0),  # 5 – purple  (high e)
 ]
 
 # ── Digit scenes (0–9) used to display the fret number on each note ──────────

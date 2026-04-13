@@ -47,9 +47,11 @@ func update_runtime(song_time: float, bpm: float, processed_note_count: int, tot
 	_song_progress_label.text = "Song: %.1f%%" % (progress * 100.0)
 	_clock_label.text = "%s / %s" % [_format_clock(song_time), _format_clock(_total_song_duration_sec)]
 	if root_note != "":
-		_root_label.text = "Current root: %s" % root_note
+		var root_text := "Current root: %s" % root_note
+		var track_text := "Tracking lane: %s" % root_note
+		_root_label.text = root_text
 		_lyrics_focus.text = root_note
-		_transport_label.text = "Tracking lane: %s" % root_note
+		_transport_label.text = track_text
 	else:
 		_root_label.text = "Current root: --"
 		_transport_label.text = "Tracking lane: --"
