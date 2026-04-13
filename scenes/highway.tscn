@@ -60,7 +60,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, -10)
 mesh = SubResource("PlaneMesh_hw01")
 surface_material_override/0 = SubResource("ShaderMat_hw01")
 
-; Strum line moved to Y = -20, centred at X = 12
+; Strum line moved to Y = -20 per PR review request, keeping Z = 20, centred at X = 12
 [node name="StrumLine" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, -20, 20)
 mesh = SubResource("BoxMesh_strum")
