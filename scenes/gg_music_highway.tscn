@@ -42,6 +42,7 @@ emission = Color(1, 0.95, 0.45, 1)
 emission_energy_multiplier = 3.0
 
 [sub_resource type="BoxMesh" id="BoxMesh_pointer"]
+; Tall/thin pointer better matches the centered vertical beam in the reference screenshot.
 size = Vector3(0.42, 8.4, 0.06)
 
 [sub_resource type="StandardMaterial3D" id="MatPointer"]
@@ -116,6 +117,8 @@ mesh = SubResource("PlaneMesh_highway")
 surface_material_override/0 = SubResource("MatTabFg")
 
 [node name="TrailPurple" type="MeshInstance3D" parent="."]
+; Trails are layered as nearly coplanar planes to create the stacked ChartPlayer glow shape.
+; Small Y offsets keep ordering deterministic while avoiding flicker artifacts.
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0.055, 10)
 mesh = SubResource("PlaneMesh_trail")
 surface_material_override/0 = SubResource("MatTrailPurple")
