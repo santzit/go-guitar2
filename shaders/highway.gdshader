@@ -1,49 +1,58 @@
 shader_type spatial;
 render_mode cull_disabled, unshaded, depth_prepass_alpha;
 
-// 24 fret columns drawn across the highway width (X axis).
-// Strings are NOT lanes on this surface — they are the Y (height) of each note.
+// Fixed highway mesh. The 6 string-lane look is fully shader-driven via UV masks.
 uniform int   fret_count       : hint_range(1, 24) = 24;
-uniform vec4  highway_color    : source_color = vec4(0.06, 0.06, 0.14, 1.0);
-uniform vec4  fret_line_color  : source_color = vec4(0.45, 0.45, 0.80, 1.0);
-// Alternating lane tint so individual fret columns are easy to count.
-uniform vec4  lane_tint_a      : source_color = vec4(0.08, 0.08, 0.18, 1.0);
-uniform vec4  lane_tint_b      : source_color = vec4(0.06, 0.06, 0.12, 1.0);
-uniform vec4  strum_glow_color : source_color = vec4(0.90, 0.90, 1.00, 1.0);
-uniform float fret_line_width  : hint_range(0.005, 0.10) = 0.035;
-uniform float glow_strength    : hint_range(0.0,   3.0)  = 0.40;
+uniform int   string_count     : hint_range(1, 6) = 6;
+uniform int   active_fret_min  : hint_range(0, 24) = 0;
+uniform int   active_fret_max  : hint_range(-1, 24) = -1;
+
+uniform vec4  base_color       : source_color = vec4(0.01, 0.01, 0.02, 1.0);
+uniform vec4  lane_glow_color  : source_color = vec4(0.30, 0.70, 1.00, 1.0);
+uniform vec4  range_glow_color : source_color = vec4(0.95, 0.95, 1.00, 1.0);
+uniform vec4  strum_glow_color : source_color = vec4(0.40, 0.80, 1.00, 1.0);
+uniform vec4  lane_intensity_0_3 = vec4(0.0);
+uniform vec2  lane_intensity_4_5 = vec2(0.0);
+uniform float lane_width       : hint_range(0.05, 0.95) = 0.65;
+uniform float lane_glow_power  : hint_range(0.1, 4.0) = 1.6;
+uniform float pulse_speed      : hint_range(0.0, 10.0) = 3.0;
+uniform float glow_strength    : hint_range(0.0, 3.0) = 1.2;
+
+float lane_intensity(int lane) {
+	if (lane == 0) return lane_intensity_0_3.x;
+	if (lane == 1) return lane_intensity_0_3.y;
+	if (lane == 2) return lane_intensity_0_3.z;
+	if (lane == 3) return lane_intensity_0_3.w;
+	if (lane == 4) return lane_intensity_4_5.x;
+	return lane_intensity_4_5.y;
+}
 
 void fragment() {
-	vec2  uv       = UV;
+	vec2 uv = UV;
+	float lanes = float(string_count);
+	float lane_pos = uv.x * lanes;
+	int lane_idx = int(clamp(floor(lane_pos), 0.0, lanes - 1.0));
+	float lane_frac = fract(lane_pos);
+	float lane_core = 1.0 - smoothstep(lane_width, 1.0, abs(lane_frac * 2.0 - 1.0));
 
-	// ── Fret-column index (0 … fret_count-1) along the X axis ────────────
-	// UV is flipped (1-uv.x) so lane 1 appears on the left of the screen,
-	// matching the note X formula where fret 1 is at high world X.
-	float fret_uv   = (1.0 - uv.x) * float(fret_count);
-	float fret_idx  = floor(fret_uv);        // which fret column we are in
-	float fret_frac = fract(fret_uv);        // 0…1 within that column
-	bool  on_line   = fret_frac < fret_line_width || fret_frac > 1.0 - fret_line_width;
+	float pulse = 0.86 + 0.14 * sin(TIME * pulse_speed + float(lane_idx));
+	float lane_energy = pow(lane_core, lane_glow_power) * lane_intensity(lane_idx) * pulse;
 
-	// ── Alternating lane background (makes all 24 lanes easy to see) ──────
-	float checker   = mod(fret_idx, 2.0);
-	vec4  lane_col  = mix(lane_tint_a, lane_tint_b, checker);
+	float fret = uv.x * float(fret_count);
+	float min_f = float(active_fret_min);
+	float max_f = float(active_fret_max);
+	float active_ok = step(min_f, max_f);
+	float in_fret_range = active_ok * step(min_f, fret) * step(fret, max_f);
 
-	// ── Blend: line > lane colour ─────────────────────────────────────────
-	vec4  col = on_line ? mix(lane_col, fret_line_color, 0.90) : lane_col;
-
-	// ── Soft glow along each lane centre ─────────────────────────────────
-	float lane_centre = 1.0 - abs(fret_frac * 2.0 - 1.0);
-	col.rgb += fret_line_color.rgb * lane_centre * glow_strength * 0.10;
-
-	// ── Depth fade: brighter near the strum line (uv.y → 0) ──────────────
 	float depth_fade = 1.0 - uv.y * 0.55;
-	col.rgb *= depth_fade;
+	float strum_glow = smoothstep(0.08, 0.0, uv.y);
 
-	// ── Strum-line edge glow at the near edge (uv.y ≈ 0) ─────────────────
-	float strum_glow = smoothstep(0.04, 0.0, uv.y);
-	col.rgb += strum_glow_color.rgb * strum_glow * glow_strength;
+	vec3 col = base_color.rgb;
+	col += lane_glow_color.rgb * lane_energy * depth_fade * glow_strength;
+	col += range_glow_color.rgb * in_fret_range * 0.22 * depth_fade;
+	col += strum_glow_color.rgb * strum_glow * glow_strength;
 
-	ALBEDO   = col.rgb;
-	EMISSION = col.rgb * glow_strength * 0.5;
+	ALBEDO = col;
+	EMISSION = col * (0.50 + lane_energy);
 	ALPHA    = 1.0;
 }

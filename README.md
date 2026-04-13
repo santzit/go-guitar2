@@ -11,7 +11,7 @@ scenes/
   music_play.tscn      – Root Node3D: Camera3D, DirectionalLight3D, Highway, NotePool, Background
   fretboard.tscn       – 6 visible string lines at the strum position (Z=0)
   highway.tscn         – HighwaySurface MeshInstance3D (shader-drawn fret lanes) + StrumLine + walls
-  note.tscn            – Pooled note BoxMesh with per-string ShaderMaterial
+  note.tscn            – Pooled note with ChartPlayer Guitar*.png finger indicator sprites
   note_pool.tscn       – Manages up to 128 active note instances
   background.tscn      – WorldEnvironment (procedural sky + bloom)
 scripts/
@@ -24,8 +24,10 @@ scripts/
   note_pool.gd         – spawn_note / return_note pool API
   rs_bridge.gd         – GDScript wrapper around the RocksmithBridge GDExtension
 shaders/
-  highway.gdshader     – Fret-lane lines, depth-fade, strum-line glow
+  highway.gdshader     – Dark background + 6 UV-masked glowing lanes with per-lane intensity
   note.gdshader        – Per-string colour + pulsing emission glow
+assets/textures/chartplayer/ – Copied ChartPlayer Guitar*.png / FingerOutline textures used in-game
+ChartPlayer/           – Upstream ChartPlayer source snapshot for reference (temporary)
 DLC/                   – Drop .psarc CDLC files here for testing (5 songs included)
 gdextension/
   goguitar_bridge.gdextension  – GDExtension manifest
@@ -51,9 +53,9 @@ Libraries / Projects used:
 
 | Axis | Meaning |
 |------|---------|
-| **X** | Fret number (0 = open, 1–24 = frets) × `FRET_SPACING` |
-| **Y** | String index (0 = Low-E … 5 = High-e) × `STRING_SPACING` |
-| **Z** | Time — notes spawn at Z = 20 and travel toward Z = 0 (strum line) |
+| **X** | `scaleLength - scaleLength / 2^(fret/12)` (ChartPlayer-style), normalized to highway width |
+| **Y** | `(3 + string_index × 4)` scaled to scene units |
+| **Z** | Time — notes spawn at Z = 0 and travel toward Z = 20 (strum line) |
 
 ## Quick start
 

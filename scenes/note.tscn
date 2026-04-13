@@ -24,6 +24,11 @@ script = ExtResource("1_notescript")
 mesh = SubResource("BoxMesh_note01")
 surface_material_override/0 = SubResource("ShaderMat_note01")
 
+[node name="FingerIndicator" type="Sprite3D" parent="."]
+position = Vector3(0, 0, 0.08)
+pixel_size = 0.002
+no_depth_test = true
+
 ; Fret-number label container – digit scenes are added at runtime by note.gd
 [node name="FretLabel" type="Node3D" parent="."]
 

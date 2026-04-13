@@ -1,25 +1,25 @@
 extends Node3D
 ## note.gd  –  behaviour for a single pooled note.
 ##
-## Coordinate mapping (simple, no inversions)
-##   X = fret × FRET_SPACING − FRET_SPACING × 0.5
-##       fret 1 → X = 0.5 (left),  fret 24 → X = 23.5 (right)
+## Coordinate mapping (ChartPlayer-like)
+##   X = GetFretPosition(fret), normalized to highway width
+##       GetFretPosition(f) = scale_length - scale_length / pow(2, f / 12)
 ##       Camera right = world +X  → low fret = screen-left, high fret = screen-right
-##   Y = STRING_Y_BASE + string_index × STRING_SPACING
-##       string 0 (purple) → Y = 0.20 (bottom),  string 5 (red) → Y = 2.70 (top)
+##   Y = GetStringHeight(string_index), scaled to scene size
+##       GetStringHeight(s) = 3 + s * 4
 ##       Camera up = world +Y  → string 0 = screen-bottom, string 5 = screen-top
 ##   Z = STRUM_Z − (time_offset − song_time) × TRAVEL_SPEED
 ##       Notes spawn at Z = 0 (horizon / top of screen) and travel toward
 ##       Z = STRUM_Z = 20 (strum line near camera at Z = 26)
 
-# ── String colour palette (Rocksmith 2014 convention) ────────────────────────
-const STRING_COLORS: Array[Color] = [
-	Color(0.70, 0.10, 0.95, 1.0),  # 0 – purple  (low E)
-	Color(0.10, 0.80, 0.20, 1.0),  # 1 – green   (A)
-	Color(0.90, 0.50, 0.05, 1.0),  # 2 – orange  (D)
-	Color(0.10, 0.50, 0.95, 1.0),  # 3 – blue    (G)
-	Color(0.85, 0.85, 0.05, 1.0),  # 4 – yellow  (B)
-	Color(0.85, 0.15, 0.15, 1.0),  # 5 – red     (high e)
+# ── ChartPlayer guitar note textures (low E → high e) ────────────────────────
+const STRING_TEXTURES: Array[Texture2D] = [
+	preload("res://assets/textures/chartplayer/GuitarPurple.png"),
+	preload("res://assets/textures/chartplayer/GuitarGreen.png"),
+	preload("res://assets/textures/chartplayer/GuitarOrange.png"),
+	preload("res://assets/textures/chartplayer/GuitarCyan.png"),
+	preload("res://assets/textures/chartplayer/GuitarYellow.png"),
+	preload("res://assets/textures/chartplayer/GuitarRed.png"),
 ]
 
 # ── Digit scenes (0–9) used to display the fret number on each note ──────────
@@ -42,12 +42,10 @@ const LABEL_Z : float = 0.06
 ## Camera right = world +X  → tens (screen-left) at −X, ones (screen-right) at +X.
 const DIGIT_X_OFFSET : float = 0.07
 
-const FRET_COUNT    : int   = 24   # total number of fret lanes on the highway
-const FRET_SPACING  : float = 1.0
-const STRING_SPACING: float = 0.5
-## Minimum Y above the highway surface (XZ plane at Y=0).
-## Must match highway.gd STRING_Y_BASE so notes sit on their string lines.
-const STRING_Y_BASE : float = 0.20
+const FRET_COUNT         : int   = 24
+const SCALE_LENGTH       : float = 300.0
+const FRET_WORLD_WIDTH   : float = 24.0
+const STRING_HEIGHT_SCALE: float = 0.125
 ## Notes spawn at the horizon (Z=0, far from camera) and travel toward the strum line.
 const START_Z       : float = 0.0
 const STRUM_Z       : float = 20.0
@@ -63,6 +61,7 @@ var is_active    : bool  = false
 var _miss_until  : float = -1.0
 
 @onready var _mesh       : MeshInstance3D = $NoteMesh
+@onready var _finger     : Sprite3D       = $FingerIndicator
 @onready var _fret_label : Node3D         = $FretLabel
 @onready var _miss_label : Label3D        = $MissLabel
 
@@ -73,6 +72,10 @@ func _ready() -> void:
 		var mat := _mesh.get_surface_override_material(0)
 		if mat:
 			_mesh.set_surface_override_material(0, mat.duplicate())
+		_mesh.visible = false
+	if _finger:
+		_finger.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		_finger.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
 	if _miss_label:
 		_miss_label.position = Vector3(0.0, 0.0, MISS_LABEL_Z)
 
@@ -88,14 +91,12 @@ func setup(p_fret: int, p_string: int, p_time: float, p_duration: float, p_show_
 	visible      = true
 	_miss_until  = -1.0
 
-	position = Vector3(fret * FRET_SPACING - FRET_SPACING * 0.5, STRING_Y_BASE + string_index * STRING_SPACING, START_Z)
+	position = Vector3(_fret_world_x(fret), _string_world_y(string_index), START_Z)
 	_miss_label.visible = false
 
-	# Apply string colour to the per-instance material.
-	if _mesh:
-		var mat := _mesh.get_surface_override_material(0) as ShaderMaterial
-		if mat:
-			mat.set_shader_parameter("note_color", STRING_COLORS[string_index])
+	if _finger:
+		_finger.texture = STRING_TEXTURES[string_index]
+		_finger.modulate = Color(1, 1, 1, 1)
 
 	if p_show_label:
 		_rebuild_fret_label()
@@ -169,3 +170,18 @@ func deactivate() -> void:
 	var pool := get_parent()
 	if pool and pool.has_method("return_note"):
 		pool.return_note(self)
+
+
+func _fret_world_x(fret_num: int) -> float:
+	var max_pos: float = _chart_fret_pos(float(FRET_COUNT))
+	if max_pos <= 0.001:
+		return float(fret_num)
+	return _chart_fret_pos(float(fret_num)) / max_pos * FRET_WORLD_WIDTH
+
+
+func _chart_fret_pos(fret_num: float) -> float:
+	return SCALE_LENGTH - (SCALE_LENGTH / pow(2.0, fret_num / 12.0))
+
+
+func _string_world_y(str_idx: int) -> float:
+	return (3.0 + float(str_idx) * 4.0) * STRING_HEIGHT_SCALE

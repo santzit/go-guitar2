@@ -18,8 +18,10 @@ const HIGHWAY_DEPTH : float = 20.0
 const LEAD_TIME     : float = HIGHWAY_DEPTH / TRAVEL_SPEED   # = 10.0 s
 
 # -- Highway layout (must match note.gd) ------------------------------------
-const FRET_COUNT   : int   = 24
-const FRET_SPACING : float = 1.0
+const FRET_COUNT         : int   = 24
+const SCALE_LENGTH       : float = 300.0
+const FRET_WORLD_WIDTH   : float = 24.0
+const FRET_RANGE_WINDOW  : float = 4.0
 
 # -- Camera follow -----------------------------------------------------------
 ## FOV (degrees) used for the follow camera.
@@ -31,8 +33,8 @@ const CAMERA_Y          : float = 3.0
 const CAMERA_Z          : float = 26.0
 const CAMERA_LERP_SPEED : float = 2.0    # units/s for smooth pan
 ## Camera X clamp — keeps the camera from tracking to the highway edges.
-const CAMERA_X_MIN      : float = 0.5
-const CAMERA_X_MAX      : float = 23.5
+const CAMERA_X_MIN      : float = 1.75
+const CAMERA_X_MAX      : float = 24.0
 
 # -- Screenshot capture (for automated testing) ------------------------------
 const SCREENSHOT_TIMES : Array  = [5.0, 10.0, 15.0, 20.0, 25.0]
@@ -80,7 +82,8 @@ var _song_time           : float    = 0.0
 var _playing             : bool     = false
 var _shot_idx            : int      = 0
 var _start_wall_ms       : int      = 0
-var _camera_target_fret  : int      = FRET_COUNT / 2   # start at highway centre
+var _camera_target_min_fret : int   = FRET_COUNT / 2
+var _camera_target_max_fret : int   = FRET_COUNT / 2
 var _warmup_timer        : float    = WARMUP_SECS  # counts down to 0.0, then audio+notes start
 
 ## Cached volume_db sent to the AudioStreamPlayer last frame.  -999 = first frame.
@@ -92,6 +95,7 @@ var _string_glow         : Array[float] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 ## Scan pointer into _notes for the string-glow window.
 ## Advances past notes that have fully passed the strum line.
 var _glow_cursor         : int      = 0
+var _lane_glow           : Array[float] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
 ## Per-string fret-change tracker for smart label logic.
 ## -1 = no note has been spawned on this string yet.
@@ -166,7 +170,7 @@ func _ready() -> void:
 
 	# Snap camera to the centre of the highway on startup; enable zoom FOV.
 	if _camera:
-		_camera.position.x = clampf(_fret_world_x(_camera_target_fret), CAMERA_X_MIN, CAMERA_X_MAX)
+		_camera.position.x = clampf(_fret_world_x(FRET_COUNT / 2), CAMERA_X_MIN, CAMERA_X_MAX)
 		_camera.position.y = CAMERA_Y
 		_camera.position.z = CAMERA_Z
 		_camera.fov        = CAM_FOV
@@ -259,15 +263,16 @@ func _process(delta: float) -> void:
 				if show_label:
 					_last_fret_per_string[s] = f
 				_pool.spawn_note(f, s, nd["time"], nd["duration"], show_label)
-				# Track which fret the camera should follow.
-				_camera_target_fret = f
 			_next_idx += 1
 		else:
 			break
 
-	# Camera always follows the most recently scheduled fret lane.
+	_update_fret_range_visuals()
+
+	# Camera follows the center of the active fret range.
 	if _camera:
-		var target_x := clampf(_fret_world_x(_camera_target_fret), CAMERA_X_MIN, CAMERA_X_MAX)
+		var focus_fret: float = (float(_camera_target_min_fret) + float(_camera_target_max_fret)) * 0.5
+		var target_x := clampf(_fret_world_x(int(round(focus_fret))), CAMERA_X_MIN, CAMERA_X_MAX)
 		var cam_pos  := _camera.position
 		cam_pos.x = lerp(cam_pos.x, target_x, CAMERA_LERP_SPEED * minf(delta, MAX_DELTA))
 		cam_pos.y = CAMERA_Y
@@ -291,11 +296,18 @@ func _process(delta: float) -> void:
 
 # -- Helpers -----------------------------------------------------------------
 
-## World X centre for a fret lane.  Mirrors note.gd formula:
-##   X = fret × FRET_SPACING − FRET_SPACING × 0.5
-## fret 1 → X = 0.5 (left), fret 24 → X = 23.5 (right).  No inversion needed.
+## World X from ChartPlayer-like fret mapping:
+##   x = scale_length - (scale_length / pow(2, fret / 12))
+## then normalized to the 0..24 highway width.
 func _fret_world_x(f: int) -> float:
-	return f * FRET_SPACING - FRET_SPACING * 0.5
+	var max_pos: float = _chart_fret_pos(float(FRET_COUNT))
+	if max_pos <= 0.001:
+		return float(f)
+	return _chart_fret_pos(float(f)) / max_pos * FRET_WORLD_WIDTH
+
+
+func _chart_fret_pos(fret_num: float) -> float:
+	return SCALE_LENGTH - (SCALE_LENGTH / pow(2.0, fret_num / 12.0))
 
 
 func _take_screenshot(num: int) -> void:
@@ -349,6 +361,42 @@ func _update_string_glows() -> void:
 		if absf(new_val - current) > 0.001:
 			_string_glow[s] = new_val
 			_fretboard.set_string_glow(s, new_val)
+
+
+func _update_fret_range_visuals() -> void:
+	if not is_instance_valid(_highway):
+		return
+
+	var min_fret: int = 999
+	var max_fret: int = -1
+	var i: int = _glow_cursor
+	while i < _notes.size():
+		var nd: Dictionary = _notes[i]
+		var note_time: float = float(nd.get("time", -1.0))
+		if note_time > _song_time + FRET_RANGE_WINDOW:
+			break
+		var f: int = int(nd.get("fret", 0))
+		if f >= 1 and f <= FRET_COUNT:
+			min_fret = mini(min_fret, f)
+			max_fret = maxi(max_fret, f)
+		i += 1
+
+	var targets: Array[float] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+	if max_fret >= min_fret:
+		_camera_target_min_fret = min_fret
+		_camera_target_max_fret = max_fret
+		for lane in 6:
+			var lane_min: int = 1 + lane * 4
+			var lane_max: int = lane_min + 3
+			if max_fret >= lane_min and min_fret <= lane_max:
+				targets[lane] = 1.0
+		_highway.call("set_active_fret_range", min_fret, max_fret)
+	else:
+		_highway.call("set_active_fret_range", 0, -1)
+
+	for lane in 6:
+		_lane_glow[lane] = lerpf(_lane_glow[lane], targets[lane], 0.15)
+	_highway.call("set_lane_intensities", _lane_glow)
 
 
 func _return_to_menu() -> void:

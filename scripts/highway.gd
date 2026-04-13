@@ -2,46 +2,14 @@ extends Node3D
 ## highway.gd  –  runtime configuration for the Highway surface.
 ## The visual geometry and material are defined in highway.tscn / highway.gdshader.
 
-# ── String visual constants (must match note.gd) ────────────────────────────
-const STRING_Y_BASE   : float = 0.20
-const STRING_SPACING  : float = 0.50
-const STRING_COLORS: Array[Color] = [
-	Color(0.70, 0.10, 0.95, 1.0),  # 0 – purple  (low E)
-	Color(0.10, 0.80, 0.20, 1.0),  # 1 – green   (A)
-	Color(0.90, 0.50, 0.05, 1.0),  # 2 – orange  (D)
-	Color(0.10, 0.50, 0.95, 1.0),  # 3 – blue    (G)
-	Color(0.85, 0.85, 0.05, 1.0),  # 4 – yellow  (B)
-	Color(0.85, 0.15, 0.15, 1.0),  # 5 – red     (high e)
-]
+const LANE_COUNT : int = 6
 
 @onready var _surface: MeshInstance3D = $HighwaySurface
 
 
 func _ready() -> void:
-	_create_string_lines()
-
-
-## Build six thin glowing line meshes – one per string – at the correct heights.
-func _create_string_lines() -> void:
-	for i in STRING_COLORS.size():
-		var box := BoxMesh.new()
-		box.size = Vector3(24.0, 0.025, 20.0)
-
-		var mat := StandardMaterial3D.new()
-		var c: Color = STRING_COLORS[i]
-		mat.albedo_color           = Color(c.r, c.g, c.b, 0.75)
-		mat.emission_enabled       = true
-		mat.emission               = c
-		mat.emission_energy_multiplier = 2.5
-		mat.transparency           = BaseMaterial3D.TRANSPARENCY_ALPHA
-
-		var mi := MeshInstance3D.new()
-		mi.name = "StringLine%d" % i
-		mi.mesh = box
-		mi.set_surface_override_material(0, mat)
-		mi.transform.origin = Vector3(12.0, STRING_Y_BASE + i * STRING_SPACING, 10.0)
-		mi.visible = false   # Keep string Y coordinates for note placement; lines not shown
-		add_child(mi)
+	set_lane_intensities([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+	set_active_fret_range(0, -1)
 
 
 ## Reconfigure fret/string counts at runtime (e.g. for different tunings).
@@ -52,3 +20,33 @@ func configure(fret_count: int, string_count: int) -> void:
 	if mat:
 		mat.set_shader_parameter("fret_count",   fret_count)
 		mat.set_shader_parameter("string_count", string_count)
+
+
+func set_lane_intensities(values: Array[float]) -> void:
+	if not _surface:
+		return
+	var mat := _surface.get_surface_override_material(0) as ShaderMaterial
+	if not mat:
+		return
+	if values.size() < LANE_COUNT:
+		return
+	mat.set_shader_parameter("lane_intensity_0_3", Vector4(
+		clampf(values[0], 0.0, 1.0),
+		clampf(values[1], 0.0, 1.0),
+		clampf(values[2], 0.0, 1.0),
+		clampf(values[3], 0.0, 1.0)
+	))
+	mat.set_shader_parameter("lane_intensity_4_5", Vector2(
+		clampf(values[4], 0.0, 1.0),
+		clampf(values[5], 0.0, 1.0)
+	))
+
+
+func set_active_fret_range(min_fret: int, max_fret: int) -> void:
+	if not _surface:
+		return
+	var mat := _surface.get_surface_override_material(0) as ShaderMaterial
+	if not mat:
+		return
+	mat.set_shader_parameter("active_fret_min", min_fret)
+	mat.set_shader_parameter("active_fret_max", max_fret)
