@@ -17,8 +17,13 @@ uniform float lane_width       : hint_range(0.05, 0.95) = 0.65;
 uniform float lane_glow_power  : hint_range(0.1, 4.0) = 1.6;
 uniform float pulse_speed      : hint_range(0.0, 10.0) = 3.0;
 uniform float glow_strength    : hint_range(0.0, 3.0) = 1.2;
+uniform sampler2D vertical_fret_line_tex : source_color;
+uniform float vertical_line_width : hint_range(0.001, 0.05) = 0.008;
+uniform float vertical_line_strength : hint_range(0.0, 2.0) = 0.55;
 
 const int MAX_SHADER_LANES = 6; // lane_intensity uniforms are packed for 6 lanes.
+const int MAX_FRET_LINES = 24;
+const float SCALE_LENGTH = 300.0;
 
 float lane_intensity(int lane) {
 	if (lane < 0 || lane >= string_count || lane >= MAX_SHADER_LANES) return 0.0;
@@ -28,6 +33,28 @@ float lane_intensity(int lane) {
 	if (lane == 3) return lane_intensity_0_3.w;
 	if (lane == 4) return lane_intensity_4_5.x;
 	return lane_intensity_4_5.y;
+}
+
+float chart_fret_pos(float fret_num) {
+	return SCALE_LENGTH - (SCALE_LENGTH / pow(2.0, fret_num / 12.0));
+}
+
+float vertical_fret_line_alpha(vec2 uv) {
+	float max_pos = max(chart_fret_pos(float(fret_count)), 0.0001);
+	float alpha = 0.0;
+	for (int i = 0; i <= MAX_FRET_LINES; i++) {
+		if (i > fret_count) {
+			break;
+		}
+		float fret_x = chart_fret_pos(float(i)) / max_pos;
+		float local_u = (uv.x - fret_x) / vertical_line_width + 0.5;
+		if (local_u < 0.0 || local_u > 1.0) {
+			continue;
+		}
+		float line_sample = texture(vertical_fret_line_tex, vec2(local_u, uv.y)).a;
+		alpha = max(alpha, line_sample);
+	}
+	return alpha * vertical_line_strength;
 }
 
 void fragment() {
@@ -49,13 +76,15 @@ void fragment() {
 
 	float depth_fade = 1.0 - uv.y * 0.55;
 	float strum_glow = smoothstep(0.08, 0.0, uv.y);
+	float fret_line = vertical_fret_line_alpha(uv);
 
 	vec3 col = base_color.rgb;
 	col += lane_glow_color.rgb * lane_energy * depth_fade * glow_strength;
 	col += range_glow_color.rgb * in_fret_range * 0.22 * depth_fade;
 	col += strum_glow_color.rgb * strum_glow * glow_strength;
+	col += vec3(fret_line) * depth_fade;
 
 	ALBEDO = col;
-	EMISSION = col * (0.50 + lane_energy);
+	EMISSION = col * (0.50 + lane_energy + fret_line * 0.35);
 	ALPHA    = 1.0;
 }

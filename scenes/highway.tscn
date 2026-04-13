@@ -1,7 +1,8 @@
-[gd_scene load_steps=9 format=3 uid="uid://chighway0001"]
+[gd_scene load_steps=10 format=3 uid="uid://chighway0001"]
 
 [ext_resource type="Script" path="res://scripts/highway.gd" id="1_hwscript"]
 [ext_resource type="Shader" path="res://shaders/highway.gdshader" id="2_hwshader"]
+[ext_resource type="Texture2D" path="res://assets/textures/chartplayer/VerticalFretLine.png" id="3_vfret"]
 
 ; ── Highway surface (PlaneMesh 24 × 20 in XZ, centred at origin → shifted to cover frets 0–24, depth 0–20) ──
 [sub_resource type="PlaneMesh" id="PlaneMesh_hw01"]
@@ -25,6 +26,9 @@ shader_parameter/lane_width        = 0.65
 shader_parameter/lane_glow_power   = 1.6
 shader_parameter/pulse_speed       = 3.0
 shader_parameter/glow_strength     = 1.20
+shader_parameter/vertical_fret_line_tex = ExtResource("3_vfret")
+shader_parameter/vertical_line_width = 0.008
+shader_parameter/vertical_line_strength = 0.55
 
 ; ── Strum-line marker (thin bright box at Z = 20) ─────────────────────────────
 [sub_resource type="BoxMesh" id="BoxMesh_strum"]
