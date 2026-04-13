@@ -1,6 +1,10 @@
 extends CanvasLayer
 class_name ChartPlayerReferenceHud
 
+const TAB_BASE_ALPHA: float = 0.35
+const TAB_DYNAMIC_ALPHA: float = 0.35
+const POINTER_PULSE_FREQ: float = 3.0
+
 @onready var _song_tag: Label = $Root/HighwayReference/SongTag
 @onready var _runtime_info: Label = $Root/HighwayReference/RuntimeInfo
 @onready var _tab_foreground: TextureRect = $Root/HighwayReference/TabForeground
@@ -35,10 +39,10 @@ func update_runtime(song_time: float, bpm: float, processed_note_count: int, tot
 	_total_song_duration_sec = maxf(song_length_sec, 1.0)
 	var progress: float = clampf(song_time / _total_song_duration_sec, 0.0, 1.0)
 
-	var tab_alpha: float = 0.35 + 0.35 * progress
+	var tab_alpha: float = TAB_BASE_ALPHA + TAB_DYNAMIC_ALPHA * progress
 	_tab_foreground.self_modulate.a = tab_alpha
 
-	var pulse: float = 0.5 + 0.5 * sin(song_time * 3.0)
+	var pulse: float = 0.5 + 0.5 * sin(song_time * POINTER_PULSE_FREQ)
 	_vertical_pointer.self_modulate.a = 0.58 + pulse * 0.30
 	_strum_line.self_modulate.a = 0.72 + pulse * 0.20
 
@@ -61,8 +65,8 @@ func update_runtime(song_time: float, bpm: float, processed_note_count: int, tot
 
 func _root_note_to_index(root_note: String) -> int:
 	# Map chromatic pitch classes onto 6 visible string trails.
-	# We use pitch-class modulo 6 so adjacent notes usually shift trail index
-	# and avoid accidental hard-coded collisions (e.g. E and G on same trail).
+	# This intentionally compresses 12 semitones into 6 lanes via modulo,
+	# so deterministic collisions exist (e.g. C and F# share a lane).
 	var pitch_class := {
 		"C": 0, "C#": 1, "Db": 1, "D": 2, "D#": 3, "Eb": 3,
 		"E": 4, "F": 5, "F#": 6, "Gb": 6, "G": 7, "G#": 8,
