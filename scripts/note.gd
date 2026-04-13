@@ -35,8 +35,42 @@ const DIGIT_SCENES: Array[PackedScene] = [
 	preload("res://scenes/number_9.tscn"),
 ]
 
-## Border texture: 1×1 white pixel used as the albedo texture for the black border plane.
-const BORDER_TEXTURE: Texture2D = preload("res://assets/textures/chartplayer/SingleWhitePixel.png")
+## Spatial shader for the finger indicator plane.
+## The full quad (0.116 × 0.060 m = 58×30 px @ 0.002 px_size) covers both border and fill.
+## UV edge detection draws a black border; the inner region samples the guitar texture.
+## Border thickness: 3 px on a 58-wide quad → 3/58 ≈ 0.052 (X), 3 px on 30-tall → 3/30 = 0.100 (Y).
+## Billboard is implemented in vertex() – Godot 4 spatial shaders have no 'billboard' render_mode.
+const _FINGER_SHADER_CODE: String = """
+shader_type spatial;
+render_mode blend_mix, unshaded, cull_disabled, depth_test_disabled;
+
+uniform sampler2D albedo_texture : source_color, hint_default_white;
+
+// Border thickness as a UV fraction of the full quad.
+const vec2 BORDER_UV = vec2(0.052, 0.100);
+
+void vertex() {
+	// Spherical billboard: cancel out model rotation, keep position and (mesh-baked) scale.
+	MODELVIEW_MATRIX = VIEW_MATRIX * mat4(
+		INV_VIEW_MATRIX[0],
+		INV_VIEW_MATRIX[1],
+		INV_VIEW_MATRIX[2],
+		MODEL_MATRIX[3]
+	);
+	MODELVIEW_NORMAL_MATRIX = mat3(MODELVIEW_MATRIX);
+}
+
+void fragment() {
+	vec2 uv = UV;
+	bool on_border = uv.x < BORDER_UV.x || uv.x > (1.0 - BORDER_UV.x)
+	              || uv.y < BORDER_UV.y || uv.y > (1.0 - BORDER_UV.y);
+	// Remap the inner region [BORDER_UV, 1-BORDER_UV] to [0,1] for texture sampling.
+	vec2 inner_uv = clamp((uv - BORDER_UV) / (1.0 - 2.0 * BORDER_UV), vec2(0.0), vec2(1.0));
+	vec4 tex = texture(albedo_texture, inner_uv);
+	ALBEDO = on_border ? vec3(0.0) : tex.rgb;
+	ALPHA  = on_border ? 1.0       : tex.a;
+}
+"""
 ## Z offset places the label on the front face of the note box (faces +Z toward camera).
 const LABEL_Z : float = 0.06
 ## X offset between tens and ones digit for two-digit fret numbers.
@@ -62,29 +96,19 @@ var duration     : float = 0.25
 var is_active    : bool  = false
 var _miss_until  : float = -1.0
 
-@onready var _border     : MeshInstance3D = $FingerBorder
 @onready var _finger     : MeshInstance3D = $FingerIndicator
 @onready var _fret_label : Node3D         = $FretLabel
 @onready var _miss_label : Label3D        = $MissLabel
 
 
 func _ready() -> void:
-	# ── Border: solid black PlaneMesh with SingleWhitePixel texture ────────────
-	if _border:
-		var bmat := StandardMaterial3D.new()
-		bmat.no_depth_test      = true
-		bmat.billboard_mode     = BaseMaterial3D.BILLBOARD_ENABLED
-		bmat.albedo_color       = Color(0.0, 0.0, 0.0, 1.0)
-		bmat.albedo_texture     = BORDER_TEXTURE
-		bmat.texture_filter     = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-		_border.set_surface_override_material(0, bmat)
-	# ── Finger indicator: textured PlaneMesh, texture is set per-note in setup() ─
+	# ── Finger indicator: single PlaneMesh with border+fill rendered by one shader ──
 	if _finger:
-		var fmat := StandardMaterial3D.new()
-		fmat.no_depth_test  = true
-		fmat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-		fmat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
-		_finger.set_surface_override_material(0, fmat)
+		var shader := Shader.new()
+		shader.code = _FINGER_SHADER_CODE
+		var mat := ShaderMaterial.new()
+		mat.shader = shader
+		_finger.set_surface_override_material(0, mat)
 	if _miss_label:
 		_miss_label.position = Vector3(0.0, 0.0, MISS_LABEL_Z)
 
@@ -104,10 +128,9 @@ func setup(p_fret: int, p_string: int, p_time: float, p_duration: float, p_show_
 	_miss_label.visible = false
 
 	if _finger:
-		var fmat := _finger.get_surface_override_material(0) as StandardMaterial3D
-		if fmat:
-			fmat.albedo_texture = STRING_TEXTURES[string_index]
-			fmat.albedo_color   = Color(1, 1, 1, 1)
+		var mat := _finger.get_surface_override_material(0) as ShaderMaterial
+		if mat:
+			mat.set_shader_parameter("albedo_texture", STRING_TEXTURES[string_index])
 
 	if p_show_label:
 		_rebuild_fret_label()
