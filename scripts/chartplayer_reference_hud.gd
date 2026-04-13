@@ -1,59 +1,82 @@
 extends CanvasLayer
 class_name ChartPlayerReferenceHud
 
-## Foreground waveform starts at 15% filled so the bar remains visible at t=0.
-const WAVE_FG_BASE_PROGRESS: float = 0.15
-## Foreground waveform additionally fills by this range as song progress advances.
-const WAVE_FG_DYNAMIC_RANGE: float = 0.85
+@onready var _song_tag: Label = $Root/HighwayReference/SongTag
+@onready var _runtime_info: Label = $Root/HighwayReference/RuntimeInfo
+@onready var _tab_foreground: TextureRect = $Root/HighwayReference/TabForeground
+@onready var _vertical_pointer: TextureRect = $Root/HighwayReference/VerticalPointer
+@onready var _strum_line: TextureRect = $Root/HighwayReference/StrumLine
+@onready var _trail_lines: Array[TextureRect] = [
+	$Root/HighwayReference/StringLines/TrailPurple,
+	$Root/HighwayReference/StringLines/TrailGreen,
+	$Root/HighwayReference/StringLines/TrailOrange,
+	$Root/HighwayReference/StringLines/TrailCyan,
+	$Root/HighwayReference/StringLines/TrailYellow,
+	$Root/HighwayReference/StringLines/TrailRed,
+]
 
-@onready var _song_tag: Label = $Root/TopStrip/TopMargin/TopHBox/SongTag
-@onready var _bpm_label: Label = $Root/TopStrip/TopMargin/TopHBox/Bpm
-@onready var _clock_label: Label = $Root/TopStrip/TopMargin/TopHBox/Clock
-@onready var _arrangement_label: Label = $Root/CenterLayer/LeftRail/LeftMargin/LeftVBox/Arrangement
-@onready var _root_label: Label = $Root/CenterLayer/LeftRail/LeftMargin/LeftVBox/RootNote
-@onready var _note_progress_label: Label = $Root/CenterLayer/RightRail/RightMargin/RightVBox/NotesProgress
-@onready var _song_progress_label: Label = $Root/CenterLayer/RightRail/RightMargin/RightVBox/SongProgress
-@onready var _transport_label: Label = $Root/BottomStrip/BottomMargin/BottomHBox/Transport
-@onready var _lyrics_main: Label = $Root/CenterLayer/HighwayMask/HudMargin/HudVBox/LyricsMain
-@onready var _lyrics_focus: Label = $Root/CenterLayer/HighwayMask/HudMargin/HudVBox/LyricsFocus
-@onready var _wave_bg: ProgressBar = $Root/CenterLayer/HighwayMask/HudMargin/HudVBox/WaveBack
-@onready var _wave_fg: ProgressBar = $Root/CenterLayer/HighwayMask/HudMargin/HudVBox/WaveFront
-
+var _song_title: String = ""
+var _arrangement_name: String = ""
 var _total_song_duration_sec: float = 1.0
 
 
 func set_song_meta(song_name: String, arrangement: String) -> void:
-	_song_tag.text = song_name
-	_arrangement_label.text = "Arrangement: %s" % arrangement
+	_song_title = song_name
+	_arrangement_name = arrangement
+	_song_tag.text = "%s · %s" % [_song_title, _arrangement_name]
 
 
 func set_reference_lyrics(main_line: String, focus_word: String) -> void:
-	_lyrics_main.text = main_line
-	_lyrics_focus.text = focus_word
+	# ChartPlayer reference view uses texture-based overlays instead of lyric labels.
+	pass
 
 
 func update_runtime(song_time: float, bpm: float, processed_note_count: int, total_notes: int, root_note: String, song_length_sec: float) -> void:
 	_total_song_duration_sec = maxf(song_length_sec, 1.0)
 	var progress: float = clampf(song_time / _total_song_duration_sec, 0.0, 1.0)
-	_wave_bg.value = progress * 100.0
-	_wave_fg.value = (WAVE_FG_BASE_PROGRESS + WAVE_FG_DYNAMIC_RANGE * progress) * 100.0
-	_bpm_label.text = "BPM %.1f" % bpm
 
+	var tab_alpha: float = 0.35 + 0.35 * progress
+	_tab_foreground.self_modulate.a = tab_alpha
+
+	var pulse: float = 0.5 + 0.5 * sin(song_time * 3.0)
+	_vertical_pointer.self_modulate.a = 0.58 + pulse * 0.30
+	_strum_line.self_modulate.a = 0.72 + pulse * 0.20
+
+	var hot_idx: int = _root_note_to_index(root_note)
+	for i in _trail_lines.size():
+		var c := _trail_lines[i].self_modulate
+		if i == hot_idx:
+			c.a = 1.0
+		else:
+			c.a = 0.58
+		_trail_lines[i].self_modulate = c
+
+	# Keep runtime strings available for optional debugging, but hidden by default
+	# to preserve the clean ChartPlayer-like look.
 	var note_pct: float = 0.0
 	if total_notes > 0:
 		note_pct = float(processed_note_count) * 100.0 / float(total_notes)
-	_note_progress_label.text = "Notes: %d/%d  (%.1f%%)" % [processed_note_count, total_notes, note_pct]
+	_runtime_info.text = "BPM %.1f · %d/%d (%.1f%%) · %s" % [bpm, processed_note_count, total_notes, note_pct, _format_clock(song_time)]
 
-	_song_progress_label.text = "Song: %.1f%%" % (progress * 100.0)
-	_clock_label.text = "%s / %s" % [_format_clock(song_time), _format_clock(_total_song_duration_sec)]
-	if root_note != "":
-		var root_text := "Current root: %s" % root_note
-		_root_label.text = root_text
-		_lyrics_focus.text = root_note
-		_transport_label.text = "Tracking lane: %s" % root_note
-	else:
-		_root_label.text = "Current root: --"
-		_transport_label.text = "Tracking lane: --"
+
+func _root_note_to_index(root_note: String) -> int:
+	match root_note:
+		"A", "A#", "Bb":
+			return 1
+		"B":
+			return 4
+		"C", "C#", "Db":
+			return 3
+		"D", "D#", "Eb":
+			return 2
+		"E":
+			return 0
+		"F", "F#", "Gb":
+			return 5
+		"G", "G#", "Ab":
+			return 0
+		_:
+			return -1
 
 
 func _format_clock(seconds: float) -> String:
