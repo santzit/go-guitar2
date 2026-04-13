@@ -24,6 +24,7 @@ uniform float vertical_line_strength : hint_range(0.0, 2.0) = 0.55;
 const int MAX_SHADER_LANES = 6; // lane_intensity uniforms are packed for 6 lanes.
 const int MAX_FRET_LINES = 24;
 const float SCALE_LENGTH = 300.0;
+const float MIN_FRET_POS = 0.0001;
 
 float lane_intensity(int lane) {
 	if (lane < 0 || lane >= string_count || lane >= MAX_SHADER_LANES) return 0.0;
@@ -40,9 +41,10 @@ float chart_fret_pos(float fret_num) {
 }
 
 float vertical_fret_line_alpha(vec2 uv) {
-	float max_pos = max(chart_fret_pos(float(fret_count)), 0.0001);
+	float max_pos = max(chart_fret_pos(float(fret_count)), MIN_FRET_POS);
 	float alpha = 0.0;
 	for (int i = 0; i <= MAX_FRET_LINES; i++) {
+		// Intentional <=: fret_count=24 means we draw boundaries for fret 0..24.
 		if (i > fret_count) {
 			break;
 		}
