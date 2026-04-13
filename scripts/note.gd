@@ -37,8 +37,10 @@ const DIGIT_SCENES: Array[PackedScene] = [
 ]
 
 ## Spatial shader for the finger indicator plane.
-## Samples the guitar note texture directly — ALPHA = tex.a so the circular textures
-## render with natural transparency (no rectangular frame box).
+## Uses the guitar texture's alpha channel directly so circular textures render
+## without any rectangular frame box.  Pixels with alpha < 0.01 are discarded
+## so they write nothing to the framebuffer or depth buffer — this is what
+## eliminates the "frame box" artifact that UV-edge or alpha-blend alone cannot fix.
 ## Billboard is implemented in vertex() because Godot 4 spatial shaders have no
 ## 'billboard' render_mode.
 const _FINGER_SHADER_CODE: String = """
@@ -60,6 +62,13 @@ void vertex() {
 
 void fragment() {
 	vec4 tex = texture(albedo_texture, UV);
+	// Discard fully-transparent pixels so the rectangular PlaneMesh is invisible
+	// wherever the circular guitar texture has no content.  This eliminates the
+	// rectangular "frame box" artifact — discarded fragments write neither colour
+	// nor depth, so the plane silhouette never appears.
+	if (tex.a < 0.01) {
+		discard;
+	}
 	ALBEDO = tex.rgb;
 	ALPHA  = tex.a;
 }
