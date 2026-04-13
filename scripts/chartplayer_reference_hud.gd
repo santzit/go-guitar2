@@ -3,7 +3,7 @@ class_name ChartPlayerReferenceHud
 
 const TAB_BASE_ALPHA: float = 0.35
 const TAB_DYNAMIC_ALPHA: float = 0.35
-const POINTER_PULSE_FREQ: float = 3.0
+const POINTER_PULSE_HZ: float = 3.0
 const POINTER_BASE_ALPHA: float = 0.58
 const POINTER_PULSE_ALPHA: float = 0.30
 const STRUM_BASE_ALPHA: float = 0.72
@@ -33,6 +33,7 @@ const ROOT_NOTE_PITCH_CLASS := {
 var _song_title: String = ""
 var _arrangement_name: String = ""
 var _total_song_duration_sec: float = 1.0
+var _last_hot_idx: int = -2
 
 
 func set_song_meta(song_name: String, arrangement: String) -> void:
@@ -53,18 +54,20 @@ func update_runtime(song_time: float, bpm: float, processed_note_count: int, tot
 	var tab_alpha: float = TAB_BASE_ALPHA + TAB_DYNAMIC_ALPHA * progress
 	_tab_foreground.self_modulate.a = tab_alpha
 
-	var pulse: float = 0.5 + 0.5 * sin(song_time * POINTER_PULSE_FREQ)
+	var pulse: float = 0.5 + 0.5 * sin(song_time * TAU * POINTER_PULSE_HZ)
 	_vertical_pointer.self_modulate.a = POINTER_BASE_ALPHA + pulse * POINTER_PULSE_ALPHA
 	_strum_line.self_modulate.a = STRUM_BASE_ALPHA + pulse * STRUM_PULSE_ALPHA
 
 	var hot_idx: int = _root_note_to_index(root_note)
-	for i in _trail_lines.size():
-		var c := _trail_lines[i].self_modulate
-		if i == hot_idx:
-			c.a = TRAIL_ACTIVE_ALPHA
-		else:
-			c.a = TRAIL_INACTIVE_ALPHA
-		_trail_lines[i].self_modulate = c
+	if hot_idx != _last_hot_idx:
+		_last_hot_idx = hot_idx
+		for i in _trail_lines.size():
+			var c := _trail_lines[i].self_modulate
+			if i == hot_idx:
+				c.a = TRAIL_ACTIVE_ALPHA
+			else:
+				c.a = TRAIL_INACTIVE_ALPHA
+			_trail_lines[i].self_modulate = c
 
 	# Keep runtime strings available for optional debugging, but hidden by default
 	# to preserve the clean ChartPlayer-like look.
@@ -77,7 +80,7 @@ func update_runtime(song_time: float, bpm: float, processed_note_count: int, tot
 func _root_note_to_index(root_note: String) -> int:
 	# Map chromatic pitch classes onto 6 visible string trails.
 	# This intentionally compresses 12 semitones into 6 lanes via modulo,
-	# so deterministic collisions exist (e.g. C/F# -> lane 0, D/G# -> lane 2).
+	# so deterministic collisions exist (e.g. C pitch 0 and F# pitch 6 -> lane 0).
 	if not ROOT_NOTE_PITCH_CLASS.has(root_note):
 		return -1
 	return int(ROOT_NOTE_PITCH_CLASS[root_note]) % _trail_lines.size()
