@@ -4,6 +4,17 @@ class_name ChartPlayerReferenceHud
 const TAB_BASE_ALPHA: float = 0.35
 const TAB_DYNAMIC_ALPHA: float = 0.35
 const POINTER_PULSE_FREQ: float = 3.0
+const POINTER_BASE_ALPHA: float = 0.58
+const POINTER_PULSE_ALPHA: float = 0.30
+const STRUM_BASE_ALPHA: float = 0.72
+const STRUM_PULSE_ALPHA: float = 0.20
+const TRAIL_ACTIVE_ALPHA: float = 1.0
+const TRAIL_INACTIVE_ALPHA: float = 0.58
+const ROOT_NOTE_PITCH_CLASS := {
+	"C": 0, "C#": 1, "Db": 1, "D": 2, "D#": 3, "Eb": 3,
+	"E": 4, "F": 5, "F#": 6, "Gb": 6, "G": 7, "G#": 8,
+	"Ab": 8, "A": 9, "A#": 10, "Bb": 10, "B": 11,
+}
 
 @onready var _song_tag: Label = $Root/HighwayReference/SongTag
 @onready var _runtime_info: Label = $Root/HighwayReference/RuntimeInfo
@@ -43,16 +54,16 @@ func update_runtime(song_time: float, bpm: float, processed_note_count: int, tot
 	_tab_foreground.self_modulate.a = tab_alpha
 
 	var pulse: float = 0.5 + 0.5 * sin(song_time * POINTER_PULSE_FREQ)
-	_vertical_pointer.self_modulate.a = 0.58 + pulse * 0.30
-	_strum_line.self_modulate.a = 0.72 + pulse * 0.20
+	_vertical_pointer.self_modulate.a = POINTER_BASE_ALPHA + pulse * POINTER_PULSE_ALPHA
+	_strum_line.self_modulate.a = STRUM_BASE_ALPHA + pulse * STRUM_PULSE_ALPHA
 
 	var hot_idx: int = _root_note_to_index(root_note)
 	for i in _trail_lines.size():
 		var c := _trail_lines[i].self_modulate
 		if i == hot_idx:
-			c.a = 1.0
+			c.a = TRAIL_ACTIVE_ALPHA
 		else:
-			c.a = 0.58
+			c.a = TRAIL_INACTIVE_ALPHA
 		_trail_lines[i].self_modulate = c
 
 	# Keep runtime strings available for optional debugging, but hidden by default
@@ -67,14 +78,9 @@ func _root_note_to_index(root_note: String) -> int:
 	# Map chromatic pitch classes onto 6 visible string trails.
 	# This intentionally compresses 12 semitones into 6 lanes via modulo,
 	# so deterministic collisions exist (e.g. C and F# share a lane).
-	var pitch_class := {
-		"C": 0, "C#": 1, "Db": 1, "D": 2, "D#": 3, "Eb": 3,
-		"E": 4, "F": 5, "F#": 6, "Gb": 6, "G": 7, "G#": 8,
-		"Ab": 8, "A": 9, "A#": 10, "Bb": 10, "B": 11,
-	}
-	if not pitch_class.has(root_note):
+	if not ROOT_NOTE_PITCH_CLASS.has(root_note):
 		return -1
-	return int(pitch_class[root_note]) % _trail_lines.size()
+	return int(ROOT_NOTE_PITCH_CLASS[root_note]) % _trail_lines.size()
 
 
 func _format_clock(seconds: float) -> String:
