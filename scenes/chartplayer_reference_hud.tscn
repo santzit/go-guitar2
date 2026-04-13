@@ -1,6 +1,14 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/chartplayer_reference_hud.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/chartplayer_ui/PopupBackground.png" id="2_popup_bg"]
+[ext_resource type="Texture2D" path="res://assets/chartplayer_ui/TabBackground.png" id="3_tab_bg"]
+[ext_resource type="Texture2D" path="res://assets/chartplayer_ui/TabForeground.png" id="4_tab_fg"]
+[ext_resource type="Texture2D" path="res://assets/chartplayer_ui/GuitarDetected.png" id="5_guitar_detected"]
+[ext_resource type="Texture2D" path="res://assets/chartplayer_ui/VerticalPointer.png" id="6_vertical_pointer"]
+[ext_resource type="Texture2D" path="res://assets/chartplayer_ui/LevelDisplay.png" id="7_level_display"]
+[ext_resource type="Texture2D" path="res://assets/chartplayer_ui/HorizontalFretLine.png" id="8_hfret_line"]
+[ext_resource type="Texture2D" path="res://assets/chartplayer_ui/VerticalFretLine.png" id="9_vfret_line"]
 
 [node name="ChartPlayerReferenceHud" type="CanvasLayer"]
 layer = 20
@@ -15,87 +23,322 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="TopPanel" type="Panel" parent="Root"]
-layout_mode = 1
-anchors_preset = 10
-anchor_right = 1.0
-offset_bottom = 180.0
-mouse_filter = 2
-
-[node name="TopVBox" type="VBoxContainer" parent="Root/TopPanel"]
+[node name="PopupBackgroundTexture" type="TextureRect" parent="Root"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 20.0
-offset_top = 8.0
-offset_right = -20.0
-offset_bottom = -8.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("2_popup_bg")
+expand_mode = 1
+stretch_mode = 6
+self_modulate = Color(1, 1, 1, 0.2)
 mouse_filter = 2
 
-[node name="WaveformBackground" type="ProgressBar" parent="Root/TopPanel/TopVBox"]
-custom_minimum_size = Vector2(0, 64)
-layout_mode = 2
-max_value = 100.0
-value = 10.0
-show_percentage = false
-
-[node name="WaveformForeground" type="ProgressBar" parent="Root/TopPanel/TopVBox"]
-custom_minimum_size = Vector2(0, 20)
-layout_mode = 2
-max_value = 100.0
-value = 20.0
-show_percentage = false
-
-[node name="LyricsMain" type="Label" parent="Root/TopPanel/TopVBox"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 60
-theme_override_colors/font_color = Color(0.95, 0.95, 0.95, 1)
-text = "Well now you step inside but you don't see too many"
-
-[node name="LyricsFocus" type="Label" parent="Root/TopPanel/TopVBox"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 64
-theme_override_colors/font_color = Color(1, 0.92, 0.12, 1)
-text = "faces"
-
-[node name="BottomPanel" type="Panel" parent="Root"]
+[node name="TopStrip" type="Panel" parent="Root"]
 layout_mode = 1
-anchors_preset = 12
-anchor_top = 1.0
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 62.0
+mouse_filter = 2
+self_modulate = Color(1, 1, 1, 0.92)
+
+[node name="TopMargin" type="MarginContainer" parent="Root/TopStrip"]
+layout_mode = 1
+anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_top = -80.0
+offset_left = 18.0
+offset_top = 10.0
+offset_right = -18.0
+offset_bottom = -10.0
+
+[node name="TopHBox" type="HBoxContainer" parent="Root/TopStrip/TopMargin"]
+layout_mode = 2
+
+[node name="ChartIcon" type="TextureRect" parent="Root/TopStrip/TopMargin/TopHBox"]
+custom_minimum_size = Vector2(36, 36)
+layout_mode = 2
+texture = ExtResource("5_guitar_detected")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="SongTag" type="Label" parent="Root/TopStrip/TopMargin/TopHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 28
+theme_override_colors/font_color = Color(0.95, 0.98, 1, 1)
+text = "Song"
+
+[node name="Bpm" type="Label" parent="Root/TopStrip/TopMargin/TopHBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+theme_override_colors/font_color = Color(0.45, 0.95, 1, 1)
+text = "BPM 0.0"
+
+[node name="Clock" type="Label" parent="Root/TopStrip/TopMargin/TopHBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+text = "0:00 / 0:00"
+
+[node name="CenterLayer" type="Control" parent="Root"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 mouse_filter = 2
 
-[node name="BottomHBox" type="HBoxContainer" parent="Root/BottomPanel"]
+[node name="LeftRail" type="Panel" parent="Root/CenterLayer"]
+layout_mode = 1
+anchors_preset = 0
+anchor_top = 0.15
+anchor_right = 0.19
+anchor_bottom = 0.85
+offset_left = 12.0
+offset_right = -10.0
+mouse_filter = 2
+self_modulate = Color(1, 1, 1, 0.9)
+
+[node name="RailTexture" type="TextureRect" parent="Root/CenterLayer/LeftRail"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("7_level_display")
+expand_mode = 1
+stretch_mode = 6
+self_modulate = Color(1, 1, 1, 0.18)
+mouse_filter = 2
+
+[node name="LeftMargin" type="MarginContainer" parent="Root/CenterLayer/LeftRail"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = 14.0
-offset_top = 10.0
+offset_top = 14.0
 offset_right = -14.0
-offset_bottom = -10.0
+offset_bottom = -14.0
+
+[node name="LeftVBox" type="VBoxContainer" parent="Root/CenterLayer/LeftRail/LeftMargin"]
+layout_mode = 2
+
+[node name="ReferenceTitle" type="Label" parent="Root/CenterLayer/LeftRail/LeftMargin/LeftVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+theme_override_colors/font_color = Color(0.36, 0.9, 1, 1)
+text = "ChartPlayer"
+
+[node name="ReferenceMode" type="Label" parent="Root/CenterLayer/LeftRail/LeftMargin/LeftVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+theme_override_colors/font_color = Color(0.9, 0.95, 1, 1)
+text = "Reference HUD"
+
+[node name="Arrangement" type="Label" parent="Root/CenterLayer/LeftRail/LeftMargin/LeftVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+theme_override_colors/font_color = Color(0.75, 0.9, 1, 1)
+text = "Arrangement: Lead"
+
+[node name="RootNote" type="Label" parent="Root/CenterLayer/LeftRail/LeftMargin/LeftVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+theme_override_colors/font_color = Color(1, 0.95, 0.35, 1)
+text = "Current root: --"
+
+[node name="HighwayMask" type="Panel" parent="Root/CenterLayer"]
+layout_mode = 1
+anchors_preset = 15
+anchor_left = 0.20
+anchor_top = 0.12
+anchor_right = 0.80
+anchor_bottom = 0.88
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+self_modulate = Color(1, 1, 1, 0.2)
+
+[node name="TabBackgroundTexture" type="TextureRect" parent="Root/CenterLayer/HighwayMask"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("3_tab_bg")
+expand_mode = 1
+stretch_mode = 6
+self_modulate = Color(1, 1, 1, 0.5)
 mouse_filter = 2
 
-[node name="SongInfo" type="Label" parent="Root/BottomPanel/BottomHBox"]
+[node name="TabForegroundTexture" type="TextureRect" parent="Root/CenterLayer/HighwayMask"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("4_tab_fg")
+expand_mode = 1
+stretch_mode = 6
+self_modulate = Color(1, 1, 1, 0.32)
+mouse_filter = 2
+
+[node name="VerticalPointerTexture" type="TextureRect" parent="Root/CenterLayer/HighwayMask"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.1
+anchor_right = 0.5
+anchor_bottom = 0.9
+offset_left = -24.0
+offset_right = 24.0
+texture = ExtResource("6_vertical_pointer")
+expand_mode = 1
+stretch_mode = 6
+self_modulate = Color(1, 1, 1, 0.45)
+mouse_filter = 2
+
+[node name="HudMargin" type="MarginContainer" parent="Root/CenterLayer/HighwayMask"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 28.0
+offset_top = 20.0
+offset_right = -28.0
+offset_bottom = -20.0
+
+[node name="HudVBox" type="VBoxContainer" parent="Root/CenterLayer/HighwayMask/HudMargin"]
+layout_mode = 2
+
+[node name="LyricsMain" type="Label" parent="Root/CenterLayer/HighwayMask/HudMargin/HudVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 46
+theme_override_colors/font_color = Color(0.93, 0.96, 1, 1)
+text = "Now playing"
+
+[node name="LyricsFocus" type="Label" parent="Root/CenterLayer/HighwayMask/HudMargin/HudVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 54
+theme_override_colors/font_color = Color(1, 0.89, 0.25, 1)
+text = "--"
+
+[node name="WaveBack" type="ProgressBar" parent="Root/CenterLayer/HighwayMask/HudMargin/HudVBox"]
+custom_minimum_size = Vector2(0, 34)
+layout_mode = 2
+max_value = 100.0
+show_percentage = false
+
+[node name="WaveFront" type="ProgressBar" parent="Root/CenterLayer/HighwayMask/HudMargin/HudVBox"]
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+max_value = 100.0
+show_percentage = false
+
+[node name="HorizontalGuide" type="TextureRect" parent="Root/CenterLayer/HighwayMask/HudMargin/HudVBox"]
+custom_minimum_size = Vector2(0, 6)
+layout_mode = 2
+texture = ExtResource("8_hfret_line")
+expand_mode = 1
+stretch_mode = 6
+self_modulate = Color(1, 1, 1, 0.6)
+
+[node name="RightRail" type="Panel" parent="Root/CenterLayer"]
+layout_mode = 1
+anchors_preset = 0
+anchor_left = 0.81
+anchor_top = 0.15
+anchor_right = 1.0
+anchor_bottom = 0.85
+offset_left = 10.0
+offset_right = -12.0
+mouse_filter = 2
+self_modulate = Color(1, 1, 1, 0.9)
+
+[node name="RailTexture" type="TextureRect" parent="Root/CenterLayer/RightRail"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("9_vfret_line")
+expand_mode = 1
+stretch_mode = 6
+self_modulate = Color(1, 1, 1, 0.25)
+mouse_filter = 2
+
+[node name="RightMargin" type="MarginContainer" parent="Root/CenterLayer/RightRail"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 14.0
+offset_top = 14.0
+offset_right = -14.0
+offset_bottom = -14.0
+
+[node name="RightVBox" type="VBoxContainer" parent="Root/CenterLayer/RightRail/RightMargin"]
+layout_mode = 2
+
+[node name="StatusTitle" type="Label" parent="Root/CenterLayer/RightRail/RightMargin/RightVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+theme_override_colors/font_color = Color(0.36, 0.9, 1, 1)
+text = "Live Status"
+
+[node name="NotesProgress" type="Label" parent="Root/CenterLayer/RightRail/RightMargin/RightVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+theme_override_colors/font_color = Color(0.93, 0.96, 1, 1)
+text = "Notes: 0/0 (0.0%)"
+
+[node name="SongProgress" type="Label" parent="Root/CenterLayer/RightRail/RightMargin/RightVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+theme_override_colors/font_color = Color(0.93, 0.96, 1, 1)
+text = "Song: 0.0%"
+
+[node name="BottomStrip" type="Panel" parent="Root"]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -78.0
+mouse_filter = 2
+self_modulate = Color(1, 1, 1, 0.93)
+
+[node name="BottomMargin" type="MarginContainer" parent="Root/BottomStrip"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 18.0
+offset_top = 10.0
+offset_right = -18.0
+offset_bottom = -10.0
+
+[node name="BottomHBox" type="HBoxContainer" parent="Root/BottomStrip/BottomMargin"]
+layout_mode = 2
+
+[node name="ReferenceMode" type="Label" parent="Root/BottomStrip/BottomMargin/BottomHBox"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 28
-text = "Song\nLead"
+theme_override_font_sizes/font_size = 20
+theme_override_colors/font_color = Color(0.75, 0.9, 1, 1)
+text = "ChartPlayer-style gameplay view"
 
-[node name="Bpm" type="Label" parent="Root/BottomPanel/BottomHBox"]
+[node name="Transport" type="Label" parent="Root/BottomStrip/BottomMargin/BottomHBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 28
-text = "BPM: 0.0"
-
-[node name="Progress" type="Label" parent="Root/BottomPanel/BottomHBox"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 28
-text = "0/0 (0.0%)"
-
-[node name="Time" type="Label" parent="Root/BottomPanel/BottomHBox"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 28
-text = "0:00"
+theme_override_font_sizes/font_size = 20
+theme_override_colors/font_color = Color(1, 0.9, 0.3, 1)
+text = "Tracking lane: --"

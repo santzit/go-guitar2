@@ -4,14 +4,14 @@ render_mode cull_disabled, unshaded, depth_prepass_alpha;
 // 24 fret columns drawn across the highway width (X axis).
 // Strings are NOT lanes on this surface — they are the Y (height) of each note.
 uniform int   fret_count       : hint_range(1, 24) = 24;
-uniform vec4  highway_color    : source_color = vec4(0.06, 0.06, 0.14, 1.0);
-uniform vec4  fret_line_color  : source_color = vec4(0.45, 0.45, 0.80, 1.0);
+uniform vec4  highway_color    : source_color = vec4(0.02, 0.03, 0.08, 1.0);
+uniform vec4  fret_line_color  : source_color = vec4(0.30, 0.95, 1.0, 1.0);
 // Alternating lane tint so individual fret columns are easy to count.
-uniform vec4  lane_tint_a      : source_color = vec4(0.08, 0.08, 0.18, 1.0);
-uniform vec4  lane_tint_b      : source_color = vec4(0.06, 0.06, 0.12, 1.0);
-uniform vec4  strum_glow_color : source_color = vec4(0.90, 0.90, 1.00, 1.0);
+uniform vec4  lane_tint_a      : source_color = vec4(0.04, 0.05, 0.11, 1.0);
+uniform vec4  lane_tint_b      : source_color = vec4(0.02, 0.03, 0.08, 1.0);
+uniform vec4  strum_glow_color : source_color = vec4(1.00, 0.90, 0.30, 1.0);
 uniform float fret_line_width  : hint_range(0.005, 0.10) = 0.035;
-uniform float glow_strength    : hint_range(0.0,   3.0)  = 0.40;
+uniform float glow_strength    : hint_range(0.0,   3.0)  = 1.40;
 
 void fragment() {
 	vec2  uv       = UV;
@@ -36,8 +36,10 @@ void fragment() {
 	col.rgb += fret_line_color.rgb * lane_centre * glow_strength * 0.10;
 
 	// ── Depth fade: brighter near the strum line (uv.y → 0) ──────────────
-	float depth_fade = 1.0 - uv.y * 0.55;
+	float depth_fade = 1.0 - uv.y * 0.45;
 	col.rgb *= depth_fade;
+	float side_fade = smoothstep(0.0, 0.08, uv.x) * smoothstep(0.0, 0.08, 1.0 - uv.x);
+	col.rgb *= side_fade;
 
 	// ── Strum-line edge glow at the near edge (uv.y ≈ 0) ─────────────────
 	float strum_glow = smoothstep(0.04, 0.0, uv.y);

@@ -24,12 +24,13 @@ const FRET_SPACING : float = 1.0
 
 # -- Camera follow -----------------------------------------------------------
 ## FOV (degrees) used for the follow camera.
-const CAM_FOV           : float = 80.0
-const CAMERA_Y          : float = 3.0
+const CAM_FOV           : float = 58.0
+const CAMERA_Y          : float = 7.5
 ## Camera sits BEYOND the strum line (Z=26 > strum Z=20, defined in note.gd) looking back toward Z=0.
 ## This gives camera-right = world +X (fret 1 on left, fret 24 on right)
 ## and camera-up = world +Y (string 0 at bottom, string 5 at top). No inversions.
-const CAMERA_Z          : float = 26.0
+const CAMERA_Z          : float = 40.0
+const CAMERA_LOOKAHEAD_Z: float = 18.0
 const CAMERA_LERP_SPEED : float = 2.0    # units/s for smooth pan
 ## Camera X clamp — keeps the camera from tracking to the highway edges.
 const CAMERA_X_MIN      : float = 0.5
@@ -180,7 +181,7 @@ func _ready() -> void:
 		_camera.position.y = CAMERA_Y
 		_camera.position.z = CAMERA_Z
 		_camera.fov        = CAM_FOV
-		_camera.look_at(Vector3(_camera.position.x, 0.0, 10.0), Vector3.UP)
+		_camera.look_at(Vector3(_camera.position.x, 0.0, _camera.position.z - CAMERA_LOOKAHEAD_Z), Vector3.UP)
 
 	# Start warmup countdown.  _process() will count down WARMUP_SECS real
 	# seconds showing only the empty highway, then start both audio and note
@@ -286,7 +287,7 @@ func _process(delta: float) -> void:
 		cam_pos.y = CAMERA_Y
 		cam_pos.z = CAMERA_Z
 		_camera.position = cam_pos
-		_camera.look_at(Vector3(cam_pos.x, 0.0, 10.0), Vector3.UP)
+		_camera.look_at(Vector3(cam_pos.x, 0.0, cam_pos.z - CAMERA_LOOKAHEAD_Z), Vector3.UP)
 
 	# Screenshots based on real wall-clock time to avoid timer batching on slow renderers.
 	if _shot_idx < SCREENSHOT_TIMES.size():

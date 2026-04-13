@@ -6,12 +6,12 @@ extends Node3D
 const STRING_Y_BASE   : float = 0.20
 const STRING_SPACING  : float = 0.50
 const STRING_COLORS: Array[Color] = [
-	Color(0.70, 0.10, 0.95, 1.0),  # 0 – purple  (low E)
-	Color(0.10, 0.80, 0.20, 1.0),  # 1 – green   (A)
-	Color(0.90, 0.50, 0.05, 1.0),  # 2 – orange  (D)
-	Color(0.10, 0.50, 0.95, 1.0),  # 3 – blue    (G)
-	Color(0.85, 0.85, 0.05, 1.0),  # 4 – yellow  (B)
-	Color(0.85, 0.15, 0.15, 1.0),  # 5 – red     (high e)
+	Color(1.00, 0.20, 0.20, 1.0),  # 0 – red
+	Color(1.00, 0.88, 0.12, 1.0),  # 1 – yellow
+	Color(0.00, 0.60, 1.00, 1.0),  # 2 – cyan
+	Color(1.00, 0.56, 0.05, 1.0),  # 3 – orange
+	Color(0.10, 0.80, 0.00, 1.0),  # 4 – green
+	Color(0.80, 0.00, 0.80, 1.0),  # 5 – purple
 ]
 
 @onready var _surface: MeshInstance3D = $HighwaySurface
@@ -25,7 +25,7 @@ func _ready() -> void:
 func _create_string_lines() -> void:
 	for i in STRING_COLORS.size():
 		var box := BoxMesh.new()
-		box.size = Vector3(24.0, 0.025, 20.0)
+		box.size = Vector3(24.0, 0.012, 20.0)
 
 		var mat := StandardMaterial3D.new()
 		var c: Color = STRING_COLORS[i]
@@ -40,7 +40,7 @@ func _create_string_lines() -> void:
 		mi.mesh = box
 		mi.set_surface_override_material(0, mat)
 		mi.transform.origin = Vector3(12.0, STRING_Y_BASE + i * STRING_SPACING, 10.0)
-		mi.visible = false   # Keep string Y coordinates for note placement; lines not shown
+		mi.visible = true
 		add_child(mi)
 
 

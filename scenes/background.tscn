@@ -1,13 +1,13 @@
 [gd_scene load_steps=3 format=3 uid="uid://cbkgnd00001"]
 
-; ── ProceduralSkyMaterial – clean bright white sky ───────────────────────────
+; ── ProceduralSkyMaterial – ChartPlayer-like dark stage backdrop ─────────────
 [sub_resource type="ProceduralSkyMaterial" id="SkyMat_proc"]
-sky_top_color            = Color(1.00, 1.00, 1.00, 1)
-sky_horizon_color        = Color(0.90, 0.95, 1.00, 1)
+sky_top_color            = Color(0.02, 0.02, 0.04, 1)
+sky_horizon_color        = Color(0.03, 0.03, 0.06, 1)
 sky_curve                = 0.15
 sky_energy_multiplier    = 1.0
-ground_bottom_color      = Color(0.85, 0.90, 0.95, 1)
-ground_horizon_color     = Color(0.90, 0.95, 1.00, 1)
+ground_bottom_color      = Color(0.01, 0.01, 0.02, 1)
+ground_horizon_color     = Color(0.02, 0.02, 0.03, 1)
 ground_curve             = 0.10
 ground_energy_multiplier = 1.0
 sun_angle_max            = 30.0
@@ -21,10 +21,16 @@ sky_material = SubResource("SkyMat_proc")
 background_mode      = 2
 sky                  = SubResource("Sky_proc")
 ambient_light_source = 0
-glow_enabled         = false
+ambient_light_color  = Color(0.12, 0.16, 0.22, 1)
+glow_enabled         = true
+glow_intensity       = 0.65
+fog_enabled          = true
+fog_light_color      = Color(0, 0, 0, 1)
+fog_light_energy     = 0.4
+fog_density          = 0.01
+fog_aerial_perspective = 0.5
 
 [node name="Background" type="Node3D"]
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Env_proc")
-

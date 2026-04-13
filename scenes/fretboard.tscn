@@ -10,32 +10,32 @@ height = 24.0
 
 [sub_resource type="ShaderMaterial" id="StringMat_0"]
 shader = ExtResource("2_fbshader")
-shader_parameter/string_color   = Color(0.70, 0.10, 0.95, 1)
+shader_parameter/string_color   = Color(1, 0.2, 0.2, 1)
 shader_parameter/glow_intensity  = 0.0
 
 [sub_resource type="ShaderMaterial" id="StringMat_1"]
 shader = ExtResource("2_fbshader")
-shader_parameter/string_color   = Color(0.10, 0.80, 0.20, 1)
+shader_parameter/string_color   = Color(1, 0.88, 0.12, 1)
 shader_parameter/glow_intensity  = 0.0
 
 [sub_resource type="ShaderMaterial" id="StringMat_2"]
 shader = ExtResource("2_fbshader")
-shader_parameter/string_color   = Color(0.90, 0.50, 0.05, 1)
+shader_parameter/string_color   = Color(0, 0.6, 1, 1)
 shader_parameter/glow_intensity  = 0.0
 
 [sub_resource type="ShaderMaterial" id="StringMat_3"]
 shader = ExtResource("2_fbshader")
-shader_parameter/string_color   = Color(0.10, 0.50, 0.95, 1)
+shader_parameter/string_color   = Color(1, 0.56, 0.05, 1)
 shader_parameter/glow_intensity  = 0.0
 
 [sub_resource type="ShaderMaterial" id="StringMat_4"]
 shader = ExtResource("2_fbshader")
-shader_parameter/string_color   = Color(0.85, 0.85, 0.05, 1)
+shader_parameter/string_color   = Color(0.1, 0.8, 0, 1)
 shader_parameter/glow_intensity  = 0.0
 
 [sub_resource type="ShaderMaterial" id="StringMat_5"]
 shader = ExtResource("2_fbshader")
-shader_parameter/string_color   = Color(0.85, 0.15, 0.15, 1)
+shader_parameter/string_color   = Color(0.8, 0, 0.8, 1)
 shader_parameter/glow_intensity  = 0.0
 
 [node name="Fretboard" type="Node3D"]
