@@ -1,8 +1,8 @@
 extends Node3D
 
 const LANE_COUNT : int = 6
-const BASE_INTENSITY : float = 0.18
-const PULSE_SCALE : float = 1.35
+const BASE_INTENSITY : float = 0.18  # Idle lane glow in shader's 0.0..2.0 range.
+const PULSE_SCALE : float = 1.35     # Multiplier for incoming 0.0..1.0 pulse values.
 
 @onready var _highway_surface : MeshInstance3D = $HighwaySurface
 
@@ -21,5 +21,6 @@ func set_lane_intensity(lane: int, intensity: float) -> void:
 		return
 	if lane < 0 or lane >= LANE_COUNT:
 		return
+	# Convert normalized gameplay glow into shader intensity and clamp to valid range.
 	var v := clampf(BASE_INTENSITY + intensity * PULSE_SCALE, 0.0, 2.0)
 	_mat.set_shader_parameter("lane_intensity_%d" % lane, v)
