@@ -35,7 +35,7 @@ const DIGIT_SCENES: Array[PackedScene] = [
 	preload("res://scenes/number_9.tscn"),
 ]
 
-## Border texture: a 1×1 white pixel scaled to form an outline around the finger indicator.
+## Border texture: 1×1 white pixel used as the albedo texture for the black border plane.
 const BORDER_TEXTURE: Texture2D = preload("res://assets/textures/chartplayer/SingleWhitePixel.png")
 ## Z offset places the label on the front face of the note box (faces +Z toward camera).
 const LABEL_Z : float = 0.06
@@ -62,21 +62,29 @@ var duration     : float = 0.25
 var is_active    : bool  = false
 var _miss_until  : float = -1.0
 
-@onready var _border     : Sprite3D       = $FingerBorder
-@onready var _finger     : Sprite3D       = $FingerIndicator
+@onready var _border     : MeshInstance3D = $FingerBorder
+@onready var _finger     : MeshInstance3D = $FingerIndicator
 @onready var _fret_label : Node3D         = $FretLabel
 @onready var _miss_label : Label3D        = $MissLabel
 
 
 func _ready() -> void:
+	# ── Border: solid black PlaneMesh with SingleWhitePixel texture ────────────
 	if _border:
-		_border.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		_border.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-		_border.texture = BORDER_TEXTURE
-		_border.modulate = Color(0, 0, 0, 1)
+		var bmat := StandardMaterial3D.new()
+		bmat.no_depth_test      = true
+		bmat.billboard_mode     = BaseMaterial3D.BILLBOARD_ENABLED
+		bmat.albedo_color       = Color(0.0, 0.0, 0.0, 1.0)
+		bmat.albedo_texture     = BORDER_TEXTURE
+		bmat.texture_filter     = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+		_border.set_surface_override_material(0, bmat)
+	# ── Finger indicator: textured PlaneMesh, texture is set per-note in setup() ─
 	if _finger:
-		_finger.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		_finger.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
+		var fmat := StandardMaterial3D.new()
+		fmat.no_depth_test  = true
+		fmat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+		fmat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
+		_finger.set_surface_override_material(0, fmat)
 	if _miss_label:
 		_miss_label.position = Vector3(0.0, 0.0, MISS_LABEL_Z)
 
@@ -96,8 +104,10 @@ func setup(p_fret: int, p_string: int, p_time: float, p_duration: float, p_show_
 	_miss_label.visible = false
 
 	if _finger:
-		_finger.texture = STRING_TEXTURES[string_index]
-		_finger.modulate = Color(1, 1, 1, 1)
+		var fmat := _finger.get_surface_override_material(0) as StandardMaterial3D
+		if fmat:
+			fmat.albedo_texture = STRING_TEXTURES[string_index]
+			fmat.albedo_color   = Color(1, 1, 1, 1)
 
 	if p_show_label:
 		_rebuild_fret_label()
