@@ -42,7 +42,7 @@ emission = Color(1, 0.95, 0.45, 1)
 emission_energy_multiplier = 3.0
 
 [sub_resource type="BoxMesh" id="BoxMesh_pointer"]
-size = Vector3(0.32, 3.2, 0.18)
+size = Vector3(0.42, 8.4, 0.06)
 
 [sub_resource type="StandardMaterial3D" id="MatPointer"]
 transparency = 1
@@ -52,8 +52,8 @@ emission_enabled = true
 emission = Color(0.8, 0.9, 1, 1)
 emission_energy_multiplier = 2.4
 
-[sub_resource type="BoxMesh" id="BoxMesh_trail"]
-size = Vector3(24.0, 0.016, 20.0)
+[sub_resource type="PlaneMesh" id="PlaneMesh_trail"]
+size = Vector2(24.0, 20.0)
 
 [sub_resource type="StandardMaterial3D" id="MatTrailPurple"]
 transparency = 1
@@ -116,33 +116,33 @@ mesh = SubResource("PlaneMesh_highway")
 surface_material_override/0 = SubResource("MatTabFg")
 
 [node name="TrailPurple" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 2.7, 10)
-mesh = SubResource("BoxMesh_trail")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0.055, 10)
+mesh = SubResource("PlaneMesh_trail")
 surface_material_override/0 = SubResource("MatTrailPurple")
 
 [node name="TrailGreen" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 2.2, 10)
-mesh = SubResource("BoxMesh_trail")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0.049, 10)
+mesh = SubResource("PlaneMesh_trail")
 surface_material_override/0 = SubResource("MatTrailGreen")
 
 [node name="TrailOrange" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 1.7, 10)
-mesh = SubResource("BoxMesh_trail")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0.043, 10)
+mesh = SubResource("PlaneMesh_trail")
 surface_material_override/0 = SubResource("MatTrailOrange")
 
 [node name="TrailCyan" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 1.2, 10)
-mesh = SubResource("BoxMesh_trail")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0.037, 10)
+mesh = SubResource("PlaneMesh_trail")
 surface_material_override/0 = SubResource("MatTrailCyan")
 
 [node name="TrailYellow" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0.7, 10)
-mesh = SubResource("BoxMesh_trail")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0.031, 10)
+mesh = SubResource("PlaneMesh_trail")
 surface_material_override/0 = SubResource("MatTrailYellow")
 
 [node name="TrailRed" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0.2, 10)
-mesh = SubResource("BoxMesh_trail")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0.025, 10)
+mesh = SubResource("PlaneMesh_trail")
 surface_material_override/0 = SubResource("MatTrailRed")
 
 [node name="StrumLine" type="MeshInstance3D" parent="."]
@@ -151,6 +151,6 @@ mesh = SubResource("BoxMesh_strum")
 surface_material_override/0 = SubResource("MatStrum")
 
 [node name="VerticalPointer" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 1.25, 20)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 2.4, 20)
 mesh = SubResource("BoxMesh_pointer")
 surface_material_override/0 = SubResource("MatPointer")

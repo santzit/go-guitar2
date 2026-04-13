@@ -26,16 +26,19 @@ shadow_enabled = true
 ;   basis.x = normalize(cross(forward, up)) = (1, 0, 0)
 ;   basis.y = cross(basis.z, basis.x)       = (0, 0.9828, -0.1845)
 [node name="Camera3D" type="Camera3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 0.9231, -0.3846, 0, 0.3846, 0.9231, 12, 7.5, 40)
-fov = 58.0
+position = Vector3(12, 4.2, 27.5)
+rotation_degrees = Vector3(-16, 0, 0)
+fov = 46.0
 
 ; ── Background (sky + WorldEnvironment + bloom) ───────────────────────────────
 [node name="Background" parent="." instance=ExtResource("2_bg")]
+visible = false
 
 ; ── Highway (fret surface + strum line + side walls) ─────────────────────────
 [node name="Highway" parent="." instance=ExtResource("1_highway")]
 
 [node name="Fretboard" parent="." instance=ExtResource("5_fretboard")]
+visible = false
 
 ; ── NotePool (128 pooled note instances) ─────────────────────────────────────
 [node name="NotePool" parent="." instance=ExtResource("4_pool")]
@@ -43,6 +46,7 @@ fov = 58.0
 ; ── Audio playback ────────────────────────────────────────────────────────────
 [node name="AudioStreamPlayer" type="AudioStreamPlayer" parent="."]
 [node name="ChartPlayerReferenceHud" parent="." instance=ExtResource("6_chart_hud")]
+visible = false
 ; ── Debug info overlay (CanvasLayer so it renders on top of 3-D scene) ──────────────
 [node name="DebugOverlay" type="CanvasLayer" parent="."]
 layer = 10
