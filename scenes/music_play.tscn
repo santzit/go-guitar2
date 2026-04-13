@@ -17,16 +17,15 @@ light_color    = Color(0.9, 0.85, 1.0, 1)
 light_energy   = 1.2
 shadow_enabled = true
 
-; Camera: position (12, 3, 6) aligned with highway centred at Z=-10, looking toward Z=-10.
+; Camera: position (12, 3, -26) in front of strum line (Z=-20), looking toward Z=-10.
 ; camera-right = world +X  →  fret 1 (X=0.5) on LEFT, fret 24 (X=23.5) on RIGHT
 ; camera-up   = world +Y  →  string 0 (Y=0.20) at BOTTOM, string 5 (Y=2.70) at TOP
-; No axis inversions needed anywhere. Basis computed from look_at((12,3,6)→(12,0,-10), up=Y):
-; (same basis values as before because the camera→target delta stays (0,-3,-16))
-;   forward = normalize(0,-3,-16)  → basis.z = normalize(0,3,16) = (0, 0.1845, 0.9828)
-;   basis.x = normalize(cross(forward, up)) = (1, 0, 0)
-;   basis.y = cross(basis.z, basis.x)       = (0, 0.9828, -0.1845)
+; No axis inversions needed anywhere. Basis computed from look_at((12,3,-26)→(12,0,-10), up=Y):
+;   forward = normalize(0,-3,16)  → basis.z = normalize(0,3,-16) = (0, 0.1845, -0.9828)
+;   basis.x = normalize(cross(forward, up)) = (-1, 0, 0)
+;   basis.y = cross(basis.z, basis.x)       = (0, 0.9828, 0.1845)
 [node name="Camera3D" type="Camera3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 0.9828, -0.1845, 0, 0.1845, 0.9828, 12, 3, 6)
+transform = Transform3D(-1, 0, 0, 0, 0.9828, 0.1845, 0, 0.1845, -0.9828, 12, 3, -26)
 fov = 90.0
 
 ; ── Background (sky + WorldEnvironment + bloom) ───────────────────────────────
