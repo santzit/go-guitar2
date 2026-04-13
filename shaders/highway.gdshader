@@ -42,13 +42,18 @@ float chart_fret_pos(float fret_num) {
 
 float vertical_fret_line_alpha(vec2 uv) {
 	float max_pos = max(chart_fret_pos(float(fret_count)), MIN_FRET_POS);
+	int fret_limit = min(fret_count, MAX_FRET_LINES);
+	float half_width = vertical_line_width * 0.5;
 	float alpha = 0.0;
 	for (int i = 0; i <= MAX_FRET_LINES; i++) {
 		// Intentional <=: fret_count=24 means we draw boundaries for fret 0..24.
-		if (i > fret_count) {
+		if (i > fret_limit) {
 			break;
 		}
 		float fret_x = chart_fret_pos(float(i)) / max_pos;
+		if (abs(uv.x - fret_x) > half_width) {
+			continue;
+		}
 		float local_u = (uv.x - fret_x) / vertical_line_width + 0.5;
 		if (local_u < 0.0 || local_u > 1.0) {
 			continue;
