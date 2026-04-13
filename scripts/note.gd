@@ -10,7 +10,7 @@ extends Node3D
 ##       Camera up = world +Y  → string 0 = screen-bottom, string 5 = screen-top
 ##   Z = STRUM_Z − (time_offset − song_time) × TRAVEL_SPEED
 ##       Notes spawn at Z = 0 (horizon / top of screen) and travel toward
-##       Z = STRUM_Z = 20 (strum line near camera at Z = 26)
+##       Z = STRUM_Z = -20 (strum line on the shifted highway)
 
 # ── ChartPlayer guitar note textures (low E → high e) ────────────────────────
 const STRING_TEXTURES: Array[Texture2D] = [
@@ -49,7 +49,7 @@ const STRING_HEIGHT_SCALE: float = 0.125
 const MIN_VALID_FRET_POS : float = 0.001
 ## Notes spawn at the horizon (Z=0, far from camera) and travel toward the strum line.
 const START_Z       : float = 0.0
-const STRUM_Z       : float = 20.0
+const STRUM_Z       : float = -20.0
 const TRAVEL_SPEED  : float = 2.0   # units per second – must match music_play.gd
 const MISS_HOLD_SECS: float = 1.0
 const MISS_LABEL_Z  : float = 0.30
@@ -137,15 +137,15 @@ func _rebuild_fret_label() -> void:
 ## synced to the audio stream rather than accumulating delta errors.
 ##
 ## Example: note with time_offset=10.0 and TRAVEL_SPEED=2.0
-##   p_song_time=0.0   → Z=20-(10-0)*2  =  0.0 = START_Z (note at horizon, far from camera)
-##   p_song_time=10.0  → Z=20-(10-10)*2 = 20.0 = STRUM_Z (note at strum line, hit time)
+##   p_song_time=0.0   → Z=-20+(10-0)*2  =   0.0 = START_Z (note at horizon, far from camera)
+##   p_song_time=10.0  → Z=-20+(10-10)*2 = -20.0 = STRUM_Z (note at strum line, hit time)
 func tick(p_song_time: float) -> void:
 	if not is_active:
 		return
 
 	# Compute Z directly from audio time.
-	# Notes travel from Z=0 (horizon) toward Z=STRUM_Z=20 (strum line near camera).
-	position.z = STRUM_Z - (time_offset - p_song_time) * TRAVEL_SPEED
+	# Notes travel from Z=0 (horizon) toward Z=STRUM_Z=-20 (strum line on highway).
+	position.z = STRUM_Z + (time_offset - p_song_time) * TRAVEL_SPEED
 
 	if _miss_until < 0.0 and p_song_time >= time_offset:
 		_miss_until = p_song_time + MISS_HOLD_SECS
