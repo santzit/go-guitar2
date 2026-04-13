@@ -41,11 +41,21 @@ jobs:
           GODOT_ZIP="Godot_v${GODOT_VERSION}_linux.x86_64.zip"
           GODOT_EXE="Godot_v${GODOT_VERSION}_linux.x86_64"
           GODOT_DIR="$RUNNER_TEMP/godot"
+          GODOT_URL="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/${GODOT_ZIP}"
 
           mkdir -p "$GODOT_DIR"
-          wget --tries=3 --timeout=30 -O "$GODOT_DIR/$GODOT_ZIP" "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/${GODOT_ZIP}" || { echo "Failed to download Godot archive"; exit 1; }
-          unzip -tq "$GODOT_DIR/$GODOT_ZIP" || { echo "Godot archive integrity check failed"; exit 1; }
-          unzip -q "$GODOT_DIR/$GODOT_ZIP" -d "$GODOT_DIR" || { echo "Failed to extract Godot archive"; exit 1; }
+          if ! wget --tries=3 --timeout=30 -O "$GODOT_DIR/$GODOT_ZIP" "$GODOT_URL"; then
+            echo "Failed to download Godot archive"
+            exit 1
+          fi
+          if ! unzip -tq "$GODOT_DIR/$GODOT_ZIP"; then
+            echo "Godot archive integrity check failed"
+            exit 1
+          fi
+          if ! unzip -q "$GODOT_DIR/$GODOT_ZIP" -d "$GODOT_DIR"; then
+            echo "Failed to extract Godot archive"
+            exit 1
+          fi
           chmod +x "$GODOT_DIR/$GODOT_EXE"
 
           sudo ln -sf "$GODOT_DIR/$GODOT_EXE" /usr/local/bin/godot
@@ -53,6 +63,10 @@ jobs:
 
           echo "GODOT_BIN=$GODOT_DIR/$GODOT_EXE" >> "$GITHUB_ENV"
           echo "PATH=$GODOT_DIR:$PATH" >> "$GITHUB_ENV"
-          "$GODOT_DIR/$GODOT_EXE" --version
-          "$GITHUB_WORKSPACE/$GODOT_EXE" --version
-          godot --version
+          GODOT_BIN_VERSION="$("$GODOT_DIR/$GODOT_EXE" --version)"
+          GODOT_WS_VERSION="$("$GITHUB_WORKSPACE/$GODOT_EXE" --version)"
+          GODOT_PATH_VERSION="$(godot --version)"
+          if [[ "$GODOT_BIN_VERSION" != *"$GODOT_VERSION"* || "$GODOT_WS_VERSION" != *"$GODOT_VERSION"* || "$GODOT_PATH_VERSION" != *"$GODOT_VERSION"* ]]; then
+            echo "Godot version mismatch"
+            exit 1
+          fi
