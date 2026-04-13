@@ -6,8 +6,8 @@ extends Node3D
 ##       GetFretPosition(f) = scale_length - scale_length / pow(2, f / 12)
 ##       Camera right = world +X  → low fret = screen-left, high fret = screen-right
 ##   Y = GetStringHeight(string_index), scaled to scene size
-##       GetStringHeight(s) = 3 + s * 4
-##       Camera up = world +Y  → string 0 = screen-bottom, string 5 = screen-top
+##       GetStringHeight(s) = 3 + (5 - s) * 4
+##       String 0 (low E) = screen-top, string 5 (high e) = screen-bottom
 ##   Z = STRUM_Z − (time_offset − song_time) × TRAVEL_SPEED
 ##       Notes spawn at Z = -20 and travel toward Z = 0.
 
@@ -179,4 +179,4 @@ func _chart_fret_pos(fret_num: float) -> float:
 
 
 func _string_world_y(str_idx: int) -> float:
-	return (3.0 + float(str_idx) * 4.0) * STRING_HEIGHT_SCALE
+	return (3.0 + float(5 - str_idx) * 4.0) * STRING_HEIGHT_SCALE
