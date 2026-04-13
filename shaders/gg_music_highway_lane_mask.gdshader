@@ -53,8 +53,8 @@ void fragment() {
 	color += lane_color_4.rgb * m4 * lane_intensity_4 * side_mask;
 	color += lane_color_5.rgb * m5 * lane_intensity_5 * side_mask;
 
-	float horizon_fade = mix(1.2, 0.55, UV.y);
-	color *= horizon_fade;
+	float perspective_fade = mix(1.2, 0.55, UV.y);
+	color *= perspective_fade;
 	color += vec3(0.55, 0.58, 0.68) * smoothstep(0.08, 0.0, abs(UV.x - 0.5));
 
 	ALBEDO = color;

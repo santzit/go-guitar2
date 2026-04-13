@@ -21,6 +21,5 @@ func set_lane_intensity(lane: int, intensity: float) -> void:
 		return
 	if lane < 0 or lane >= LANE_COUNT:
 		return
-	var idx := clampi(lane, 0, LANE_COUNT - 1)
 	var v := clampf(BASE_INTENSITY + intensity * PULSE_SCALE, 0.0, 2.0)
-	_mat.set_shader_parameter("lane_intensity_%d" % idx, v)
+	_mat.set_shader_parameter("lane_intensity_%d" % lane, v)
