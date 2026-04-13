@@ -42,31 +42,31 @@ shader_parameter/glow_intensity  = 0.0
 script = ExtResource("1_fbscript")
 
 [node name="String0" type="MeshInstance3D" parent="."]
-transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 12, 0.2, -20)
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 12, 0.2, 0)
 mesh = SubResource("CylinderMesh_string")
 surface_material_override/0 = SubResource("StringMat_0")
 
 [node name="String1" type="MeshInstance3D" parent="."]
-transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 12, 0.7, -20)
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 12, 0.7, 0)
 mesh = SubResource("CylinderMesh_string")
 surface_material_override/0 = SubResource("StringMat_1")
 
 [node name="String2" type="MeshInstance3D" parent="."]
-transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 12, 1.2, -20)
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 12, 1.2, 0)
 mesh = SubResource("CylinderMesh_string")
 surface_material_override/0 = SubResource("StringMat_2")
 
 [node name="String3" type="MeshInstance3D" parent="."]
-transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 12, 1.7, -20)
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 12, 1.7, 0)
 mesh = SubResource("CylinderMesh_string")
 surface_material_override/0 = SubResource("StringMat_3")
 
 [node name="String4" type="MeshInstance3D" parent="."]
-transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 12, 2.2, -20)
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 12, 2.2, 0)
 mesh = SubResource("CylinderMesh_string")
 surface_material_override/0 = SubResource("StringMat_4")
 
 [node name="String5" type="MeshInstance3D" parent="."]
-transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 12, 2.7, -20)
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 12, 2.7, 0)
 mesh = SubResource("CylinderMesh_string")
 surface_material_override/0 = SubResource("StringMat_5")

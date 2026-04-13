@@ -12,7 +12,7 @@ const BUS_MASTER : int = 6   # Master bus
 
 # -- Timing constants (must match note.gd) -----------------------------------
 const TRAVEL_SPEED : float = 2.0
-## Highway depth in world units (absolute distance). Notes travel 20 units (Z=0 → Z=-20).
+## Highway depth in world units (absolute distance). Notes travel 20 units (Z=-20 → Z=0).
 ## LEAD_TIME = HIGHWAY_DEPTH / TRAVEL_SPEED = how many seconds ahead notes spawn.
 const HIGHWAY_DEPTH : float = 20.0
 const LEAD_TIME     : float = HIGHWAY_DEPTH / TRAVEL_SPEED   # = 10.0 s
