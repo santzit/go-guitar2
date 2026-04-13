@@ -37,9 +37,9 @@ const DIGIT_SCENES: Array[PackedScene] = [
 ]
 
 ## Spatial shader for the finger indicator plane.
-## The full quad (0.116 × 0.060 m = 58×30 px @ 0.002 px_size) covers both border and fill.
-## UV edge detection draws a black border; the inner region samples the guitar texture.
-## Border thickness: 3 px on a 58-wide quad → 3/58 ≈ 0.0517 (X), 3 px on 30-tall → 3/30 = 0.100 (Y).
+## Fill colour + black border rendered together in one draw call.
+## border_uv is set at runtime per note so the border stays ~BORDER_THICKNESS m thick
+## regardless of the per-fret mesh size.
 ## Billboard is implemented in vertex() – Godot 4 spatial shaders have no 'billboard' render_mode.
 const _FINGER_SHADER_CODE: String = """
 shader_type spatial;
@@ -47,8 +47,8 @@ render_mode blend_mix, unshaded, cull_disabled, depth_test_disabled;
 
 uniform sampler2D albedo_texture : source_color, hint_default_white;
 
-// Border thickness as a UV fraction of the full quad.
-const vec2 BORDER_UV = vec2(0.052, 0.100);
+// Border thickness as a UV fraction of the full quad.  Set at runtime per note.
+uniform vec2 border_uv = vec2(0.052, 0.100);
 
 void vertex() {
 	// Spherical billboard: cancel out model rotation, keep position and (mesh-baked) scale.
@@ -63,10 +63,10 @@ void vertex() {
 
 void fragment() {
 	vec2 uv = UV;
-	bool on_border = uv.x < BORDER_UV.x || uv.x > (1.0 - BORDER_UV.x)
-	              || uv.y < BORDER_UV.y || uv.y > (1.0 - BORDER_UV.y);
-	// Remap the inner region [BORDER_UV, 1-BORDER_UV] to [0,1] for texture sampling.
-	vec2 inner_uv = clamp((uv - BORDER_UV) / (1.0 - 2.0 * BORDER_UV), vec2(0.0), vec2(1.0));
+	bool on_border = uv.x < border_uv.x || uv.x > (1.0 - border_uv.x)
+	              || uv.y < border_uv.y || uv.y > (1.0 - border_uv.y);
+	// Remap the inner region [border_uv, 1-border_uv] to [0,1] for texture sampling.
+	vec2 inner_uv = clamp((uv - border_uv) / (1.0 - 2.0 * border_uv), vec2(0.0), vec2(1.0));
 	vec4 tex = texture(albedo_texture, inner_uv);
 	ALBEDO = on_border ? vec3(0.0) : tex.rgb;
 	ALPHA  = on_border ? 1.0       : tex.a;
@@ -82,6 +82,11 @@ const FRET_COUNT         : int   = 24
 const SCALE_LENGTH       : float = 300.0
 const FRET_WORLD_WIDTH   : float = 24.0
 const STRING_HEIGHT_SCALE: float = 0.125
+## Height of one string slot in world units (= 4 × STRING_HEIGHT_SCALE).
+const STRING_SLOT_HEIGHT : float = 4.0 * STRING_HEIGHT_SCALE  # 0.5
+## World-unit border thickness — keeps the black outline a consistent ~6 mm wide
+## regardless of the per-fret indicator size.
+const BORDER_THICKNESS   : float = 0.006
 const MIN_VALID_FRET_POS : float = 0.001
 ## Notes spawn at Z=-20 and travel toward Z=0.
 const START_Z       : float = -20.0
@@ -129,9 +134,16 @@ func setup(p_fret: int, p_string: int, p_time: float, p_duration: float, p_show_
 	_miss_label.visible = false
 
 	if _finger:
+		var sz  := _fret_indicator_size(fret)
+		var plane := _finger.mesh as PlaneMesh
+		if plane:
+			plane.size = sz
 		var mat := _finger.get_surface_override_material(0) as ShaderMaterial
 		if mat:
 			mat.set_shader_parameter("albedo_texture", STRING_TEXTURES[string_index])
+			var bx := BORDER_THICKNESS / sz.x if sz.x > 0.001 else 0.05
+			var by := BORDER_THICKNESS / sz.y if sz.y > 0.001 else 0.10
+			mat.set_shader_parameter("border_uv", Vector2(bx, by))
 
 	if p_show_label:
 		_rebuild_fret_label()
@@ -213,7 +225,23 @@ func _fret_world_x(fret_num: int) -> float:
 	# This indicates a bad setup; return 0 to keep notes from exploding off-screen.
 	if max_pos <= MIN_VALID_FRET_POS:
 		return 0.0
-	return _chart_fret_pos(float(fret_num)) / max_pos * FRET_WORLD_WIDTH
+	# Centre the note in the middle of its fret slot.
+	var curr := _chart_fret_pos(float(fret_num))
+	var nxt  := _chart_fret_pos(float(fret_num) + 1.0)
+	return (curr + nxt) * 0.5 / max_pos * FRET_WORLD_WIDTH
+
+
+## Returns the world-unit size (X = fret spacing, Y = 80 % of string slot) for a note
+## at the given fret using the ChartPlayer fret-spacing formula.
+func _fret_indicator_size(fret_num: int) -> Vector2:
+	var max_pos := _chart_fret_pos(float(FRET_COUNT))
+	if max_pos <= MIN_VALID_FRET_POS:
+		return Vector2(0.116, 0.06)
+	var curr := _chart_fret_pos(float(fret_num))
+	var nxt  := _chart_fret_pos(float(fret_num) + 1.0)
+	var w    := (nxt - curr) / max_pos * FRET_WORLD_WIDTH
+	var h    := STRING_SLOT_HEIGHT * 0.8
+	return Vector2(w, h)
 
 
 func _chart_fret_pos(fret_num: float) -> float:
