@@ -35,6 +35,8 @@ const DIGIT_SCENES: Array[PackedScene] = [
 	preload("res://scenes/number_9.tscn"),
 ]
 
+## Border texture: a 1×1 white pixel scaled to form an outline around the finger indicator.
+const BORDER_TEXTURE: Texture2D = preload("res://assets/textures/chartplayer/SingleWhitePixel.png")
 ## Z offset places the label on the front face of the note box (faces +Z toward camera).
 const LABEL_Z : float = 0.06
 ## X offset between tens and ones digit for two-digit fret numbers.
@@ -60,12 +62,18 @@ var duration     : float = 0.25
 var is_active    : bool  = false
 var _miss_until  : float = -1.0
 
+@onready var _border     : Sprite3D       = $FingerBorder
 @onready var _finger     : Sprite3D       = $FingerIndicator
 @onready var _fret_label : Node3D         = $FretLabel
 @onready var _miss_label : Label3D        = $MissLabel
 
 
 func _ready() -> void:
+	if _border:
+		_border.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		_border.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+		_border.texture = BORDER_TEXTURE
+		_border.modulate = Color(0, 0, 0, 1)
 	if _finger:
 		_finger.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		_finger.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
