@@ -36,42 +36,7 @@ const DIGIT_SCENES: Array[PackedScene] = [
 	preload("res://scenes/number_9.tscn"),
 ]
 
-## Spatial shader for the finger indicator plane.
-## Fill colour + black border rendered together in one draw call.
-## border_uv is set at runtime per note so the border stays ~BORDER_THICKNESS m thick
-## regardless of the per-fret mesh size.
-## Billboard is implemented in vertex() – Godot 4 spatial shaders have no 'billboard' render_mode.
-const _FINGER_SHADER_CODE: String = """
-shader_type spatial;
-render_mode blend_mix, unshaded, cull_disabled, depth_test_disabled;
 
-uniform sampler2D albedo_texture : source_color, hint_default_white;
-
-// Border thickness as a UV fraction of the full quad.  Set at runtime per note.
-uniform vec2 border_uv = vec2(0.052, 0.100);
-
-void vertex() {
-	// Spherical billboard: cancel out model rotation, keep position and (mesh-baked) scale.
-	MODELVIEW_MATRIX = VIEW_MATRIX * mat4(
-		INV_VIEW_MATRIX[0],
-		INV_VIEW_MATRIX[1],
-		INV_VIEW_MATRIX[2],
-		MODEL_MATRIX[3]
-	);
-	MODELVIEW_NORMAL_MATRIX = mat3(MODELVIEW_MATRIX);
-}
-
-void fragment() {
-	vec2 uv = UV;
-	bool on_border = uv.x < border_uv.x || uv.x > (1.0 - border_uv.x)
-	              || uv.y < border_uv.y || uv.y > (1.0 - border_uv.y);
-	// Remap the inner region [border_uv, 1-border_uv] to [0,1] for texture sampling.
-	vec2 inner_uv = clamp((uv - border_uv) / (1.0 - 2.0 * border_uv), vec2(0.0), vec2(1.0));
-	vec4 tex = texture(albedo_texture, inner_uv);
-	ALBEDO = on_border ? vec3(0.0) : tex.rgb;
-	ALPHA  = on_border ? 1.0       : tex.a;
-}
-"""
 ## Z offset places the label on the front face of the note box (faces +Z toward camera).
 const LABEL_Z : float = 0.06
 ## X offset between tens and ones digit for two-digit fret numbers.
@@ -84,9 +49,6 @@ const FRET_WORLD_WIDTH   : float = 24.0
 const STRING_HEIGHT_SCALE: float = 0.125
 ## Height of one string slot in world units (= 4 × STRING_HEIGHT_SCALE).
 const STRING_SLOT_HEIGHT : float = 4.0 * STRING_HEIGHT_SCALE  # 0.5
-## World-unit border thickness — keeps the black outline a consistent ~6 mm wide
-## regardless of the per-fret indicator size.
-const BORDER_THICKNESS   : float = 0.006
 const MIN_VALID_FRET_POS : float = 0.001
 ## Notes spawn at Z=-20 and travel toward Z=0.
 const START_Z       : float = -20.0
@@ -111,12 +73,17 @@ var _last_sized_fret: int = -1
 
 
 func _ready() -> void:
-	# ── Finger indicator: single PlaneMesh with border+fill rendered by one shader ──
+	# ── Finger indicator: StandardMaterial3D with alpha transparency + billboard ──
+	# Using TRANSPARENCY_ALPHA so the circular guitar textures render without a
+	# rectangular opaque background, and BILLBOARD_ENABLED so the plane always faces
+	# the camera.  Each note instance owns its own material so pool reuse never bleeds
+	# albedo_texture state across notes.
 	if _finger:
-		var shader := Shader.new()
-		shader.code = _FINGER_SHADER_CODE
-		var mat := ShaderMaterial.new()
-		mat.shader = shader
+		var mat := StandardMaterial3D.new()
+		mat.shading_mode   = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.transparency   = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+		mat.no_depth_test  = true
 		_finger.set_surface_override_material(0, mat)
 	if _miss_label:
 		_miss_label.position = Vector3(0.0, 0.0, MISS_LABEL_Z)
@@ -137,7 +104,7 @@ func setup(p_fret: int, p_string: int, p_time: float, p_duration: float, p_show_
 	_miss_label.visible = false
 
 	if _finger:
-		var mat := _finger.get_surface_override_material(0) as ShaderMaterial
+		var mat := _finger.get_surface_override_material(0) as StandardMaterial3D
 		# Resize the PlaneMesh only when the fret changes (first use or different fret).
 		# Skipping the resize on pool reuse for the same fret avoids redundant mesh mutations.
 		if fret != _last_sized_fret:
@@ -146,12 +113,8 @@ func setup(p_fret: int, p_string: int, p_time: float, p_duration: float, p_show_
 			var plane := _finger.mesh as PlaneMesh
 			if plane:
 				plane.size = sz
-			if mat:
-				var bx := BORDER_THICKNESS / sz.x if sz.x > 0.001 else 0.05
-				var by := BORDER_THICKNESS / sz.y if sz.y > 0.001 else 0.10
-				mat.set_shader_parameter("border_uv", Vector2(bx, by))
 		if mat:
-			mat.set_shader_parameter("albedo_texture", STRING_TEXTURES[string_index])
+			mat.albedo_texture = STRING_TEXTURES[string_index]
 
 	if p_show_label:
 		_rebuild_fret_label()
