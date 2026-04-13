@@ -101,6 +101,9 @@ var time_offset  : float = 0.0
 var duration     : float = 0.25
 var is_active    : bool  = false
 var _miss_until  : float = -1.0
+## Track the last fret this note was sized for so we skip the expensive PlaneMesh
+## resize on pool reuse when the fret hasn't changed.
+var _last_sized_fret: int = -1
 
 @onready var _finger     : MeshInstance3D = $FingerIndicator
 @onready var _fret_label : Node3D         = $FretLabel
@@ -134,16 +137,21 @@ func setup(p_fret: int, p_string: int, p_time: float, p_duration: float, p_show_
 	_miss_label.visible = false
 
 	if _finger:
-		var sz  := _fret_indicator_size(fret)
-		var plane := _finger.mesh as PlaneMesh
-		if plane:
-			plane.size = sz
 		var mat := _finger.get_surface_override_material(0) as ShaderMaterial
+		# Resize the PlaneMesh only when the fret changes (first use or different fret).
+		# Skipping the resize on pool reuse for the same fret avoids redundant mesh mutations.
+		if fret != _last_sized_fret:
+			_last_sized_fret = fret
+			var sz  := _fret_indicator_size(fret)
+			var plane := _finger.mesh as PlaneMesh
+			if plane:
+				plane.size = sz
+			if mat:
+				var bx := BORDER_THICKNESS / sz.x if sz.x > 0.001 else 0.05
+				var by := BORDER_THICKNESS / sz.y if sz.y > 0.001 else 0.10
+				mat.set_shader_parameter("border_uv", Vector2(bx, by))
 		if mat:
 			mat.set_shader_parameter("albedo_texture", STRING_TEXTURES[string_index])
-			var bx := BORDER_THICKNESS / sz.x if sz.x > 0.001 else 0.05
-			var by := BORDER_THICKNESS / sz.y if sz.y > 0.001 else 0.10
-			mat.set_shader_parameter("border_uv", Vector2(bx, by))
 
 	if p_show_label:
 		_rebuild_fret_label()
