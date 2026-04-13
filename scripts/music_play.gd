@@ -93,6 +93,7 @@ var _camera_target_fret  : int      = FRET_COUNT / 2   # start at highway centre
 var _warmup_timer        : float    = WARMUP_SECS  # counts down to 0.0, then audio+notes start
 var _song_display_name   : String   = "Unknown Song"
 var _estimated_bpm       : float    = 0.0
+var _has_highway_lane_api: bool     = false
 
 ## Cached volume_db sent to the AudioStreamPlayer last frame.  -999 = first frame.
 var _cached_volume_db    : float    = -999.0
@@ -185,6 +186,7 @@ func _ready() -> void:
 		_camera.position.z = CAMERA_Z
 		_camera.fov        = CAM_FOV
 		_camera.look_at(Vector3(_camera.position.x, 0.0, _camera.position.z - CAMERA_LOOKAHEAD_Z), Vector3.UP)
+	_has_highway_lane_api = is_instance_valid(_highway) and _highway.has_method("set_lane_intensity")
 
 	# Start warmup countdown.  _process() will count down WARMUP_SECS real
 	# seconds showing only the empty highway, then start both audio and note
@@ -334,7 +336,7 @@ func _take_screenshot(num: int) -> void:
 ## decay back to 0.0 after the note passes the strum line.
 func _update_string_glows() -> void:
 	var has_fretboard := is_instance_valid(_fretboard)
-	var has_highway_glow := is_instance_valid(_highway) and _highway.has_method("set_lane_intensity")
+	var has_highway_glow := _has_highway_lane_api and is_instance_valid(_highway)
 	if not has_fretboard and not has_highway_glow:
 		return
 
