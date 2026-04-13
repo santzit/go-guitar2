@@ -18,7 +18,10 @@ uniform float lane_glow_power  : hint_range(0.1, 4.0) = 1.6;
 uniform float pulse_speed      : hint_range(0.0, 10.0) = 3.0;
 uniform float glow_strength    : hint_range(0.0, 3.0) = 1.2;
 
+const int MAX_SHADER_LANES = 6; // lane_intensity uniforms are packed for 6 lanes.
+
 float lane_intensity(int lane) {
+	if (lane < 0 || lane >= string_count || lane >= MAX_SHADER_LANES) return 0.0;
 	if (lane == 0) return lane_intensity_0_3.x;
 	if (lane == 1) return lane_intensity_0_3.y;
 	if (lane == 2) return lane_intensity_0_3.z;

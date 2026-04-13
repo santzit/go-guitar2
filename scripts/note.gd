@@ -46,6 +46,7 @@ const FRET_COUNT         : int   = 24
 const SCALE_LENGTH       : float = 300.0
 const FRET_WORLD_WIDTH   : float = 24.0
 const STRING_HEIGHT_SCALE: float = 0.125
+const MIN_VALID_FRET_POS : float = 0.001
 ## Notes spawn at the horizon (Z=0, far from camera) and travel toward the strum line.
 const START_Z       : float = 0.0
 const STRUM_Z       : float = 20.0
@@ -60,19 +61,12 @@ var duration     : float = 0.25
 var is_active    : bool  = false
 var _miss_until  : float = -1.0
 
-@onready var _mesh       : MeshInstance3D = $NoteMesh
 @onready var _finger     : Sprite3D       = $FingerIndicator
 @onready var _fret_label : Node3D         = $FretLabel
 @onready var _miss_label : Label3D        = $MissLabel
 
 
 func _ready() -> void:
-	# Give each instance its own copy of the ShaderMaterial so colours are independent.
-	if _mesh:
-		var mat := _mesh.get_surface_override_material(0)
-		if mat:
-			_mesh.set_surface_override_material(0, mat.duplicate())
-		_mesh.visible = false
 	if _finger:
 		_finger.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		_finger.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
@@ -174,8 +168,10 @@ func deactivate() -> void:
 
 func _fret_world_x(fret_num: int) -> float:
 	var max_pos: float = _chart_fret_pos(float(FRET_COUNT))
-	if max_pos <= 0.001:
-		return float(fret_num)
+	# Safety fallback for invalid configuration (e.g. FRET_COUNT/SCALE_LENGTH set to 0).
+	# This indicates a bad setup; return 0 to keep notes from exploding off-screen.
+	if max_pos <= MIN_VALID_FRET_POS:
+		return 0.0
 	return _chart_fret_pos(float(fret_num)) / max_pos * FRET_WORLD_WIDTH
 
 

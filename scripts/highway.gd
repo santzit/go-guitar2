@@ -8,7 +8,7 @@ const LANE_COUNT : int = 6
 
 
 func _ready() -> void:
-	set_lane_intensities([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+	set_lane_intensities(_zero_lanes())
 	set_active_fret_range(0, -1)
 
 
@@ -29,7 +29,9 @@ func set_lane_intensities(values: Array[float]) -> void:
 	if not mat:
 		return
 	if values.size() < LANE_COUNT:
+		push_warning("Highway: expected %d lane intensities, got %d" % [LANE_COUNT, values.size()])
 		return
+	# Keep this packing in sync with shaders/highway.gdshader lane_intensity().
 	mat.set_shader_parameter("lane_intensity_0_3", Vector4(
 		clampf(values[0], 0.0, 1.0),
 		clampf(values[1], 0.0, 1.0),
@@ -50,3 +52,11 @@ func set_active_fret_range(min_fret: int, max_fret: int) -> void:
 		return
 	mat.set_shader_parameter("active_fret_min", min_fret)
 	mat.set_shader_parameter("active_fret_max", max_fret)
+
+
+func _zero_lanes() -> Array[float]:
+	var values: Array[float] = []
+	values.resize(LANE_COUNT)
+	for i in LANE_COUNT:
+		values[i] = 0.0
+	return values
