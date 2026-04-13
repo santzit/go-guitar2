@@ -1,0 +1,156 @@
+[gd_scene load_steps=21 format=3]
+
+[ext_resource type="Texture2D" path="res://assets/chartplayer_ui/TabBackground.png" id="1_tab_bg"]
+[ext_resource type="Texture2D" path="res://assets/chartplayer_ui/TabForeground.png" id="2_tab_fg"]
+[ext_resource type="Texture2D" path="res://assets/chartplayer_ui/HorizontalFretLine.png" id="3_hline"]
+[ext_resource type="Texture2D" path="res://assets/chartplayer_ui/VerticalPointer.png" id="4_pointer"]
+[ext_resource type="Texture2D" path="res://assets/chartplayer_ui/NoteTrailPurple.png" id="5_trail_purple"]
+[ext_resource type="Texture2D" path="res://assets/chartplayer_ui/NoteTrailGreen.png" id="6_trail_green"]
+[ext_resource type="Texture2D" path="res://assets/chartplayer_ui/NoteTrailOrange.png" id="7_trail_orange"]
+[ext_resource type="Texture2D" path="res://assets/chartplayer_ui/NoteTrailCyan.png" id="8_trail_cyan"]
+[ext_resource type="Texture2D" path="res://assets/chartplayer_ui/NoteTrailYellow.png" id="9_trail_yellow"]
+[ext_resource type="Texture2D" path="res://assets/chartplayer_ui/NoteTrailRed.png" id="10_trail_red"]
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_highway"]
+size = Vector2(24.0, 20.0)
+
+[sub_resource type="StandardMaterial3D" id="MatTabBg"]
+transparency = 1
+shading_mode = 0
+albedo_texture = ExtResource("1_tab_bg")
+emission_enabled = true
+emission = Color(0.8, 0.85, 1, 1)
+emission_energy_multiplier = 1.5
+
+[sub_resource type="StandardMaterial3D" id="MatTabFg"]
+transparency = 1
+shading_mode = 0
+albedo_texture = ExtResource("2_tab_fg")
+emission_enabled = true
+emission = Color(1, 1, 1, 1)
+emission_energy_multiplier = 1.2
+
+[sub_resource type="BoxMesh" id="BoxMesh_strum"]
+size = Vector3(24.0, 0.05, 0.08)
+
+[sub_resource type="StandardMaterial3D" id="MatStrum"]
+transparency = 1
+shading_mode = 0
+albedo_texture = ExtResource("3_hline")
+emission_enabled = true
+emission = Color(1, 0.95, 0.45, 1)
+emission_energy_multiplier = 3.0
+
+[sub_resource type="BoxMesh" id="BoxMesh_pointer"]
+size = Vector3(0.32, 3.2, 0.18)
+
+[sub_resource type="StandardMaterial3D" id="MatPointer"]
+transparency = 1
+shading_mode = 0
+albedo_texture = ExtResource("4_pointer")
+emission_enabled = true
+emission = Color(0.8, 0.9, 1, 1)
+emission_energy_multiplier = 2.4
+
+[sub_resource type="BoxMesh" id="BoxMesh_trail"]
+size = Vector3(24.0, 0.016, 20.0)
+
+[sub_resource type="StandardMaterial3D" id="MatTrailPurple"]
+transparency = 1
+shading_mode = 0
+albedo_texture = ExtResource("5_trail_purple")
+emission_enabled = true
+emission = Color(0.85, 0.2, 1, 1)
+emission_energy_multiplier = 2.0
+
+[sub_resource type="StandardMaterial3D" id="MatTrailGreen"]
+transparency = 1
+shading_mode = 0
+albedo_texture = ExtResource("6_trail_green")
+emission_enabled = true
+emission = Color(0.3, 1, 0.5, 1)
+emission_energy_multiplier = 2.0
+
+[sub_resource type="StandardMaterial3D" id="MatTrailOrange"]
+transparency = 1
+shading_mode = 0
+albedo_texture = ExtResource("7_trail_orange")
+emission_enabled = true
+emission = Color(1, 0.65, 0.2, 1)
+emission_energy_multiplier = 2.0
+
+[sub_resource type="StandardMaterial3D" id="MatTrailCyan"]
+transparency = 1
+shading_mode = 0
+albedo_texture = ExtResource("8_trail_cyan")
+emission_enabled = true
+emission = Color(0.2, 0.95, 1, 1)
+emission_energy_multiplier = 2.0
+
+[sub_resource type="StandardMaterial3D" id="MatTrailYellow"]
+transparency = 1
+shading_mode = 0
+albedo_texture = ExtResource("9_trail_yellow")
+emission_enabled = true
+emission = Color(1, 0.92, 0.25, 1)
+emission_energy_multiplier = 2.0
+
+[sub_resource type="StandardMaterial3D" id="MatTrailRed"]
+transparency = 1
+shading_mode = 0
+albedo_texture = ExtResource("10_trail_red")
+emission_enabled = true
+emission = Color(1, 0.35, 0.25, 1)
+emission_energy_multiplier = 2.0
+
+[node name="GgMusicHighway" type="Node3D"]
+
+[node name="TabBackgroundSurface" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, 10)
+mesh = SubResource("PlaneMesh_highway")
+surface_material_override/0 = SubResource("MatTabBg")
+
+[node name="TabForegroundSurface" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0.01, 10)
+mesh = SubResource("PlaneMesh_highway")
+surface_material_override/0 = SubResource("MatTabFg")
+
+[node name="TrailPurple" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 2.7, 10)
+mesh = SubResource("BoxMesh_trail")
+surface_material_override/0 = SubResource("MatTrailPurple")
+
+[node name="TrailGreen" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 2.2, 10)
+mesh = SubResource("BoxMesh_trail")
+surface_material_override/0 = SubResource("MatTrailGreen")
+
+[node name="TrailOrange" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 1.7, 10)
+mesh = SubResource("BoxMesh_trail")
+surface_material_override/0 = SubResource("MatTrailOrange")
+
+[node name="TrailCyan" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 1.2, 10)
+mesh = SubResource("BoxMesh_trail")
+surface_material_override/0 = SubResource("MatTrailCyan")
+
+[node name="TrailYellow" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0.7, 10)
+mesh = SubResource("BoxMesh_trail")
+surface_material_override/0 = SubResource("MatTrailYellow")
+
+[node name="TrailRed" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0.2, 10)
+mesh = SubResource("BoxMesh_trail")
+surface_material_override/0 = SubResource("MatTrailRed")
+
+[node name="StrumLine" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0.03, 20)
+mesh = SubResource("BoxMesh_strum")
+surface_material_override/0 = SubResource("MatStrum")
+
+[node name="VerticalPointer" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 1.25, 20)
+mesh = SubResource("BoxMesh_pointer")
+surface_material_override/0 = SubResource("MatPointer")

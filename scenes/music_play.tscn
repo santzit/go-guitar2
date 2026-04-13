@@ -1,6 +1,6 @@
 [gd_scene load_steps=7 format=3 uid="uid://cmpscene0001"]
 
-[ext_resource type="PackedScene" uid="uid://chighway0001" path="res://scenes/highway.tscn"     id="1_highway"]
+[ext_resource type="PackedScene" path="res://scenes/gg_music_highway.tscn" id="1_highway"]
 [ext_resource type="PackedScene" uid="uid://cbkgnd00001" path="res://scenes/background.tscn"   id="2_bg"]
 [ext_resource type="Script"                              path="res://scripts/music_play.gd"    id="3_script"]
 [ext_resource type="PackedScene" uid="uid://cnotepool001" path="res://scenes/note_pool.tscn"   id="4_pool"]
