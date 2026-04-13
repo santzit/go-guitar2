@@ -37,6 +37,35 @@ const DIGIT_SCENES: Array[PackedScene] = [
 ]
 
 
+## Spatial shader for the finger indicator plane.
+## Samples the guitar note texture directly — ALPHA = tex.a so the circular textures
+## render with natural transparency (no rectangular frame box).
+## Billboard is implemented in vertex() because Godot 4 spatial shaders have no
+## 'billboard' render_mode.
+const _FINGER_SHADER_CODE: String = """
+shader_type spatial;
+render_mode blend_mix, unshaded, cull_disabled, depth_test_disabled;
+
+uniform sampler2D albedo_texture : source_color, hint_default_white;
+
+void vertex() {
+	// Spherical billboard: cancel model rotation, preserve position + mesh-baked scale.
+	MODELVIEW_MATRIX = VIEW_MATRIX * mat4(
+		INV_VIEW_MATRIX[0],
+		INV_VIEW_MATRIX[1],
+		INV_VIEW_MATRIX[2],
+		MODEL_MATRIX[3]
+	);
+	MODELVIEW_NORMAL_MATRIX = mat3(MODELVIEW_MATRIX);
+}
+
+void fragment() {
+	vec4 tex = texture(albedo_texture, UV);
+	ALBEDO = tex.rgb;
+	ALPHA  = tex.a;
+}
+"""
+
 ## Z offset places the label on the front face of the note box (faces +Z toward camera).
 const LABEL_Z : float = 0.06
 ## X offset between tens and ones digit for two-digit fret numbers.
@@ -73,17 +102,15 @@ var _last_sized_fret: int = -1
 
 
 func _ready() -> void:
-	# ── Finger indicator: StandardMaterial3D with alpha transparency + billboard ──
-	# Using TRANSPARENCY_ALPHA so the circular guitar textures render without a
-	# rectangular opaque background, and BILLBOARD_ENABLED so the plane always faces
-	# the camera.  Each note instance owns its own material so pool reuse never bleeds
-	# albedo_texture state across notes.
+	# ── Finger indicator: custom ShaderMaterial with alpha transparency + billboard ──
+	# blend_mix + ALPHA=tex.a lets the circular guitar textures render without any
+	# rectangular opaque background.  Each note instance owns its own ShaderMaterial so
+	# pool reuse never bleeds albedo_texture state across notes.
 	if _finger:
-		var mat := StandardMaterial3D.new()
-		mat.shading_mode   = BaseMaterial3D.SHADING_MODE_UNSHADED
-		mat.transparency   = BaseMaterial3D.TRANSPARENCY_ALPHA
-		mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-		mat.no_depth_test  = true
+		var shader := Shader.new()
+		shader.code = _FINGER_SHADER_CODE
+		var mat := ShaderMaterial.new()
+		mat.shader = shader
 		_finger.set_surface_override_material(0, mat)
 	if _miss_label:
 		_miss_label.position = Vector3(0.0, 0.0, MISS_LABEL_Z)
@@ -104,7 +131,7 @@ func setup(p_fret: int, p_string: int, p_time: float, p_duration: float, p_show_
 	_miss_label.visible = false
 
 	if _finger:
-		var mat := _finger.get_surface_override_material(0) as StandardMaterial3D
+		var mat := _finger.get_surface_override_material(0) as ShaderMaterial
 		# Resize the PlaneMesh only when the fret changes (first use or different fret).
 		# Skipping the resize on pool reuse for the same fret avoids redundant mesh mutations.
 		if fret != _last_sized_fret:
@@ -114,7 +141,7 @@ func setup(p_fret: int, p_string: int, p_time: float, p_duration: float, p_show_
 			if plane:
 				plane.size = sz
 		if mat:
-			mat.albedo_texture = STRING_TEXTURES[string_index]
+			mat.set_shader_parameter("albedo_texture", STRING_TEXTURES[string_index])
 
 	if p_show_label:
 		_rebuild_fret_label()
