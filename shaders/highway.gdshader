@@ -22,7 +22,7 @@ uniform float vertical_line_width : hint_range(0.001, 0.05) = 0.008;
 uniform float vertical_line_strength : hint_range(0.0, 2.0) = 0.55;
 
 const int MAX_SHADER_LANES = 6; // lane_intensity uniforms are packed for 6 lanes.
-const int MAX_FRET_LINES = 24;
+const int MAX_FRET_LINES = 25;
 const float SCALE_LENGTH = 300.0;
 const float MIN_FRET_POS = 0.0001;
 
@@ -42,11 +42,11 @@ float chart_fret_pos(float fret_num) {
 
 float vertical_fret_line_alpha(vec2 uv) {
 	float max_pos = max(chart_fret_pos(float(fret_count)), MIN_FRET_POS);
-	int fret_limit = min(fret_count, MAX_FRET_LINES);
+	int fret_limit = min(fret_count, MAX_FRET_LINES - 1);
 	float half_width = vertical_line_width * 0.5;
 	float alpha = 0.0;
-	for (int i = 0; i <= MAX_FRET_LINES; i++) {
-		// Intentional <=: fret_count=24 means we draw boundaries for fret 0..24.
+	for (int i = 0; i < MAX_FRET_LINES; i++) {
+		// MAX_FRET_LINES=25 lets fret_count=24 draw boundaries for fret 0..24.
 		if (i > fret_limit) {
 			break;
 		}
@@ -55,9 +55,6 @@ float vertical_fret_line_alpha(vec2 uv) {
 			continue;
 		}
 		float local_u = (uv.x - fret_x) / vertical_line_width + 0.5;
-		if (local_u < 0.0 || local_u > 1.0) {
-			continue;
-		}
 		float line_sample = texture(vertical_fret_line_tex, vec2(local_u, uv.y)).a;
 		alpha = max(alpha, line_sample);
 	}
