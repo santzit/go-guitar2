@@ -20,17 +20,19 @@ const LEAD_TIME     : float = HIGHWAY_DEPTH / TRAVEL_SPEED   # = 10.0 s
 
 # -- Highway layout (must match note.gd) ------------------------------------
 const FRET_COUNT   : int   = 24
-const FRET_SPACING : float = 1.0
+const SCALE_LENGTH : float = 300.0
+const SCALE_END    : float = SCALE_LENGTH - (SCALE_LENGTH / pow(2.0, float(FRET_COUNT) / 12.0))
+const HIGHWAY_WIDTH: float = 24.0
 
 # -- Camera follow -----------------------------------------------------------
 ## FOV (degrees) used for the follow camera.
-const CAM_FOV           : float = 58.0
-const CAMERA_Y          : float = 7.5
+const CAM_FOV           : float = 45.0
+const CAMERA_Y          : float = 6.0
 ## Camera sits BEYOND the strum line (Z=26 > strum Z=20, defined in note.gd) looking back toward Z=0.
 ## This gives camera-right = world +X (fret 1 on left, fret 24 on right)
 ## and camera-up = world +Y (string 0 at bottom, string 5 at top). No inversions.
-const CAMERA_Z          : float = 40.0
-const CAMERA_LOOKAHEAD_Z: float = 18.0
+const CAMERA_Z          : float = 32.0
+const CAMERA_LOOKAHEAD_Z: float = 52.0
 const CAMERA_LERP_SPEED : float = 2.0    # units/s for smooth pan
 ## Camera X clamp — keeps the camera from tracking to the highway edges.
 const CAMERA_X_MIN      : float = 0.5
@@ -306,11 +308,13 @@ func _process(delta: float) -> void:
 
 # -- Helpers -----------------------------------------------------------------
 
-## World X centre for a fret lane.  Mirrors note.gd formula:
-##   X = fret × FRET_SPACING − FRET_SPACING × 0.5
-## fret 1 → X = 0.5 (left), fret 24 → X = 23.5 (right).  No inversion needed.
+## World X centre for a fret lane. Mirrors ChartPlayer `GetFretPosition()`:
+##   pos = scaleLength - (scaleLength / 2^(fret/12))
+## then normalized to this project's 24-unit highway width.
 func _fret_world_x(f: int) -> float:
-	return f * FRET_SPACING - FRET_SPACING * 0.5
+	var fretf := clampf(float(f), 0.0, float(FRET_COUNT))
+	var raw := SCALE_LENGTH - (SCALE_LENGTH / pow(2.0, fretf / 12.0))
+	return (raw / SCALE_END) * HIGHWAY_WIDTH - 0.5
 
 
 func _take_screenshot(num: int) -> void:

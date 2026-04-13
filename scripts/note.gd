@@ -43,7 +43,9 @@ const LABEL_Z : float = 0.06
 const DIGIT_X_OFFSET : float = 0.07
 
 const FRET_COUNT    : int   = 24   # total number of fret lanes on the highway
-const FRET_SPACING  : float = 1.0
+const SCALE_LENGTH  : float = 300.0
+const SCALE_END     : float = SCALE_LENGTH - (SCALE_LENGTH / pow(2.0, float(FRET_COUNT) / 12.0))
+const HIGHWAY_WIDTH : float = 24.0
 const STRING_SPACING: float = 0.5
 ## Minimum Y above the highway surface (XZ plane at Y=0).
 ## Must match highway.gd STRING_Y_BASE so notes sit on their string lines.
@@ -88,7 +90,7 @@ func setup(p_fret: int, p_string: int, p_time: float, p_duration: float, p_show_
 	visible      = true
 	_miss_until  = -1.0
 
-	position = Vector3(fret * FRET_SPACING - FRET_SPACING * 0.5, STRING_Y_BASE + string_index * STRING_SPACING, START_Z)
+	position = Vector3(_fret_world_x(fret), STRING_Y_BASE + string_index * STRING_SPACING, START_Z)
 	_miss_label.visible = false
 
 	# Apply string colour to the per-instance material.
@@ -169,3 +171,9 @@ func deactivate() -> void:
 	var pool := get_parent()
 	if pool and pool.has_method("return_note"):
 		pool.return_note(self)
+
+
+func _fret_world_x(f: int) -> float:
+	var fretf := clampf(float(f), 0.0, float(FRET_COUNT))
+	var raw := SCALE_LENGTH - (SCALE_LENGTH / pow(2.0, fretf / 12.0))
+	return (raw / SCALE_END) * HIGHWAY_WIDTH - 0.5
