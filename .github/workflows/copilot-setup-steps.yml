@@ -43,8 +43,9 @@ jobs:
           GODOT_DIR="$RUNNER_TEMP/godot"
 
           mkdir -p "$GODOT_DIR"
-          wget --tries=3 --timeout=30 -O "$GODOT_DIR/$GODOT_ZIP" "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/${GODOT_ZIP}"
-          unzip -q "$GODOT_DIR/$GODOT_ZIP" -d "$GODOT_DIR"
+          wget --tries=3 --timeout=30 -O "$GODOT_DIR/$GODOT_ZIP" "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/${GODOT_ZIP}" || { echo "Failed to download Godot archive"; exit 1; }
+          unzip -tq "$GODOT_DIR/$GODOT_ZIP" || { echo "Godot archive integrity check failed"; exit 1; }
+          unzip -q "$GODOT_DIR/$GODOT_ZIP" -d "$GODOT_DIR" || { echo "Failed to extract Godot archive"; exit 1; }
           chmod +x "$GODOT_DIR/$GODOT_EXE"
 
           sudo ln -sf "$GODOT_DIR/$GODOT_EXE" /usr/local/bin/godot
