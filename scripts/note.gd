@@ -38,7 +38,7 @@ const DIGIT_SCENES: Array[PackedScene] = [
 ## Spatial shader for the finger indicator plane.
 ## The full quad (0.116 × 0.060 m = 58×30 px @ 0.002 px_size) covers both border and fill.
 ## UV edge detection draws a black border; the inner region samples the guitar texture.
-## Border thickness: 3 px on a 58-wide quad → 3/58 ≈ 0.052 (X), 3 px on 30-tall → 3/30 = 0.100 (Y).
+## Border thickness: 3 px on a 58-wide quad → 3/58 ≈ 0.0517 (X), 3 px on 30-tall → 3/30 = 0.100 (Y).
 ## Billboard is implemented in vertex() – Godot 4 spatial shaders have no 'billboard' render_mode.
 const _FINGER_SHADER_CODE: String = """
 shader_type spatial;
