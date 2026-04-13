@@ -31,11 +31,11 @@ const DEFAULT_CAMERA_FRET: float = FRET_COUNT * 0.5
 ## FOV (degrees) used for the follow camera.
 const CAM_FOV           : float = 80.0
 const CAMERA_Y          : float = 3.0
-## Camera is in front of the shifted highway (player side near strum Z=-20) and
+## Camera is in front of the fretboard (player side, positive Z) and
 ## looks toward the highway centre (Z=-10).
-## This gives camera-right = world +X (fret 1 on left, fret 24 on right)
-## and camera-up = world +Y (string 0 at bottom, string 5 at top). No inversions.
-const CAMERA_Z          : float = -26.0
+## Fretboard strings are at Z=0 (strum/arrival side); notes spawn at Z=-20.
+## Camera at Z=+6 → in front of fretboard, looking down-range into the highway.
+const CAMERA_Z          : float = 6.0
 const CAMERA_LOOK_AT_Z  : float = -10.0
 const CAMERA_LERP_SPEED : float = 2.0    # units/s for smooth pan
 ## Camera X clamp — keeps the camera from tracking to the highway edges.
