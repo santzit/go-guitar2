@@ -137,7 +137,7 @@ func _rebuild_fret_label() -> void:
 ## synced to the audio stream rather than accumulating delta errors.
 ##
 ## Example: note with time_offset=10.0 and TRAVEL_SPEED=2.0
-##   p_song_time=0.0   → Z=-20+(10-0)*2  =   0.0 = START_Z (note at horizon, far from camera)
+##   p_song_time=0.0   → Z=-20+(10-0)*2  = 0.0 = START_Z (note at horizon, far from camera)
 ##   p_song_time=10.0  → Z=-20+(10-10)*2 = -20.0 = STRUM_Z (note at strum line, hit time)
 func tick(p_song_time: float) -> void:
 	if not is_active:
