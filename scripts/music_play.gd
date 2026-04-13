@@ -337,6 +337,8 @@ func _take_screenshot(num: int) -> void:
 func _update_string_glows() -> void:
 	var has_fretboard := is_instance_valid(_fretboard)
 	var has_highway_glow := _has_highway_lane_api and is_instance_valid(_highway)
+	# Support partial scene configs: drive whichever glow target exists (fretboard,
+	# highway shader, or both) without requiring all visual subsystems.
 	if not has_fretboard and not has_highway_glow:
 		return
 
