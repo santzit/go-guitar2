@@ -51,4 +51,6 @@ jobs:
 
           echo "GODOT_BIN=$GODOT_DIR/$GODOT_EXE" >> "$GITHUB_ENV"
           echo "PATH=$GODOT_DIR:$PATH" >> "$GITHUB_ENV"
+          "$GODOT_DIR/$GODOT_EXE" --version
+          "$GITHUB_WORKSPACE/$GODOT_EXE" --version
           godot --version
