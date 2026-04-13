@@ -333,7 +333,9 @@ func _take_screenshot(num: int) -> void:
 ## Strings ramp from 0.0 (dim) → 1.0 (bright) as a note approaches, then
 ## decay back to 0.0 after the note passes the strum line.
 func _update_string_glows() -> void:
-	if not is_instance_valid(_fretboard):
+	var has_fretboard := is_instance_valid(_fretboard)
+	var has_highway_glow := is_instance_valid(_highway) and _highway.has_method("set_lane_intensity")
+	if not has_fretboard and not has_highway_glow:
 		return
 
 	# Advance the glow cursor past notes that have already left the strum zone.
@@ -367,7 +369,10 @@ func _update_string_glows() -> void:
 		var new_val : float = lerpf(current, target, lerp_k)
 		if absf(new_val - current) > 0.001:
 			_string_glow[s] = new_val
-			_fretboard.set_string_glow(s, new_val)
+			if has_fretboard:
+				_fretboard.set_string_glow(s, new_val)
+			if has_highway_glow:
+				_highway.set_lane_intensity(s, new_val)
 
 
 func _return_to_menu() -> void:
