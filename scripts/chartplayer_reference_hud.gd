@@ -60,23 +60,17 @@ func update_runtime(song_time: float, bpm: float, processed_note_count: int, tot
 
 
 func _root_note_to_index(root_note: String) -> int:
-	match root_note:
-		"A", "A#", "Bb":
-			return 1
-		"B":
-			return 4
-		"C", "C#", "Db":
-			return 3
-		"D", "D#", "Eb":
-			return 2
-		"E":
-			return 0
-		"F", "F#", "Gb":
-			return 5
-		"G", "G#", "Ab":
-			return 0
-		_:
-			return -1
+	# Map chromatic pitch classes onto 6 visible string trails.
+	# We use pitch-class modulo 6 so adjacent notes usually shift trail index
+	# and avoid accidental hard-coded collisions (e.g. E and G on same trail).
+	var pitch_class := {
+		"C": 0, "C#": 1, "Db": 1, "D": 2, "D#": 3, "Eb": 3,
+		"E": 4, "F": 5, "F#": 6, "Gb": 6, "G": 7, "G#": 8,
+		"Ab": 8, "A": 9, "A#": 10, "Bb": 10, "B": 11,
+	}
+	if not pitch_class.has(root_note):
+		return -1
+	return int(pitch_class[root_note]) % _trail_lines.size()
 
 
 func _format_clock(seconds: float) -> String:
