@@ -12,6 +12,8 @@ on:
 jobs:
   copilot-setup-steps:
     runs-on: ubuntu-latest
+    env:
+      GODOT_VERSION: 4.4.1-stable
     permissions:
       contents: read
     steps:
@@ -36,13 +38,12 @@ jobs:
 
       - name: Download Godot 4.4.1
         run: |
-          GODOT_VERSION="4.4.1-stable"
           GODOT_ZIP="Godot_v${GODOT_VERSION}_linux.x86_64.zip"
           GODOT_EXE="Godot_v${GODOT_VERSION}_linux.x86_64"
           GODOT_DIR="$RUNNER_TEMP/godot"
 
           mkdir -p "$GODOT_DIR"
-          wget -q -O "$GODOT_DIR/$GODOT_ZIP" "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/${GODOT_ZIP}"
+          wget --tries=3 --timeout=30 -O "$GODOT_DIR/$GODOT_ZIP" "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/${GODOT_ZIP}"
           unzip -q "$GODOT_DIR/$GODOT_ZIP" -d "$GODOT_DIR"
           chmod +x "$GODOT_DIR/$GODOT_EXE"
 
