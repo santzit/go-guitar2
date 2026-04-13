@@ -42,7 +42,7 @@ func set_song_meta(song_name: String, arrangement: String) -> void:
 
 
 func set_reference_lyrics(main_line: String, focus_word: String) -> void:
-	# ChartPlayer reference view uses texture-based overlays instead of lyric labels.
+	# Intentionally empty: ChartPlayer reference view does not render lyric labels.
 	pass
 
 
@@ -77,7 +77,7 @@ func update_runtime(song_time: float, bpm: float, processed_note_count: int, tot
 func _root_note_to_index(root_note: String) -> int:
 	# Map chromatic pitch classes onto 6 visible string trails.
 	# This intentionally compresses 12 semitones into 6 lanes via modulo,
-	# so deterministic collisions exist (e.g. C and F# share a lane).
+	# so deterministic collisions exist (e.g. C/F# -> lane 0, D/G# -> lane 2).
 	if not ROOT_NOTE_PITCH_CLASS.has(root_note):
 		return -1
 	return int(ROOT_NOTE_PITCH_CLASS[root_note]) % _trail_lines.size()
