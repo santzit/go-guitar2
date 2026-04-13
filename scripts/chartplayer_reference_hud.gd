@@ -30,16 +30,12 @@ const ROOT_NOTE_PITCH_CLASS := {
 	$Root/HighwayReference/StringLines/TrailRed,
 ]
 
-var _song_title: String = ""
-var _arrangement_name: String = ""
 var _total_song_duration_sec: float = 1.0
 var _last_hot_idx: int = -2
 
 
 func set_song_meta(song_name: String, arrangement: String) -> void:
-	_song_title = song_name
-	_arrangement_name = arrangement
-	_song_tag.text = "%s · %s" % [_song_title, _arrangement_name]
+	_song_tag.text = "%s · %s" % [song_name, arrangement]
 
 
 func set_reference_lyrics(main_line: String, focus_word: String) -> void:
@@ -75,7 +71,7 @@ func update_runtime(song_time: float, bpm: float, processed_note_count: int, tot
 func _root_note_to_index(root_note: String) -> int:
 	# Map chromatic pitch classes onto 6 visible string trails.
 	# This intentionally compresses 12 semitones into 6 lanes via modulo,
-	# so deterministic collisions exist (e.g. C (pitch 0) and F# (pitch 6) -> lane 0).
+	# so deterministic collisions exist (e.g. C# pitch 1 and G pitch 7 -> lane 1).
 	if not ROOT_NOTE_PITCH_CLASS.has(root_note):
 		return -1
 	return int(ROOT_NOTE_PITCH_CLASS[root_note]) % _trail_lines.size()
