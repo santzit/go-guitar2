@@ -60,14 +60,9 @@ func update_runtime(song_time: float, bpm: float, processed_note_count: int, tot
 
 	var hot_idx: int = _root_note_to_index(root_note)
 	if hot_idx != _last_hot_idx:
+		_set_trail_alpha(_last_hot_idx, TRAIL_INACTIVE_ALPHA)
+		_set_trail_alpha(hot_idx, TRAIL_ACTIVE_ALPHA)
 		_last_hot_idx = hot_idx
-		for i in _trail_lines.size():
-			var c := _trail_lines[i].self_modulate
-			if i == hot_idx:
-				c.a = TRAIL_ACTIVE_ALPHA
-			else:
-				c.a = TRAIL_INACTIVE_ALPHA
-			_trail_lines[i].self_modulate = c
 
 	# Keep runtime strings available for optional debugging, but hidden by default
 	# to preserve the clean ChartPlayer-like look.
@@ -80,10 +75,18 @@ func update_runtime(song_time: float, bpm: float, processed_note_count: int, tot
 func _root_note_to_index(root_note: String) -> int:
 	# Map chromatic pitch classes onto 6 visible string trails.
 	# This intentionally compresses 12 semitones into 6 lanes via modulo,
-	# so deterministic collisions exist (e.g. C pitch 0 and F# pitch 6 -> lane 0).
+	# so deterministic collisions exist (e.g. C (pitch 0) and F# (pitch 6) -> lane 0).
 	if not ROOT_NOTE_PITCH_CLASS.has(root_note):
 		return -1
 	return int(ROOT_NOTE_PITCH_CLASS[root_note]) % _trail_lines.size()
+
+
+func _set_trail_alpha(idx: int, alpha: float) -> void:
+	if idx < 0 or idx >= _trail_lines.size():
+		return
+	var c := _trail_lines[idx].self_modulate
+	c.a = alpha
+	_trail_lines[idx].self_modulate = c
 
 
 func _format_clock(seconds: float) -> String:
