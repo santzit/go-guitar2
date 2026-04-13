@@ -36,7 +36,7 @@ jobs:
             libgles2 \
             unzip
 
-      - name: Download Godot 4.4.1
+      - name: Download and install Godot
         run: |
           GODOT_ZIP="Godot_v${GODOT_VERSION}_linux.x86_64.zip"
           GODOT_EXE="Godot_v${GODOT_VERSION}_linux.x86_64"
@@ -66,7 +66,15 @@ jobs:
           GODOT_BIN_VERSION="$("$GODOT_DIR/$GODOT_EXE" --version)"
           GODOT_WS_VERSION="$("$GITHUB_WORKSPACE/$GODOT_EXE" --version)"
           GODOT_PATH_VERSION="$(godot --version)"
-          if [[ "$GODOT_BIN_VERSION" != *"$GODOT_VERSION"* || "$GODOT_WS_VERSION" != *"$GODOT_VERSION"* || "$GODOT_PATH_VERSION" != *"$GODOT_VERSION"* ]]; then
-            echo "Godot version mismatch"
+          if [[ "$GODOT_BIN_VERSION" != *"$GODOT_VERSION"* ]]; then
+            echo "GODOT_BIN version mismatch: $GODOT_BIN_VERSION"
+            exit 1
+          fi
+          if [[ "$GODOT_WS_VERSION" != *"$GODOT_VERSION"* ]]; then
+            echo "Workspace symlink version mismatch: $GODOT_WS_VERSION"
+            exit 1
+          fi
+          if [[ "$GODOT_PATH_VERSION" != *"$GODOT_VERSION"* ]]; then
+            echo "PATH symlink version mismatch: $GODOT_PATH_VERSION"
             exit 1
           fi
