@@ -424,15 +424,21 @@ func _update_fret_range_visuals() -> void:
 
 	var targets: Array[float] = _zero_lane_array()
 	if max_fret >= min_fret:
+		# Calculate 4-lane range starting from the first note's lane
+		var start_lane: int = (min_fret - 1) / FRETS_PER_LANE
+		var end_lane: int = mini(start_lane + 3, LANE_COUNT - 1)
+		var range_min_fret: int = 1 + start_lane * FRETS_PER_LANE
+		var range_max_fret: int = 1 + end_lane * FRETS_PER_LANE + (FRETS_PER_LANE - 1)
+		
 		_camera_target_min_fret = min_fret
 		_camera_target_max_fret = max_fret
 		for lane in LANE_COUNT:
 			# Lane buckets intentionally start at fret 1 (open strings/fret 0 are not spawned).
 			var lane_min: int = 1 + lane * FRETS_PER_LANE
 			var lane_max: int = lane_min + (FRETS_PER_LANE - 1)
-			if max_fret >= lane_min and min_fret <= lane_max:
+			if range_max_fret >= lane_min and range_min_fret <= lane_max:
 				targets[lane] = 1.0
-		_highway.call("set_active_fret_range", min_fret, max_fret)
+		_highway.call("set_active_fret_range", range_min_fret, range_max_fret)
 	else:
 		_highway.call("set_active_fret_range", 0, -1)
 
