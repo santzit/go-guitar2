@@ -17,14 +17,13 @@ const TRAVEL_SPEED : float = 2.0
 const HIGHWAY_DEPTH : float = 20.0
 const LEAD_TIME     : float = HIGHWAY_DEPTH / TRAVEL_SPEED   # = 10.0 s
 
-# -- Highway layout (must match note.gd) ------------------------------------
-const FRET_COUNT         : int   = 24
-const SCALE_LENGTH       : float = 300.0
-const FRET_WORLD_WIDTH   : float = 24.0
+# -- Highway layout (from ChartCommon + game-specific) ----------------------
+## ChartCommon defines FRET_COUNT, FRET_WORLD_WIDTH, and all coordinate formulas.
+const FRET_COUNT         : int   = ChartCommon.FRET_COUNT    # 24
+const FRET_WORLD_WIDTH   : float = ChartCommon.FRET_WORLD_WIDTH  # 24.0
 const FRET_RANGE_WINDOW  : float = 4.0
 const LANE_COUNT         : int   = 6
 const FRETS_PER_LANE     : int   = FRET_COUNT / LANE_COUNT
-const MIN_VALID_FRET_POS : float = 0.001
 const DEFAULT_CAMERA_FRET: float = FRET_COUNT * 0.5
 
 # -- Camera follow -----------------------------------------------------------
@@ -180,7 +179,7 @@ func _ready() -> void:
 	if FRET_COUNT % LANE_COUNT != 0:
 		push_warning("MusicPlay: FRET_COUNT should be evenly divisible by LANE_COUNT for lane mapping.")
 	if _camera:
-		_camera.position.x = clampf(_fret_world_x(FRET_COUNT / 2), CAMERA_X_MIN, CAMERA_X_MAX)
+		_camera.position.x = clampf(ChartCommon.fret_separator_world_x(FRET_COUNT / 2), CAMERA_X_MIN, CAMERA_X_MAX)  # integer division: 24/2=12
 		_camera.position.y = CAMERA_Y
 		_camera.position.z = CAMERA_Z
 		_camera.fov        = CAM_FOV
@@ -286,7 +285,7 @@ func _process(delta: float) -> void:
 			focus_fret = (_camera_target_min_fret + _camera_target_max_fret) * 0.5
 		else:
 			focus_fret = DEFAULT_CAMERA_FRET
-		var target_x := clampf(_fret_world_x(int(round(focus_fret))), CAMERA_X_MIN, CAMERA_X_MAX)
+		var target_x := clampf(ChartCommon.fret_separator_world_x(int(round(focus_fret))), CAMERA_X_MIN, CAMERA_X_MAX)
 		var cam_pos  := _camera.position
 		cam_pos.x = lerp(cam_pos.x, target_x, CAMERA_LERP_SPEED * minf(delta, MAX_DELTA))
 		cam_pos.y = CAMERA_Y
@@ -309,21 +308,6 @@ func _process(delta: float) -> void:
 
 
 # -- Helpers -----------------------------------------------------------------
-
-## World X from ChartPlayer-like fret mapping:
-##   x = scale_length - (scale_length / pow(2, fret / 12))
-## then normalized to the 0..24 highway width.
-func _fret_world_x(f: int) -> float:
-	var max_pos: float = _chart_fret_pos(float(FRET_COUNT))
-	# Defensive fallback for invalid configuration only.
-	if max_pos <= MIN_VALID_FRET_POS:
-		return 0.0
-	return _chart_fret_pos(float(f)) / max_pos * FRET_WORLD_WIDTH
-
-
-func _chart_fret_pos(fret_num: float) -> float:
-	return SCALE_LENGTH - (SCALE_LENGTH / pow(2.0, fret_num / 12.0))
-
 
 func _take_screenshot(num: int) -> void:
 	await RenderingServer.frame_post_draw

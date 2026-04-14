@@ -1,13 +1,12 @@
 extends Node3D
 ## note.gd  –  behaviour for a single pooled note.
 ##
-## Coordinate mapping (ChartPlayer-like)
-##   X = GetFretPosition(fret), normalized to highway width
-##       GetFretPosition(f) = scale_length - scale_length / pow(2, f / 12)
-##       Camera right = world +X  → low fret = screen-left, high fret = screen-right
-##   Y = GetStringHeight(string_index), scaled to scene size
-##       GetStringHeight(s) = 3 + (5 - s) * 4
-##       String 0 (low E) = screen-top, string 5 (high e) = screen-bottom
+## All coordinate formulas live in scripts/common.gd (class ChartCommon) so they
+## can be shared with highway.gd, music_play.gd, and fretboard.gd.
+##
+## Coordinate mapping summary
+##   X = ChartCommon.fret_mid_world_x(fret)      — ChartPlayer fret spacing
+##   Y = ChartCommon.string_world_y(string_index) — string 0 = top, 5 = bottom
 ##   Z = STRUM_Z − (time_offset − song_time) × TRAVEL_SPEED
 ##       Notes spawn at Z = -20 and travel toward Z = 0.
 
@@ -78,14 +77,6 @@ const LABEL_Z : float = 0.06
 ## X offset between tens and ones digit for two-digit fret numbers.
 ## Camera right = world +X  → tens (screen-left) at −X, ones (screen-right) at +X.
 const DIGIT_X_OFFSET : float = 0.07
-
-const FRET_COUNT         : int   = 24
-const SCALE_LENGTH       : float = 300.0
-const FRET_WORLD_WIDTH   : float = 24.0
-const STRING_HEIGHT_SCALE: float = 0.125
-## Height of one string slot in world units (= 4 × STRING_HEIGHT_SCALE).
-const STRING_SLOT_HEIGHT : float = 4.0 * STRING_HEIGHT_SCALE  # 0.5
-const MIN_VALID_FRET_POS : float = 0.001
 ## Notes spawn at Z=-20 and travel toward Z=0.
 const START_Z       : float = -20.0
 const STRUM_Z       : float = 0.0
@@ -134,7 +125,7 @@ func setup(p_fret: int, p_string: int, p_time: float, p_duration: float, p_show_
 	visible      = true
 	_miss_until  = -1.0
 
-	position = Vector3(_fret_world_x(fret), _string_world_y(string_index), START_Z)
+	position = Vector3(ChartCommon.fret_mid_world_x(fret), ChartCommon.string_world_y(string_index), START_Z)
 	_miss_label.visible = false
 
 	if _finger:
@@ -143,7 +134,7 @@ func setup(p_fret: int, p_string: int, p_time: float, p_duration: float, p_show_
 		# Skipping the resize on pool reuse for the same fret avoids redundant mesh mutations.
 		if fret != _last_sized_fret:
 			_last_sized_fret = fret
-			var sz  := _fret_indicator_size(fret)
+			var sz  := ChartCommon.note_indicator_size(fret)
 			var plane := _finger.mesh as PlaneMesh
 			if plane:
 				plane.size = sz
@@ -224,34 +215,3 @@ func deactivate() -> void:
 		pool.return_note(self)
 
 
-func _fret_world_x(fret_num: int) -> float:
-	var max_pos: float = _chart_fret_pos(float(FRET_COUNT))
-	# Safety fallback for invalid configuration (e.g. FRET_COUNT/SCALE_LENGTH set to 0).
-	# This indicates a bad setup; return 0 to keep notes from exploding off-screen.
-	if max_pos <= MIN_VALID_FRET_POS:
-		return 0.0
-	# Centre the note in the middle of its fret slot.
-	var curr := _chart_fret_pos(float(fret_num))
-	var nxt  := _chart_fret_pos(float(fret_num) + 1.0)
-	return (curr + nxt) * 0.5 / max_pos * FRET_WORLD_WIDTH
-
-
-## Returns the world-unit size (X = fret spacing, Y = 80 % of string slot) for a note
-## at the given fret using the ChartPlayer fret-spacing formula.
-func _fret_indicator_size(fret_num: int) -> Vector2:
-	var max_pos := _chart_fret_pos(float(FRET_COUNT))
-	if max_pos <= MIN_VALID_FRET_POS:
-		return Vector2(0.116, 0.06)
-	var curr := _chart_fret_pos(float(fret_num))
-	var nxt  := _chart_fret_pos(float(fret_num) + 1.0)
-	var w    := (nxt - curr) / max_pos * FRET_WORLD_WIDTH
-	var h    := STRING_SLOT_HEIGHT * 0.8
-	return Vector2(w, h)
-
-
-func _chart_fret_pos(fret_num: float) -> float:
-	return SCALE_LENGTH - (SCALE_LENGTH / pow(2.0, fret_num / 12.0))
-
-
-func _string_world_y(str_idx: int) -> float:
-	return (3.0 + float(5 - str_idx) * 4.0) * STRING_HEIGHT_SCALE
