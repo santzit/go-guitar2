@@ -15,6 +15,10 @@ config/description="Rocksmith 2014 like Guitar 3D Game"
 run/main_scene="res://scenes/game_menu.tscn"
 config/features=PackedStringArray("4.4", "Mobile")
 
+[gui]
+
+theme/custom="res://assets/fonts/project_theme.tres"
+
 [rendering]
 
 renderer/rendering_method="mobile"

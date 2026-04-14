@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3 uid="uid://cchordpool01"]
+
+[ext_resource type="Script" path="res://scripts/chord_pool.gd" id="1_poolscript"]
+
+; Pool of 64 chord container instances managed by chord_pool.gd.
+[node name="ChordPool" type="Node3D"]
+script = ExtResource("1_poolscript")

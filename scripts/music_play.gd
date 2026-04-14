@@ -72,6 +72,7 @@ const CHORD_GROUP_THRESHOLD : float = 0.02
 
 # -- Scene references --------------------------------------------------------
 @onready var _pool        : Node3D            = $NotePool
+@onready var _chord_pool  : Node3D            = $ChordPool
 @onready var _highway     : Node3D            = $Highway
 @onready var _fretboard   : Node3D            = $Fretboard
 @onready var _player      : AudioStreamPlayer = $AudioStreamPlayer
@@ -102,11 +103,13 @@ var _string_glow         : Array[float] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 var _glow_cursor         : int      = 0
 var _lane_glow           : Array[float] = []
 
-## Per-string fret-change tracker for smart label logic.
+## Per-string fret-change tracker for smart label logic on single notes.
 ## -1 = no note has been spawned on this string yet.
-## When the next note on string S has a different fret from _last_fret_per_string[S],
-## the label is shown and _last_fret_per_string[S] is updated.
 var _last_fret_per_string: Array[int] = [-1, -1, -1, -1, -1, -1]
+
+## Chord repeat tracker: sorted "fret:string,..." signature of the last spawned chord.
+## Empty string means no chord has been spawned yet.
+var _last_chord_sig: String = ""
 
 
 func _ready() -> void:
@@ -238,9 +241,10 @@ func _process(delta: float) -> void:
 		# Wall-clock fallback when audio isn't playing.
 		_song_time = float(Time.get_ticks_msec() - _start_wall_ms) / 1000.0
 
-	# Push the authoritative audio time to all active notes so their Z
+	# Push the authoritative audio time to all active notes/chords so their Z
 	# positions are computed directly from the audio clock (not accumulated delta).
 	_pool.tick(_song_time)
+	_chord_pool.tick(_song_time)
 
 	# ── Strum-line debug print ─────────────────────────────────────────────────
 	# Print each chord group the moment it crosses the strum line (song_time >= note.time).
@@ -260,21 +264,57 @@ func _process(delta: float) -> void:
 		else:
 			break
 
+	# ── Note / chord spawning ─────────────────────────────────────────────────
+	# Notes at the same timestamp (within CHORD_GROUP_THRESHOLD) are treated as
+	# a chord and routed to ChordPool; single notes go to NotePool.
 	while _next_idx < _notes.size():
-		var nd: Dictionary = _notes[_next_idx]
-		if nd["time"] - _song_time <= LEAD_TIME:
-			var f: int = nd["fret"]
-			var s: int = nd["string"]
-			# Skip open-string (fret 0) notes and any out-of-range fret values.
-			if f >= 1 and f <= 24:
-				# Smart label: show the fret number only when the fret changes on this string.
-				var show_label := (f != _last_fret_per_string[s])
-				if show_label:
-					_last_fret_per_string[s] = f
-				_pool.spawn_note(f, s, nd["time"], nd["duration"], show_label)
-			_next_idx += 1
-		else:
+		var nd : Dictionary = _notes[_next_idx]
+		if float(nd["time"]) - _song_time > LEAD_TIME:
 			break
+
+		# Collect all notes at this timestamp.
+		var t0    : float = float(nd.get("time", 0.0))
+		var group : Array = [nd]
+		var nj    : int   = _next_idx + 1
+		while nj < _notes.size() \
+				and absf(float(_notes[nj].get("time", 0.0)) - t0) < CHORD_GROUP_THRESHOLD:
+			group.append(_notes[nj])
+			nj += 1
+
+		# Filter to valid frets (1–24); open strings and out-of-range are skipped.
+		var valid_notes : Array = []
+		for gn in group:
+			var f : int = int(gn.get("fret", 0))
+			var s : int = int(gn.get("string", 0))
+			if f >= 1 and f <= 24:
+				valid_notes.append({"fret": f, "string": s,
+					"duration": float(gn.get("duration", 0.25))})
+
+		if valid_notes.size() >= 2:
+			# ── Chord path ────────────────────────────────────────────────────
+			var sig          := _chord_signature(valid_notes)
+			var show_details : bool   = (sig != _last_chord_sig)
+			_last_chord_sig           = sig
+			# Chord name from the first note in the group.
+			var root_f : int    = int(valid_notes[0].get("fret", 0))
+			var root_s : int    = int(valid_notes[0].get("string", 0))
+			var chord_name : String = _get_note_name(root_f, root_s)
+			var dur : float = float(valid_notes[0].get("duration", 0.25))
+			_chord_pool.spawn_chord(valid_notes, t0, chord_name, show_details)
+
+		elif valid_notes.size() == 1:
+			# ── Single note path ──────────────────────────────────────────────
+			var vn   : Dictionary = valid_notes[0]
+			var f    : int   = int(vn.get("fret", 0))
+			var s    : int   = int(vn.get("string", 0))
+			var dur  : float = float(vn.get("duration", 0.25))
+			# Smart label: show fret number only when fret changes on this string.
+			var show_label : bool = (f != _last_fret_per_string[s])
+			if show_label:
+				_last_fret_per_string[s] = f
+			_pool.spawn_note(f, s, t0, dur, show_label)
+
+		_next_idx = nj
 
 	_update_fret_range_visuals()
 
@@ -418,6 +458,16 @@ func _get_note_name(fret: int, string_idx: int) -> String:
 		return "?"
 	var midi := STRING_OPEN_MIDI[string_idx] + fret
 	return NOTE_NAMES[midi % 12]
+
+
+## Compute a canonical signature string for a chord (sorted "fret:string,..." pairs).
+## Two chords with the same signature are considered repeated (same fret/string set).
+func _chord_signature(notes: Array) -> String:
+	var parts : Array[String] = []
+	for n in notes:
+		parts.append("%d:%d" % [int(n.get("fret", 0)), int(n.get("string", 0))])
+	parts.sort()
+	return ",".join(parts)
 
 
 ## Sort an array of note dictionaries by fret ascending (returns a sorted copy).
