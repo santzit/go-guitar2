@@ -1,6 +1,7 @@
 extends Node3D
 ## fretboard.gd  –  Drives per-string glow intensity via shader parameters,
-## and builds vertical fret-line markers at ChartPlayer fret positions.
+## builds vertical fret-line markers at ChartPlayer fret positions, and
+## places fret-number labels (1–24) below the lowest (purple) string.
 ##
 ## Each string (String0 … String5) must have a ShaderMaterial that uses
 ## shaders/string_glow.gdshader, which exposes the `glow_intensity` uniform.
@@ -19,6 +20,13 @@ const FRET_LINE_Y      : float = 1.45
 ## Z offset so fret lines sit just in front of the string cylinders (Z=0).
 const FRET_LINE_Z      : float = 0.03
 
+## Y position of string 5 (purple / high-e) in world units.
+const STRING5_Y        : float = 0.2
+## How far below string 5 the fret number labels are placed.
+const FRET_NUM_Y_OFFSET: float = 0.22
+## Pixel size for the fret-number Label3D nodes (world units per pixel).
+const FRET_NUM_PIXEL_SIZE: float = 0.005
+
 ## Cache of ShaderMaterial per string (index 0–5).
 var _string_mats : Array = []
 
@@ -33,6 +41,7 @@ func _ready() -> void:
 			push_warning("Fretboard: String%d node not found." % i)
 			_string_mats.append(null)
 	_build_fret_lines()
+	_build_fret_numbers()
 
 
 ## Set the glow intensity (0.0–1.0) for a single string.
@@ -69,3 +78,28 @@ func _build_fret_lines() -> void:
 		mi.set_surface_override_material(0, mat)
 		mi.position = Vector3(x, FRET_LINE_Y, FRET_LINE_Z)
 		add_child(mi)
+
+
+## Place a Label3D with the fret number (1–24) below the purple string,
+## centred horizontally in each fret slot using ChartPlayer fret-mid positions.
+func _build_fret_numbers() -> void:
+	var font := load("res://assets/fonts/Inter_18pt-Bold.ttf") as FontFile
+	var label_y := STRING5_Y - FRET_NUM_Y_OFFSET
+
+	for fret in range(1, ChartCommon.FRET_COUNT + 1):
+		var x := ChartCommon.fret_mid_world_x(fret)
+		var lbl := Label3D.new()
+		lbl.name             = "FretNum%d" % fret
+		lbl.text             = str(fret)
+		lbl.pixel_size       = FRET_NUM_PIXEL_SIZE
+		lbl.font_size        = 20
+		lbl.outline_size     = 4
+		lbl.no_depth_test    = true
+		lbl.billboard        = BaseMaterial3D.BILLBOARD_ENABLED
+		lbl.double_sided     = true
+		lbl.modulate         = Color(1.0, 1.0, 1.0, 1.0)
+		lbl.outline_modulate = Color(0.0, 0.0, 0.0, 1.0)
+		if font:
+			lbl.font = font
+		lbl.position = Vector3(x, label_y, FRET_LINE_Z + 0.01)
+		add_child(lbl)
