@@ -167,7 +167,9 @@ func _ensure_border(min_fret: int, w: float, h: float) -> void:
 		plane.size        = Vector2(w, h)
 		plane.orientation = PlaneMesh.FACE_Z
 		_border_mesh.mesh = plane
-		# Compute UV border fraction that maps to ~2.5 cm world-unit thickness.
+		# Convert a target ~2.5 cm world-unit border thickness to UV-space fractions.
+		# uv_frac = desired_thickness_m / mesh_dimension_m.
+		# Clamped so the line is never invisible (< 1.5 %) or over-wide (> 12 % / 20 %).
 		var bu : float = clampf(0.025 / w, 0.015, 0.12)
 		var bv : float = clampf(0.025 / maxf(h, 0.001), 0.015, 0.20)
 		var mat := _border_mesh.get_surface_override_material(0) as ShaderMaterial
