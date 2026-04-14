@@ -119,8 +119,9 @@ func setup(
 	# Match ChartPlayer: span from (min_fret - 1) to (min_fret + 3)
 	var left_x   : float = ChartCommon.fret_separator_world_x(min_fret - 1)
 	var right_x  : float = ChartCommon.fret_separator_world_x(min_fret + BORDER_FRET_SPAN - 1)
-	var top_y    : float = ChartCommon.string_world_y(min_string)
-	var bot_y    : float = ChartCommon.string_world_y(max_string)
+	# Always span from top string (0) to one slot below bottom string (5)
+	var top_y    : float = ChartCommon.string_world_y(0)
+	var bot_y    : float = ChartCommon.string_world_y(5) - ChartCommon.STRING_SLOT_HEIGHT
 	var center_x : float = (left_x + right_x) * 0.5
 	var center_y : float = (top_y + bot_y) * 0.5
 	position = Vector3(center_x, center_y, START_Z)
