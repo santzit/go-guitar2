@@ -2,13 +2,14 @@ extends Node3D
 ## chord.gd — Chord container: bordered box spanning 4 frets × all involved strings.
 ##
 ## For the first occurrence (or chord change): renders per-string finger indicators
-## + chord name label to the top-right outside the container.
+## + chord name label to the top-left outside the container.
 ## For repeated chords: renders only the border outline.
 ##
 ## Coordinate conventions (shared via ChartCommon):
 ##   X = fret position, Y = string height, Z = time (spawns at -20 → travels to 0)
 ##
 ## The border always spans BORDER_FRET_SPAN (4) frets starting from min_fret.
+## The interior of the border box is fully transparent (non-edge pixels discarded).
 
 # ── Guitar note textures (string 0 top → string 5 bottom) ──────────────────
 # Order: Red, Yellow, Cyan(Blue), Orange, Green, Purple
@@ -136,13 +137,13 @@ func setup(
 			var s : int = clampi(int(n.get("string", 0)), 0, 5)
 			_add_indicator(f, s, center_x, center_y)
 
-	# ── Chord name label (top-right outside the container) ─────────────────────
+	# ── Chord name label (top-left outside the container) ─────────────────────
 	_ensure_label()
 	_chord_label.visible = p_show_details
 	if p_show_details:
 		_chord_label.text = p_chord_name
 		_chord_label.position = Vector3(
-			right_x - center_x + 0.25,
+			left_x  - center_x - 0.25,
 			top_y   - center_y + 0.15,
 			0.10
 		)
