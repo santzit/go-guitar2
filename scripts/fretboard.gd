@@ -95,7 +95,7 @@ func _build_fret_numbers() -> void:
 		lbl.name             = "FretNum%d" % fret
 		lbl.text             = str(fret)
 		lbl.pixel_size       = FRET_NUM_PIXEL_SIZE
-		lbl.font_size        = 20
+		lbl.font_size        = 32
 		lbl.outline_size     = 4
 		lbl.no_depth_test    = true
 		lbl.billboard        = BaseMaterial3D.BILLBOARD_ENABLED
