@@ -408,8 +408,8 @@ func _update_fret_range_visuals() -> void:
 	if not is_instance_valid(_highway):
 		return
 
-	var min_fret: int = 999
-	var max_fret: int = -1
+	# Find only the FIRST note within the window (closest in time)
+	var first_note_fret: int = -1
 	var i: int = _glow_cursor
 	while i < _notes.size():
 		var nd: Dictionary = _notes[i]
@@ -418,22 +418,21 @@ func _update_fret_range_visuals() -> void:
 			break
 		var f: int = int(nd.get("fret", 0))
 		if f >= 1 and f <= FRET_COUNT:
-			min_fret = mini(min_fret, f)
-			max_fret = maxi(max_fret, f)
+			first_note_fret = f
+			break
 		i += 1
 
 	var targets: Array[float] = _zero_lane_array()
-	if max_fret >= min_fret:
+	if first_note_fret >= 1:
 		# Calculate 4-lane range starting from the first note's lane
-		var start_lane: int = (min_fret - 1) / FRETS_PER_LANE
+		var start_lane: int = (first_note_fret - 1) / FRETS_PER_LANE
 		var end_lane: int = mini(start_lane + 3, LANE_COUNT - 1)
 		var range_min_fret: int = 1 + start_lane * FRETS_PER_LANE
 		var range_max_fret: int = 1 + end_lane * FRETS_PER_LANE + (FRETS_PER_LANE - 1)
 		
-		_camera_target_min_fret = min_fret
-		_camera_target_max_fret = max_fret
+		_camera_target_min_fret = first_note_fret
+		_camera_target_max_fret = first_note_fret
 		for lane in LANE_COUNT:
-			# Lane buckets intentionally start at fret 1 (open strings/fret 0 are not spawned).
 			var lane_min: int = 1 + lane * FRETS_PER_LANE
 			var lane_max: int = lane_min + (FRETS_PER_LANE - 1)
 			if range_max_fret >= lane_min and range_min_fret <= lane_max:
