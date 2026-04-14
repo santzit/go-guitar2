@@ -89,7 +89,8 @@ func _build_fret_numbers() -> void:
 	var label_y := STRING5_Y - FRET_NUM_Y_OFFSET
 
 	for fret in range(1, ChartCommon.FRET_COUNT + 1):
-		var x := ChartCommon.fret_mid_world_x(fret)
+		# fret_mid_world_x uses 0-based slot index, so slot for label N is N-1.
+		var x := ChartCommon.fret_mid_world_x(fret - 1)
 		var lbl := Label3D.new()
 		lbl.name             = "FretNum%d" % fret
 		lbl.text             = str(fret)
