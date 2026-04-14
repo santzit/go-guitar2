@@ -72,7 +72,11 @@ void fragment() {
 	float pulse = 0.86 + 0.14 * sin(TIME * pulse_speed + float(lane_idx));
 	float lane_energy = pow(lane_core, lane_glow_power) * lane_intensity(lane_idx) * pulse;
 
-	float fret = uv.x * float(fret_count);
+	// Convert UV.x to linear fret position using inverse of chart_fret_pos
+	float max_pos = chart_fret_pos(float(fret_count));
+	float x_pos = uv.x * max_pos;
+	float fret = 12.0 * log2(SCALE_LENGTH / (SCALE_LENGTH - x_pos));
+	
 	float min_f = float(active_fret_min);
 	float max_f = float(active_fret_max);
 	float active_ok = step(min_f, max_f);
