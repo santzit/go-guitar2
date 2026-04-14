@@ -190,7 +190,10 @@ func _update_finger_geometry() -> void:
 	_add_quad(st, v4, v5, v1, v0)
 	
 	st.generate_normals()
-	_finger.mesh = st.commit()
+	var new_mesh := st.commit()
+	_finger.mesh = new_mesh
+	if _fill_mat:
+		_finger.set_surface_override_material(0, _fill_mat)
 
 
 func _add_quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> void:
