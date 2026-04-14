@@ -318,8 +318,6 @@ func _process(delta: float) -> void:
 
 		_next_idx = nj
 
-	_update_fret_range_visuals()
-
 	# Camera follows the center of the active fret range.
 	if _camera:
 		var focus_fret: float
@@ -344,6 +342,9 @@ func _process(delta: float) -> void:
 
 	# Drive per-string glow intensity from upcoming note data.
 	_update_string_glows()
+
+	# ── Update lane highlighting every frame based on next upcoming note ──────────────
+	_update_fret_range_visuals()
 
 	# Update debug info overlay.
 	_update_debug_info()
