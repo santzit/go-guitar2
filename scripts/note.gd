@@ -1,25 +1,24 @@
 extends Node3D
 ## note.gd  –  behaviour for a single pooled note.
 ##
-## Coordinate mapping (simple, no inversions)
-##   X = fret × FRET_SPACING − FRET_SPACING × 0.5
-##       fret 1 → X = 0.5 (left),  fret 24 → X = 23.5 (right)
-##       Camera right = world +X  → low fret = screen-left, high fret = screen-right
-##   Y = STRING_Y_BASE + string_index × STRING_SPACING
-##       string 0 (purple) → Y = 0.20 (bottom),  string 5 (red) → Y = 2.70 (top)
-##       Camera up = world +Y  → string 0 = screen-bottom, string 5 = screen-top
+## All coordinate formulas live in scripts/common.gd (class ChartCommon) so they
+## can be shared with highway.gd, music_play.gd, and fretboard.gd.
+##
+## Coordinate mapping summary
+##   X = ChartCommon.fret_mid_world_x(fret)      — ChartPlayer fret spacing
+##   Y = ChartCommon.string_world_y(string_index) — string 0 = top, 5 = bottom
 ##   Z = STRUM_Z − (time_offset − song_time) × TRAVEL_SPEED
-##       Notes spawn at Z = 0 (horizon / top of screen) and travel toward
-##       Z = STRUM_Z = 20 (strum line near camera at Z = 26)
+##       Notes spawn at Z = -20 and travel toward Z = 0.
 
-# ── String colour palette (Rocksmith 2014 convention) ────────────────────────
-const STRING_COLORS: Array[Color] = [
-	Color(0.70, 0.10, 0.95, 1.0),  # 0 – purple  (low E)
-	Color(0.10, 0.80, 0.20, 1.0),  # 1 – green   (A)
-	Color(0.90, 0.50, 0.05, 1.0),  # 2 – orange  (D)
-	Color(0.10, 0.50, 0.95, 1.0),  # 3 – blue    (G)
-	Color(0.85, 0.85, 0.05, 1.0),  # 4 – yellow  (B)
-	Color(0.85, 0.15, 0.15, 1.0),  # 5 – red     (high e)
+# ── ChartPlayer guitar note textures (string 0 top → string 5 bottom) ────────
+# Order: Red, Yellow, Cyan(Blue), Orange, Green, Purple
+const STRING_TEXTURES: Array[Texture2D] = [
+	preload("res://assets/textures/chartplayer/GuitarRed.png"),
+	preload("res://assets/textures/chartplayer/GuitarYellow.png"),
+	preload("res://assets/textures/chartplayer/GuitarCyan.png"),
+	preload("res://assets/textures/chartplayer/GuitarOrange.png"),
+	preload("res://assets/textures/chartplayer/GuitarGreen.png"),
+	preload("res://assets/textures/chartplayer/GuitarPurple.png"),
 ]
 
 # ── Digit scenes (0–9) used to display the fret number on each note ──────────
@@ -36,21 +35,51 @@ const DIGIT_SCENES: Array[PackedScene] = [
 	preload("res://scenes/number_9.tscn"),
 ]
 
+## Spatial shader for the finger indicator plane.
+## Uses the guitar texture's alpha channel directly so circular textures render
+## without any rectangular frame box.  Pixels with alpha < 0.01 are discarded
+## so they write nothing to the framebuffer or depth buffer — this is what
+## eliminates the "frame box" artifact that UV-edge or alpha-blend alone cannot fix.
+## Billboard is implemented in vertex() because Godot 4 spatial shaders have no
+## 'billboard' render_mode.
+const _FINGER_SHADER_CODE: String = """
+shader_type spatial;
+render_mode blend_mix, unshaded, cull_disabled, depth_test_disabled;
+
+uniform sampler2D albedo_texture : source_color, hint_default_white;
+
+void vertex() {
+	// Spherical billboard: cancel model rotation, preserve position + mesh-baked scale.
+	MODELVIEW_MATRIX = VIEW_MATRIX * mat4(
+		INV_VIEW_MATRIX[0],
+		INV_VIEW_MATRIX[1],
+		INV_VIEW_MATRIX[2],
+		MODEL_MATRIX[3]
+	);
+	MODELVIEW_NORMAL_MATRIX = mat3(MODELVIEW_MATRIX);
+}
+
+void fragment() {
+	vec4 tex = texture(albedo_texture, UV);
+	// Discard fully-transparent pixels so the rectangular PlaneMesh is invisible
+	// wherever the circular guitar texture has no content.  This eliminates the
+	// rectangular "frame box" artifact — discarded fragments write neither colour
+	// nor depth, so the plane silhouette never appears.
+	if (tex.a < 0.01) {
+		discard;
+	}
+	ALBEDO = tex.rgb;
+	ALPHA  = tex.a;
+}
+"""
 ## Z offset places the label on the front face of the note box (faces +Z toward camera).
 const LABEL_Z : float = 0.06
 ## X offset between tens and ones digit for two-digit fret numbers.
 ## Camera right = world +X  → tens (screen-left) at −X, ones (screen-right) at +X.
 const DIGIT_X_OFFSET : float = 0.07
-
-const FRET_COUNT    : int   = 24   # total number of fret lanes on the highway
-const FRET_SPACING  : float = 1.0
-const STRING_SPACING: float = 0.5
-## Minimum Y above the highway surface (XZ plane at Y=0).
-## Must match highway.gd STRING_Y_BASE so notes sit on their string lines.
-const STRING_Y_BASE : float = 0.20
-## Notes spawn at the horizon (Z=0, far from camera) and travel toward the strum line.
-const START_Z       : float = 0.0
-const STRUM_Z       : float = 20.0
+## Notes spawn at Z=-20 and travel toward Z=0.
+const START_Z       : float = -20.0
+const STRUM_Z       : float = 0.0
 const TRAVEL_SPEED  : float = 2.0   # units per second – must match music_play.gd
 const MISS_HOLD_SECS: float = 1.0
 const MISS_LABEL_Z  : float = 0.30
@@ -61,18 +90,26 @@ var time_offset  : float = 0.0
 var duration     : float = 0.25
 var is_active    : bool  = false
 var _miss_until  : float = -1.0
+## Track the last fret this note was sized for so we skip the expensive PlaneMesh
+## resize on pool reuse when the fret hasn't changed.
+var _last_sized_fret: int = -1
 
-@onready var _mesh       : MeshInstance3D = $NoteMesh
+@onready var _finger     : MeshInstance3D = $FingerIndicator
 @onready var _fret_label : Node3D         = $FretLabel
 @onready var _miss_label : Label3D        = $MissLabel
 
 
 func _ready() -> void:
-	# Give each instance its own copy of the ShaderMaterial so colours are independent.
-	if _mesh:
-		var mat := _mesh.get_surface_override_material(0)
-		if mat:
-			_mesh.set_surface_override_material(0, mat.duplicate())
+	# ── Finger indicator: custom ShaderMaterial with alpha transparency + billboard ──
+	# blend_mix + ALPHA=tex.a lets the circular guitar textures render without any
+	# rectangular opaque background.  Each note instance owns its own ShaderMaterial so
+	# pool reuse never bleeds albedo_texture state across notes.
+	if _finger:
+		var shader := Shader.new()
+		shader.code = _FINGER_SHADER_CODE
+		var mat := ShaderMaterial.new()
+		mat.shader = shader
+		_finger.set_surface_override_material(0, mat)
 	if _miss_label:
 		_miss_label.position = Vector3(0.0, 0.0, MISS_LABEL_Z)
 
@@ -88,14 +125,21 @@ func setup(p_fret: int, p_string: int, p_time: float, p_duration: float, p_show_
 	visible      = true
 	_miss_until  = -1.0
 
-	position = Vector3(fret * FRET_SPACING - FRET_SPACING * 0.5, STRING_Y_BASE + string_index * STRING_SPACING, START_Z)
+	position = Vector3(ChartCommon.fret_mid_world_x(fret), ChartCommon.string_world_y(string_index), START_Z)
 	_miss_label.visible = false
 
-	# Apply string colour to the per-instance material.
-	if _mesh:
-		var mat := _mesh.get_surface_override_material(0) as ShaderMaterial
+	if _finger:
+		var mat := _finger.get_surface_override_material(0) as ShaderMaterial
+		# Resize the PlaneMesh only when the fret changes (first use or different fret).
+		# Skipping the resize on pool reuse for the same fret avoids redundant mesh mutations.
+		if fret != _last_sized_fret:
+			_last_sized_fret = fret
+			var sz  := ChartCommon.note_indicator_size(fret)
+			var plane := _finger.mesh as PlaneMesh
+			if plane:
+				plane.size = sz
 		if mat:
-			mat.set_shader_parameter("note_color", STRING_COLORS[string_index])
+			mat.set_shader_parameter("albedo_texture", STRING_TEXTURES[string_index])
 
 	if p_show_label:
 		_rebuild_fret_label()
@@ -142,14 +186,14 @@ func _rebuild_fret_label() -> void:
 ## synced to the audio stream rather than accumulating delta errors.
 ##
 ## Example: note with time_offset=10.0 and TRAVEL_SPEED=2.0
-##   p_song_time=0.0   → Z=20-(10-0)*2  =  0.0 = START_Z (note at horizon, far from camera)
-##   p_song_time=10.0  → Z=20-(10-10)*2 = 20.0 = STRUM_Z (note at strum line, hit time)
+##   p_song_time=0.0   → Z=0-(10-0)*2    = -20.0 = START_Z
+##   p_song_time=10.0  → Z=0-(10-10)*2   = 0.0 = STRUM_Z
 func tick(p_song_time: float) -> void:
 	if not is_active:
 		return
 
 	# Compute Z directly from audio time.
-	# Notes travel from Z=0 (horizon) toward Z=STRUM_Z=20 (strum line near camera).
+	# Notes travel from Z=-20 toward Z=STRUM_Z=0.
 	position.z = STRUM_Z - (time_offset - p_song_time) * TRAVEL_SPEED
 
 	if _miss_until < 0.0 and p_song_time >= time_offset:
@@ -169,3 +213,5 @@ func deactivate() -> void:
 	var pool := get_parent()
 	if pool and pool.has_method("return_note"):
 		pool.return_note(self)
+
+

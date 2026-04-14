@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://cchordscn001"]
+
+[ext_resource type="Script" path="res://scripts/chord.gd" id="1_chordscript"]
+
+; Chord container — all visual children (border, indicators, label) are created
+; dynamically in chord.gd's setup() so the pool instances start lightweight.
+[node name="Chord" type="Node3D"]
+script = ExtResource("1_chordscript")

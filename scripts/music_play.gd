@@ -12,27 +12,36 @@ const BUS_MASTER : int = 6   # Master bus
 
 # -- Timing constants (must match note.gd) -----------------------------------
 const TRAVEL_SPEED : float = 2.0
-## Highway depth in world units.  Notes travel this distance (Z=0 → Z=20).
+## Highway depth in world units (absolute distance). Notes travel 20 units (Z=-20 → Z=0).
 ## LEAD_TIME = HIGHWAY_DEPTH / TRAVEL_SPEED = how many seconds ahead notes spawn.
 const HIGHWAY_DEPTH : float = 20.0
 const LEAD_TIME     : float = HIGHWAY_DEPTH / TRAVEL_SPEED   # = 10.0 s
 
-# -- Highway layout (must match note.gd) ------------------------------------
-const FRET_COUNT   : int   = 24
-const FRET_SPACING : float = 1.0
+# -- Highway layout (from ChartCommon + game-specific) ----------------------
+## ChartCommon defines FRET_COUNT, FRET_WORLD_WIDTH, and all coordinate formulas.
+const FRET_COUNT         : int   = ChartCommon.FRET_COUNT    # 24
+const FRET_WORLD_WIDTH   : float = ChartCommon.FRET_WORLD_WIDTH  # 24.0
+const FRET_RANGE_WINDOW  : float = 4.0
+const LANE_COUNT         : int   = 6
+const FRETS_PER_LANE     : int   = FRET_COUNT / LANE_COUNT
+const DEFAULT_CAMERA_FRET: float = FRET_COUNT * 0.5
 
 # -- Camera follow -----------------------------------------------------------
 ## FOV (degrees) used for the follow camera.
-const CAM_FOV           : float = 80.0
-const CAMERA_Y          : float = 3.0
-## Camera sits BEYOND the strum line (Z=26 > strum Z=20, defined in note.gd) looking back toward Z=0.
-## This gives camera-right = world +X (fret 1 on left, fret 24 on right)
-## and camera-up = world +Y (string 0 at bottom, string 5 at top). No inversions.
-const CAMERA_Z          : float = 26.0
-const CAMERA_LERP_SPEED : float = 2.0    # units/s for smooth pan
+## 60° gives a natural guitar-neck perspective without distortion.
+const CAM_FOV           : float = 60.0
+## Camera elevation — raised to show the full fretboard lane depth.
+const CAMERA_Y          : float = 5.5
+## Camera is on the player/strum side (positive Z) looking down the highway.
+## Fretboard strings are at Z=0 (strum/arrival side); notes spawn at Z=-20.
+## Z=10 gives a good overview angle similar to ChartPlayer's default.
+const CAMERA_Z          : float = 10.0
+## Look-at target Z — aimed one-third into the highway depth for a natural rake.
+const CAMERA_LOOK_AT_Z  : float = -7.0
+const CAMERA_LERP_SPEED : float = 3.0    # units/s for smooth pan
 ## Camera X clamp — keeps the camera from tracking to the highway edges.
-const CAMERA_X_MIN      : float = 0.5
-const CAMERA_X_MAX      : float = 23.5
+const CAMERA_X_MIN      : float = 1.75
+const CAMERA_X_MAX      : float = 24.0
 
 # -- Screenshot capture (for automated testing) ------------------------------
 const SCREENSHOT_TIMES : Array  = [5.0, 10.0, 15.0, 20.0, 25.0]
@@ -65,6 +74,7 @@ const CHORD_GROUP_THRESHOLD : float = 0.02
 
 # -- Scene references --------------------------------------------------------
 @onready var _pool        : Node3D            = $NotePool
+@onready var _chord_pool  : Node3D            = $ChordPool
 @onready var _highway     : Node3D            = $Highway
 @onready var _fretboard   : Node3D            = $Fretboard
 @onready var _player      : AudioStreamPlayer = $AudioStreamPlayer
@@ -80,7 +90,8 @@ var _song_time           : float    = 0.0
 var _playing             : bool     = false
 var _shot_idx            : int      = 0
 var _start_wall_ms       : int      = 0
-var _camera_target_fret  : int      = FRET_COUNT / 2   # start at highway centre
+var _camera_target_min_fret : int   = FRET_COUNT / 2
+var _camera_target_max_fret : int   = FRET_COUNT / 2
 var _warmup_timer        : float    = WARMUP_SECS  # counts down to 0.0, then audio+notes start
 
 ## Cached volume_db sent to the AudioStreamPlayer last frame.  -999 = first frame.
@@ -92,12 +103,15 @@ var _string_glow         : Array[float] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 ## Scan pointer into _notes for the string-glow window.
 ## Advances past notes that have fully passed the strum line.
 var _glow_cursor         : int      = 0
+var _lane_glow           : Array[float] = []
 
-## Per-string fret-change tracker for smart label logic.
+## Per-string fret-change tracker for smart label logic on single notes.
 ## -1 = no note has been spawned on this string yet.
-## When the next note on string S has a different fret from _last_fret_per_string[S],
-## the label is shown and _last_fret_per_string[S] is updated.
 var _last_fret_per_string: Array[int] = [-1, -1, -1, -1, -1, -1]
+
+## Chord repeat tracker: sorted "fret:string,..." signature of the last spawned chord.
+## Empty string means no chord has been spawned yet.
+var _last_chord_sig: String = ""
 
 
 func _ready() -> void:
@@ -165,12 +179,16 @@ func _ready() -> void:
 	)
 
 	# Snap camera to the centre of the highway on startup; enable zoom FOV.
+	_lane_glow = _zero_lane_array()
+	# Configuration sanity check for lane bucketing constants.
+	if FRET_COUNT % LANE_COUNT != 0:
+		push_warning("MusicPlay: FRET_COUNT should be evenly divisible by LANE_COUNT for lane mapping.")
 	if _camera:
-		_camera.position.x = clampf(_fret_world_x(_camera_target_fret), CAMERA_X_MIN, CAMERA_X_MAX)
+		_camera.position.x = clampf(ChartCommon.fret_separator_world_x(FRET_COUNT / 2), CAMERA_X_MIN, CAMERA_X_MAX)  # integer division: 24/2=12
 		_camera.position.y = CAMERA_Y
 		_camera.position.z = CAMERA_Z
 		_camera.fov        = CAM_FOV
-		_camera.look_at(Vector3(_camera.position.x, 0.0, 10.0), Vector3.UP)
+		_camera.look_at(Vector3(_camera.position.x, 0.0, CAMERA_LOOK_AT_Z), Vector3.UP)
 
 	# Start warmup countdown.  _process() will count down WARMUP_SECS real
 	# seconds showing only the empty highway, then start both audio and note
@@ -225,9 +243,10 @@ func _process(delta: float) -> void:
 		# Wall-clock fallback when audio isn't playing.
 		_song_time = float(Time.get_ticks_msec() - _start_wall_ms) / 1000.0
 
-	# Push the authoritative audio time to all active notes so their Z
+	# Push the authoritative audio time to all active notes/chords so their Z
 	# positions are computed directly from the audio clock (not accumulated delta).
 	_pool.tick(_song_time)
+	_chord_pool.tick(_song_time)
 
 	# ── Strum-line debug print ─────────────────────────────────────────────────
 	# Print each chord group the moment it crosses the strum line (song_time >= note.time).
@@ -247,33 +266,74 @@ func _process(delta: float) -> void:
 		else:
 			break
 
+	# ── Note / chord spawning ─────────────────────────────────────────────────
+	# Notes at the same timestamp (within CHORD_GROUP_THRESHOLD) are treated as
+	# a chord and routed to ChordPool; single notes go to NotePool.
 	while _next_idx < _notes.size():
-		var nd: Dictionary = _notes[_next_idx]
-		if nd["time"] - _song_time <= LEAD_TIME:
-			var f: int = nd["fret"]
-			var s: int = nd["string"]
-			# Skip open-string (fret 0) notes and any out-of-range fret values.
-			if f >= 1 and f <= 24:
-				# Smart label: show the fret number only when the fret changes on this string.
-				var show_label := (f != _last_fret_per_string[s])
-				if show_label:
-					_last_fret_per_string[s] = f
-				_pool.spawn_note(f, s, nd["time"], nd["duration"], show_label)
-				# Track which fret the camera should follow.
-				_camera_target_fret = f
-			_next_idx += 1
-		else:
+		var nd : Dictionary = _notes[_next_idx]
+		if float(nd["time"]) - _song_time > LEAD_TIME:
 			break
 
-	# Camera always follows the most recently scheduled fret lane.
+		# Collect all notes at this timestamp.
+		var t0    : float = float(nd.get("time", 0.0))
+		var group : Array = [nd]
+		var nj    : int   = _next_idx + 1
+		while nj < _notes.size() \
+				and absf(float(_notes[nj].get("time", 0.0)) - t0) < CHORD_GROUP_THRESHOLD:
+			group.append(_notes[nj])
+			nj += 1
+
+		# Filter to valid frets (1–24); open strings and out-of-range are skipped.
+		var valid_notes : Array = []
+		for gn in group:
+			var f : int = int(gn.get("fret", 0))
+			var s : int = int(gn.get("string", 0))
+			if f >= 1 and f <= 24:
+				valid_notes.append({"fret": f, "string": s,
+					"duration": float(gn.get("duration", 0.25))})
+
+		if valid_notes.size() >= 2:
+			# ── Chord path ────────────────────────────────────────────────────
+			var sig          := _chord_signature(valid_notes)
+			var show_details : bool   = (sig != _last_chord_sig)
+			_last_chord_sig           = sig
+			# Chord name from the first note in the group.
+			var root_f : int    = int(valid_notes[0].get("fret", 0))
+			var root_s : int    = int(valid_notes[0].get("string", 0))
+			var chord_name : String = _get_note_name(root_f, root_s)
+			var dur : float = float(valid_notes[0].get("duration", 0.25))
+			_chord_pool.spawn_chord(valid_notes, t0, chord_name, show_details)
+
+		elif valid_notes.size() == 1:
+			# ── Single note path ──────────────────────────────────────────────
+			var vn   : Dictionary = valid_notes[0]
+			var f    : int   = int(vn.get("fret", 0))
+			var s    : int   = int(vn.get("string", 0))
+			var dur  : float = float(vn.get("duration", 0.25))
+			# Smart label: show fret number only when fret changes on this string.
+			var show_label : bool = (f != _last_fret_per_string[s])
+			if show_label:
+				_last_fret_per_string[s] = f
+			_pool.spawn_note(f, s, t0, dur, show_label)
+
+		_next_idx = nj
+
+	_update_fret_range_visuals()
+
+	# Camera follows the center of the active fret range.
 	if _camera:
-		var target_x := clampf(_fret_world_x(_camera_target_fret), CAMERA_X_MIN, CAMERA_X_MAX)
+		var focus_fret: float
+		if _camera_target_max_fret >= _camera_target_min_fret:
+			focus_fret = (_camera_target_min_fret + _camera_target_max_fret) * 0.5
+		else:
+			focus_fret = DEFAULT_CAMERA_FRET
+		var target_x := clampf(ChartCommon.fret_separator_world_x(int(round(focus_fret))), CAMERA_X_MIN, CAMERA_X_MAX)
 		var cam_pos  := _camera.position
 		cam_pos.x = lerp(cam_pos.x, target_x, CAMERA_LERP_SPEED * minf(delta, MAX_DELTA))
 		cam_pos.y = CAMERA_Y
 		cam_pos.z = CAMERA_Z
 		_camera.position = cam_pos
-		_camera.look_at(Vector3(cam_pos.x, 0.0, 10.0), Vector3.UP)
+		_camera.look_at(Vector3(cam_pos.x, 0.0, CAMERA_LOOK_AT_Z), Vector3.UP)
 
 	# Screenshots based on real wall-clock time to avoid timer batching on slow renderers.
 	if _shot_idx < SCREENSHOT_TIMES.size():
@@ -290,13 +350,6 @@ func _process(delta: float) -> void:
 
 
 # -- Helpers -----------------------------------------------------------------
-
-## World X centre for a fret lane.  Mirrors note.gd formula:
-##   X = fret × FRET_SPACING − FRET_SPACING × 0.5
-## fret 1 → X = 0.5 (left), fret 24 → X = 23.5 (right).  No inversion needed.
-func _fret_world_x(f: int) -> float:
-	return f * FRET_SPACING - FRET_SPACING * 0.5
-
 
 func _take_screenshot(num: int) -> void:
 	await RenderingServer.frame_post_draw
@@ -351,6 +404,51 @@ func _update_string_glows() -> void:
 			_fretboard.set_string_glow(s, new_val)
 
 
+func _update_fret_range_visuals() -> void:
+	if not is_instance_valid(_highway):
+		return
+
+	var min_fret: int = 999
+	var max_fret: int = -1
+	var i: int = _glow_cursor
+	while i < _notes.size():
+		var nd: Dictionary = _notes[i]
+		var note_time: float = float(nd.get("time", -1.0))
+		if note_time > _song_time + FRET_RANGE_WINDOW:
+			break
+		var f: int = int(nd.get("fret", 0))
+		if f >= 1 and f <= FRET_COUNT:
+			min_fret = mini(min_fret, f)
+			max_fret = maxi(max_fret, f)
+		i += 1
+
+	var targets: Array[float] = _zero_lane_array()
+	if max_fret >= min_fret:
+		_camera_target_min_fret = min_fret
+		_camera_target_max_fret = max_fret
+		for lane in LANE_COUNT:
+			# Lane buckets intentionally start at fret 1 (open strings/fret 0 are not spawned).
+			var lane_min: int = 1 + lane * FRETS_PER_LANE
+			var lane_max: int = lane_min + (FRETS_PER_LANE - 1)
+			if max_fret >= lane_min and min_fret <= lane_max:
+				targets[lane] = 1.0
+		_highway.call("set_active_fret_range", min_fret, max_fret)
+	else:
+		_highway.call("set_active_fret_range", 0, -1)
+
+	for lane in LANE_COUNT:
+		_lane_glow[lane] = lerpf(_lane_glow[lane], targets[lane], 0.15)
+	_highway.call("set_lane_intensities", _lane_glow)
+
+
+func _zero_lane_array() -> Array[float]:
+	var arr: Array[float] = []
+	arr.resize(LANE_COUNT)
+	for i in LANE_COUNT:
+		arr[i] = 0.0
+	return arr
+
+
 func _return_to_menu() -> void:
 	get_tree().change_scene_to_file("res://scenes/game_menu.tscn")
 
@@ -362,6 +460,16 @@ func _get_note_name(fret: int, string_idx: int) -> String:
 		return "?"
 	var midi := STRING_OPEN_MIDI[string_idx] + fret
 	return NOTE_NAMES[midi % 12]
+
+
+## Compute a canonical signature string for a chord (sorted "fret:string,..." pairs).
+## Two chords with the same signature are considered repeated (same fret/string set).
+func _chord_signature(notes: Array) -> String:
+	var parts : Array[String] = []
+	for n in notes:
+		parts.append("%d:%d" % [int(n.get("fret", 0)), int(n.get("string", 0))])
+	parts.sort()
+	return ",".join(parts)
 
 
 ## Sort an array of note dictionaries by fret ascending (returns a sorted copy).

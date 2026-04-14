@@ -1,4 +1,6 @@
-[gd_scene format=3 uid="uid://cdigit00006"]
+[gd_scene load_steps=3 format=3 uid="uid://cdigit00006"]
+
+[ext_resource type="FontFile" path="res://assets/fonts/Inter_18pt-Bold.ttf" id="1_font"]
 
 [node name="Number6" type="Label3D"]
 text = "6"
@@ -10,3 +12,4 @@ billboard = 1
 double_sided = true
 modulate = Color(1, 1, 1, 1)
 outline_modulate = Color(0, 0, 0, 1)
+font = ExtResource("1_font")

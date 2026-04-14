@@ -1,10 +1,11 @@
-[gd_scene load_steps=6 format=3 uid="uid://cmpscene0001"]
+[gd_scene load_steps=7 format=3 uid="uid://cmpscene0001"]
 
 [ext_resource type="PackedScene" uid="uid://chighway0001" path="res://scenes/highway.tscn"     id="1_highway"]
 [ext_resource type="PackedScene" uid="uid://cbkgnd00001" path="res://scenes/background.tscn"   id="2_bg"]
 [ext_resource type="Script"                              path="res://scripts/music_play.gd"    id="3_script"]
 [ext_resource type="PackedScene" uid="uid://cnotepool001" path="res://scenes/note_pool.tscn"   id="4_pool"]
 [ext_resource type="PackedScene" path="res://scenes/fretboard.tscn" id="5_fretboard"]
+[ext_resource type="PackedScene" uid="uid://cchordpool01" path="res://scenes/chord_pool.tscn"  id="6_chordpool"]
 
 ; ── Root ──────────────────────────────────────────────────────────────────────
 [node name="MusicPlay" type="Node3D"]
@@ -17,16 +18,15 @@ light_color    = Color(0.9, 0.85, 1.0, 1)
 light_energy   = 1.2
 shadow_enabled = true
 
-; Camera: position (12, 3, 26) beyond the strum line (Z=20), looking toward Z=10.
-; camera-right = world +X  →  fret 1 (X=0.5) on LEFT, fret 24 (X=23.5) on RIGHT
-; camera-up   = world +Y  →  string 0 (Y=0.20) at BOTTOM, string 5 (Y=2.70) at TOP
-; No axis inversions needed anywhere. Basis computed from look_at((12,3,26)→(12,0,10), up=Y):
-;   forward = normalize(0,-3,-16)  → basis.z = normalize(0,3,16) = (0, 0.1845, 0.9828)
+; Camera: position (12, 5.5, 10) — ChartPlayer-style: elevated on the player side,
+; looking toward (12, 0, -7) for a natural guitar-neck perspective.
+;   forward = normalize(0, -5.5, -17)  →  len=17.868
+;   basis.z = -forward = (0, 0.3078, 0.9514)    (camera -Z points back = +Z world)
 ;   basis.x = normalize(cross(forward, up)) = (1, 0, 0)
-;   basis.y = cross(basis.z, basis.x)       = (0, 0.9828, -0.1845)
+;   basis.y = cross(basis.z, basis.x)      = (0, 0.9514, -0.3078)
 [node name="Camera3D" type="Camera3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 0.9828, -0.1845, 0, 0.1845, 0.9828, 12, 3, 26)
-fov = 90.0
+transform = Transform3D(1, 0, 0, 0, 0.9514, 0.3078, 0, -0.3078, 0.9514, 12, 5.5, 10)
+fov = 60.0
 
 ; ── Background (sky + WorldEnvironment + bloom) ───────────────────────────────
 [node name="Background" parent="." instance=ExtResource("2_bg")]
@@ -38,6 +38,9 @@ fov = 90.0
 
 ; ── NotePool (128 pooled note instances) ─────────────────────────────────────
 [node name="NotePool" parent="." instance=ExtResource("4_pool")]
+
+; ── ChordPool (64 pooled chord container instances) ──────────────────────────
+[node name="ChordPool" parent="." instance=ExtResource("6_chordpool")]
 
 ; ── Audio playback ────────────────────────────────────────────────────────────
 [node name="AudioStreamPlayer" type="AudioStreamPlayer" parent="."]
