@@ -116,8 +116,9 @@ func setup(
 
 	# ── Container world position ───────────────────────────────────────────────
 	# X centre of the 4-fret window; Y centre between top and bottom strings.
-	var left_x   : float = ChartCommon.fret_separator_world_x(min_fret)
-	var right_x  : float = ChartCommon.fret_separator_world_x(min_fret + BORDER_FRET_SPAN)
+	# Match ChartPlayer: span from (min_fret - 1) to (min_fret + 3)
+	var left_x   : float = ChartCommon.fret_separator_world_x(min_fret - 1)
+	var right_x  : float = ChartCommon.fret_separator_world_x(min_fret + BORDER_FRET_SPAN - 1)
 	var top_y    : float = ChartCommon.string_world_y(min_string)
 	var bot_y    : float = ChartCommon.string_world_y(max_string)
 	var center_x : float = (left_x + right_x) * 0.5
