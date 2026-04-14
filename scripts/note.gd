@@ -113,7 +113,7 @@ func setup(p_fret: int, p_string: int, p_time: float, p_duration: float, p_show_
 	_miss_until  = -1.0
 	_hit_fx_start = -1.0
 
-	position = Vector3(ChartCommon.fret_mid_world_x(fret), ChartCommon.string_world_y(string_index), START_Z)
+	position = Vector3(ChartCommon.fret_mid_world_x(fret - 1), ChartCommon.string_world_y(string_index), START_Z)
 	_miss_label.visible = false
 
 	if _finger:

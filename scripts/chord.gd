@@ -195,8 +195,8 @@ func _ensure_label() -> void:
 func _add_indicator(f: int, s: int, center_x: float, center_y: float) -> void:
 	var ind := MeshInstance3D.new()
 	ind.position = Vector3(
-		ChartCommon.fret_mid_world_x(f) - center_x,
-		ChartCommon.string_world_y(s)   - center_y,
+		ChartCommon.fret_mid_world_x(f - 1) - center_x,
+		ChartCommon.string_world_y(s)        - center_y,
 		0.08
 	)
 	var plane := PlaneMesh.new()
