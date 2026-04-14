@@ -409,39 +409,56 @@ func _update_fret_range_visuals() -> void:
 	if not is_instance_valid(_highway):
 		return
 
-	# Find only the FIRST note within the window (closest in time)
+	# Find the FIRST upcoming note (after current song time)
 	var first_note_fret: int = -1
+	var first_note_time: float = -1.0
 	var i: int = _glow_cursor
 	while i < _notes.size():
 		var nd: Dictionary = _notes[i]
 		var note_time: float = float(nd.get("time", -1.0))
 		if note_time > _song_time + FRET_RANGE_WINDOW:
 			break
-		var f: int = int(nd.get("fret", 0))
-		if f >= 1 and f <= FRET_COUNT:
-			first_note_fret = f
-			break
+		if note_time > _song_time:
+			var f: int = int(nd.get("fret", 0))
+			if f >= 1 and f <= FRET_COUNT:
+				first_note_fret = f
+				first_note_time = note_time
+				break
 		i += 1
 
+	# Calculate 4-fret range: from (note_fret - 1) to (note_fret + 3)
+	# This matches ChartPlayer's hand position highlighting
+	var range_min_fret: int = -1
+	var range_max_fret: int = -1
+	
 	var targets: Array[float] = _zero_lane_array()
+	
 	if first_note_fret >= 1:
-		# Calculate 4-lane range starting from the first note's lane
-		var start_lane: int = (first_note_fret - 1) / FRETS_PER_LANE
-		var end_lane: int = mini(start_lane + 3, LANE_COUNT - 1)
-		var range_min_fret: int = 1 + start_lane * FRETS_PER_LANE
-		var range_max_fret: int = 1 + end_lane * FRETS_PER_LANE + (FRETS_PER_LANE - 1)
+		# Hand position: highlight 4 frets starting from (note_fret - 1)
+		# e.g., note at fret 5 → highlight frets 4, 5, 6, 7
+		range_min_fret = maxi(first_note_fret - 1, 1)
+		range_max_fret = mini(first_note_fret + 3, FRET_COUNT)
 		
+		# Set camera target to the note's fret
 		_camera_target_min_fret = first_note_fret
 		_camera_target_max_fret = first_note_fret
+		
+		# Highlight lanes that overlap with the 4-fret range
 		for lane in LANE_COUNT:
 			var lane_min: int = 1 + lane * FRETS_PER_LANE
-			var lane_max: int = lane_min + (FRETS_PER_LANE - 1)
+			var lane_max: int = lane_min + FRETS_PER_LANE - 1
+			# Lane is active if it overlaps with the highlight range
 			if range_max_fret >= lane_min and range_min_fret <= lane_max:
 				targets[lane] = 1.0
+		
 		_highway.call("set_active_fret_range", range_min_fret, range_max_fret)
 	else:
+		# No upcoming notes - dim the highway
 		_highway.call("set_active_fret_range", 0, -1)
+		_camera_target_min_fret = FRET_COUNT / 2
+		_camera_target_max_fret = FRET_COUNT / 2
 
+	# Smooth transition of lane glow
 	for lane in LANE_COUNT:
 		_lane_glow[lane] = lerpf(_lane_glow[lane], targets[lane], 0.15)
 	_highway.call("set_lane_intensities", _lane_glow)
