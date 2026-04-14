@@ -154,29 +154,27 @@ func _ensure_border(min_fret: int, w: float, h: float) -> void:
 	if _border_mesh == null:
 		_border_mesh = MeshInstance3D.new()
 		_border_mesh.position = Vector3(0.0, 0.0, 0.05)
-		var shader := Shader.new()
-		shader.code = _BORDER_SHADER_CODE
-		var mat := ShaderMaterial.new()
-		mat.shader = shader
-		mat.set_shader_parameter("border_color", Color(1.0, 1.0, 1.0, 1.0))
-		_border_mesh.set_surface_override_material(0, mat)
 		add_child(_border_mesh)
 
 	if min_fret != _last_min_fret:
 		_last_min_fret = min_fret
-		var plane := PlaneMesh.new()
-		plane.size        = Vector2(w, h)
-		plane.orientation = PlaneMesh.FACE_Z
-		_border_mesh.mesh = plane
 		# Convert a target ~2.5 cm world-unit border thickness to UV-space fractions.
 		# uv_frac = desired_thickness_m / mesh_dimension_m.
 		# Clamped so the line is never invisible (< 1.5 %) or over-wide (> 12 % / 20 %).
 		var bu : float = clampf(0.025 / w, 0.015, 0.12)
 		var bv : float = clampf(0.025 / maxf(h, 0.001), 0.015, 0.20)
-		var mat := _border_mesh.get_surface_override_material(0) as ShaderMaterial
-		if mat:
-			mat.set_shader_parameter("border_u", bu)
-			mat.set_shader_parameter("border_v", bv)
+		var shader := Shader.new()
+		shader.code = _BORDER_SHADER_CODE
+		var mat := ShaderMaterial.new()
+		mat.shader = shader
+		mat.set_shader_parameter("border_color", Color(1.0, 1.0, 1.0, 1.0))
+		mat.set_shader_parameter("border_u", bu)
+		mat.set_shader_parameter("border_v", bv)
+		var plane := PlaneMesh.new()
+		plane.size        = Vector2(w, h)
+		plane.orientation = PlaneMesh.FACE_Z
+		plane.material    = mat
+		_border_mesh.mesh = plane
 
 
 ## Create the chord-name Label3D on first use.
