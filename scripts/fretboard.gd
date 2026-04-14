@@ -26,6 +26,8 @@ const STRING5_Y        : float = 0.2
 const FRET_NUM_Y_OFFSET: float = 0.22
 ## Pixel size for the fret-number Label3D nodes (world units per pixel).
 const FRET_NUM_PIXEL_SIZE: float = 0.005
+## Additional Z offset so fret-number labels sit in front of fret lines.
+const FRET_NUM_Z_OFFSET: float = 0.04
 
 ## Cache of ShaderMaterial per string (index 0–5).
 var _string_mats : Array = []
@@ -101,5 +103,5 @@ func _build_fret_numbers() -> void:
 		lbl.outline_modulate = Color(0.0, 0.0, 0.0, 1.0)
 		if font:
 			lbl.font = font
-		lbl.position = Vector3(x, label_y, FRET_LINE_Z + 0.01)
+		lbl.position = Vector3(x, label_y, FRET_NUM_Z_OFFSET)
 		add_child(lbl)
