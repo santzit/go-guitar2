@@ -63,18 +63,21 @@ jobs:
 
           echo "GODOT_BIN=$GODOT_DIR/$GODOT_EXE" >> "$GITHUB_ENV"
           echo "PATH=$GODOT_DIR:$PATH" >> "$GITHUB_ENV"
+          # Godot --version outputs e.g. "4.4.1.stable.official.49a5bc7b6"
+          # GODOT_VERSION uses hyphens (e.g. "4.4.1-stable"); normalise to dots for comparison
+          GODOT_VER_CHECK="${GODOT_VERSION//-/.}"
           GODOT_BIN_VERSION="$("$GODOT_DIR/$GODOT_EXE" --version)"
           GODOT_WS_VERSION="$("$GITHUB_WORKSPACE/$GODOT_EXE" --version)"
           GODOT_PATH_VERSION="$(godot --version)"
-          if [[ "$GODOT_BIN_VERSION" != *"$GODOT_VERSION"* ]]; then
+          if [[ "$GODOT_BIN_VERSION" != *"$GODOT_VER_CHECK"* ]]; then
             echo "GODOT_BIN version mismatch: $GODOT_BIN_VERSION"
             exit 1
           fi
-          if [[ "$GODOT_WS_VERSION" != *"$GODOT_VERSION"* ]]; then
+          if [[ "$GODOT_WS_VERSION" != *"$GODOT_VER_CHECK"* ]]; then
             echo "Workspace symlink version mismatch: $GODOT_WS_VERSION"
             exit 1
           fi
-          if [[ "$GODOT_PATH_VERSION" != *"$GODOT_VERSION"* ]]; then
+          if [[ "$GODOT_PATH_VERSION" != *"$GODOT_VER_CHECK"* ]]; then
             echo "PATH symlink version mismatch: $GODOT_PATH_VERSION"
             exit 1
           fi
