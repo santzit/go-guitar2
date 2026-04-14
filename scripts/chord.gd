@@ -99,8 +99,8 @@ func setup(
 	if p_show_details:
 		_chord_label.text = p_chord_name
 		_chord_label.position = Vector3(
-			left_x  - 0.3,
-			top_y   + 0.2,
+			_box_width * 0.5 + 0.05,
+			_box_height * 0.5 + 0.15,
 			_label_z
 		)
 
