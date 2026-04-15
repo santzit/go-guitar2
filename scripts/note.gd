@@ -81,7 +81,7 @@ func _ready() -> void:
 		_fill_mat.emission_energy_multiplier = 0.0
 		_fill_mat.albedo_texture = null
 		_fill_mat.emission_texture = null
-		_finger.set_surface_override_material(0, _fill_mat)
+		_finger.material_override = _fill_mat
 		_update_indicator_geometry(1)
 
 	if _miss_label:
