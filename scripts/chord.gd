@@ -168,16 +168,24 @@ func _ensure_label() -> void:
 ## Add a finger indicator MeshInstance3D child for one string-note.
 func _add_indicator(f: int, s: int, center_x: float, center_y: float) -> void:
 	var ind: Node3D = NOTE_SCENE.instantiate()
-	if ind.has_method("setup"):
-		ind.call("setup", f, s, 0.0, 0.25, false)
-	ind.position = Vector3(
+	var local_pos := Vector3(
 		ChartCommon.fret_mid_world_x(f - 1) - center_x,
 		ChartCommon.string_world_y(s)        - center_y,
 		0.08
 	)
-	ind.visible = true
+	ind.position = local_pos
 	add_child(ind)
+	call_deferred("_setup_indicator_note", ind, f, s, local_pos)
 	_indicators.append(ind)
+
+
+func _setup_indicator_note(ind: Node3D, ind_fret: int, ind_string: int, local_pos: Vector3) -> void:
+	if not is_instance_valid(ind):
+		return
+	if ind.has_method("setup"):
+		ind.call("setup", ind_fret, ind_string, 0.0, 0.25, false)
+	ind.position = local_pos
+	ind.visible = true
 
 
 ## Free all per-string indicator children.
