@@ -1,5 +1,5 @@
 extends Node3D
-## note.gd  –  behaviour for a single pooled note with 3D trapezoidal prism finger indicators.
+## note.gd  –  behaviour for a single pooled note with 3D BoxMesh finger indicators.
 ##
 ## All coordinate formulas live in scripts/common.gd (class ChartCommon) so they
 ## can be shared with highway.gd, music_play.gd, and fretboard.gd.
@@ -10,8 +10,7 @@ extends Node3D
 ##   Z = STRUM_Z − (time_offset − song_time) × TRAVEL_SPEED
 ##       Notes spawn at Z = -20 and travel toward Z = 0.
 ##
-## Finger indicator is a 3D trapezoidal prism:
-##   - Small face at front (+Z), larger face at back (-Z)
+## Finger indicator is a 3D BoxMesh with a BoxMesh border:
 ##   - Visual states: filled → transparent (final 1s) → hit flash
 
 # ── Per-string note colors (string 0 top → string 5 bottom) ───────────────────
@@ -38,7 +37,7 @@ const DIGIT_SCENES: Array[PackedScene] = [
 	preload("res://scenes/number_9.tscn"),
 ]
 
-## Visual constants for trapezoidal prism
+## Visual constants for 3D box indicators
 const LABEL_Z : float = 0.06
 const DIGIT_X_OFFSET : float = 0.07
 const START_Z       : float = -20.0
@@ -49,8 +48,7 @@ const MISS_LABEL_Z  : float = 0.30
 const APPROACH_FADE_SECS: float = 1.0
 const HIT_FLASH_SECS: float = 0.25
 const BOX_DEPTH: float = 0.04
-const BORDER_THICKNESS_RATIO: float = 0.18
-const TRAPEZOID_FRONT_RATIO: float = 0.55
+const BORDER_EXTRA: float = 0.012
 
 var fret         : int   = 0
 var string_index : int   = 0
@@ -64,10 +62,9 @@ var _indicator_color: Color = Color(1.0, 0.5, 0.1, 1.0)
 
 var _fill_mat: StandardMaterial3D = null
 var _border_mat: StandardMaterial3D = null
-var _border_root: Node3D = null
-var _border_segments: Array[MeshInstance3D] = []
 
 @onready var _finger     : MeshInstance3D = $FingerIndicator
+@onready var _finger_border: MeshInstance3D = $FingerBorder
 @onready var _fret_label : Node3D         = $FretLabel
 @onready var _miss_label : Label3D        = $MissLabel
 
@@ -85,9 +82,6 @@ func _ready() -> void:
 		_fill_mat.emission_energy_multiplier = 0.0
 		_finger.set_surface_override_material(0, _fill_mat)
 
-		_border_root = Node3D.new()
-		_border_root.position = _finger.position
-		add_child(_border_root)
 		_border_mat = StandardMaterial3D.new()
 		_border_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		_border_mat.albedo_color = Color(1.0, 0.7, 0.25, 0.7)
@@ -96,7 +90,8 @@ func _ready() -> void:
 		_border_mat.emission_enabled = true
 		_border_mat.emission = Color(1.0, 0.7, 0.25, 1.0)
 		_border_mat.emission_energy_multiplier = 1.5
-		_ensure_border_segments()
+		if _finger_border:
+			_finger_border.set_surface_override_material(0, _border_mat)
 		_update_indicator_geometry(1)
 
 	if _miss_label:
@@ -123,8 +118,8 @@ func setup(p_fret: int, p_string: int, p_time: float, p_duration: float, p_show_
 		_indicator_color = STRING_COLORS[string_index]
 		_update_indicator_visuals(0.85, 0.95, 1.0, 1.0)
 		_finger.scale = Vector3.ONE
-		if _border_root:
-			_border_root.scale = Vector3.ONE
+		if _finger_border:
+			_finger_border.scale = Vector3.ONE
 
 	if p_show_label:
 		_rebuild_fret_label()
@@ -189,109 +184,22 @@ func _update_indicator_geometry(fret_num: int) -> void:
 	if _finger == null:
 		return
 	var sz2: Vector2 = ChartCommon.note_indicator_size(fret_num)
-	_finger.mesh = _build_trapezoid_mesh(sz2, BOX_DEPTH)
-	_resize_border_segments(sz2)
+	var finger_mesh := _finger.mesh as BoxMesh
+	if finger_mesh == null:
+		finger_mesh = BoxMesh.new()
+		_finger.mesh = finger_mesh
+	finger_mesh.size = Vector3(sz2.x, sz2.y, BOX_DEPTH)
 
-
-func _ensure_border_segments() -> void:
-	if _border_root == null or not _border_segments.is_empty():
-		return
-	for _i in range(8):
-		var seg := MeshInstance3D.new()
-		seg.mesh = BoxMesh.new()
-		seg.set_surface_override_material(0, _border_mat)
-		_border_root.add_child(seg)
-		_border_segments.append(seg)
-	for _i in range(4):
-		var edge := MeshInstance3D.new()
-		edge.mesh = BoxMesh.new()
-		edge.set_surface_override_material(0, _border_mat)
-		_border_root.add_child(edge)
-		_border_segments.append(edge)
-
-
-func _resize_border_segments(size_xy: Vector2) -> void:
-	if _border_root == null:
-		return
-	_ensure_border_segments()
-	var thickness: float = clampf(minf(size_xy.x, size_xy.y) * BORDER_THICKNESS_RATIO, 0.008, 0.03)
-	var side_h: float = maxf(size_xy.y - thickness * 2.0, thickness)
-	var hz: float = BOX_DEPTH * 0.5
-	var half_back_w: float = size_xy.x * 0.5
-	var half_front_w: float = half_back_w * TRAPEZOID_FRONT_RATIO
-	var half_h: float = size_xy.y * 0.5
-	var front_w: float = half_front_w * 2.0
-	var back_w: float = half_back_w * 2.0
-
-	_set_segment(_border_segments[0], Vector3(front_w, thickness, thickness), Vector3(0.0, half_h - thickness * 0.5, hz))
-	_set_segment(_border_segments[1], Vector3(front_w, thickness, thickness), Vector3(0.0, -half_h + thickness * 0.5, hz))
-	_set_segment(_border_segments[2], Vector3(thickness, side_h, thickness), Vector3(-half_front_w + thickness * 0.5, 0.0, hz))
-	_set_segment(_border_segments[3], Vector3(thickness, side_h, thickness), Vector3(half_front_w - thickness * 0.5, 0.0, hz))
-
-	_set_segment(_border_segments[4], Vector3(back_w, thickness, thickness), Vector3(0.0, half_h - thickness * 0.5, -hz))
-	_set_segment(_border_segments[5], Vector3(back_w, thickness, thickness), Vector3(0.0, -half_h + thickness * 0.5, -hz))
-	_set_segment(_border_segments[6], Vector3(thickness, side_h, thickness), Vector3(-half_back_w + thickness * 0.5, 0.0, -hz))
-	_set_segment(_border_segments[7], Vector3(thickness, side_h, thickness), Vector3(half_back_w - thickness * 0.5, 0.0, -hz))
-
-	_set_edge_segment(_border_segments[8], Vector3(-half_front_w, half_h, hz), Vector3(-half_back_w, half_h, -hz), thickness)
-	_set_edge_segment(_border_segments[9], Vector3(half_front_w, half_h, hz), Vector3(half_back_w, half_h, -hz), thickness)
-	_set_edge_segment(_border_segments[10], Vector3(-half_front_w, -half_h, hz), Vector3(-half_back_w, -half_h, -hz), thickness)
-	_set_edge_segment(_border_segments[11], Vector3(half_front_w, -half_h, hz), Vector3(half_back_w, -half_h, -hz), thickness)
-
-
-func _set_segment(seg: MeshInstance3D, seg_size: Vector3, seg_pos: Vector3) -> void:
-	var mesh := seg.mesh as BoxMesh
-	if mesh:
-		mesh.size = seg_size
-	seg.position = seg_pos
-	seg.basis = Basis.IDENTITY
-
-
-func _set_edge_segment(seg: MeshInstance3D, from_pt: Vector3, to_pt: Vector3, thickness: float) -> void:
-	var mesh := seg.mesh as BoxMesh
-	if mesh:
-		mesh.size = Vector3(thickness, thickness, from_pt.distance_to(to_pt))
-	seg.position = (from_pt + to_pt) * 0.5
-	seg.look_at(to_pt, Vector3.UP, true)
-
-
-func _build_trapezoid_mesh(size_xy: Vector2, depth: float) -> ArrayMesh:
-	var hw_back: float = size_xy.x * 0.5
-	var hh_back: float = size_xy.y * 0.5
-	var hw_front: float = hw_back * TRAPEZOID_FRONT_RATIO
-	var hh_front: float = hh_back
-	var hz: float = depth * 0.5
-
-	var v0 := Vector3(-hw_front, -hh_front, hz)
-	var v1 := Vector3(hw_front, -hh_front, hz)
-	var v2 := Vector3(hw_front, hh_front, hz)
-	var v3 := Vector3(-hw_front, hh_front, hz)
-	var v4 := Vector3(-hw_back, -hh_back, -hz)
-	var v5 := Vector3(hw_back, -hh_back, -hz)
-	var v6 := Vector3(hw_back, hh_back, -hz)
-	var v7 := Vector3(-hw_back, hh_back, -hz)
-
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-
-	_add_quad(st, v0, v1, v2, v3)
-	_add_quad(st, v5, v4, v7, v6)
-	_add_quad(st, v4, v0, v3, v7)
-	_add_quad(st, v1, v5, v6, v2)
-	_add_quad(st, v3, v2, v6, v7)
-	_add_quad(st, v4, v5, v1, v0)
-
-	st.generate_normals()
-	return st.commit()
-
-
-func _add_quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> void:
-	st.add_vertex(a)
-	st.add_vertex(b)
-	st.add_vertex(c)
-	st.add_vertex(a)
-	st.add_vertex(c)
-	st.add_vertex(d)
+	if _finger_border:
+		var border_mesh := _finger_border.mesh as BoxMesh
+		if border_mesh == null:
+			border_mesh = BoxMesh.new()
+			_finger_border.mesh = border_mesh
+		border_mesh.size = Vector3(
+			sz2.x + BORDER_EXTRA,
+			sz2.y + BORDER_EXTRA,
+			BOX_DEPTH + BORDER_EXTRA
+		)
 
 
 func _update_hit_visuals(song_time: float) -> void:
@@ -333,5 +241,5 @@ func _update_indicator_visuals(fill_alpha: float, border_alpha: float, emission_
 		_border_mat.emission_energy_multiplier = maxf(0.0, emission_energy * 0.8)
 	if _finger:
 		_finger.scale = Vector3.ONE * scale_mul
-	if _border_root:
-		_border_root.scale = Vector3.ONE * scale_mul
+	if _finger_border:
+		_finger_border.scale = Vector3.ONE * scale_mul
