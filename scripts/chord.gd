@@ -11,35 +11,7 @@ extends Node3D
 ## The border always spans BORDER_FRET_SPAN (4) frets starting from min_fret.
 ## The interior of the border box is fully transparent (non-edge pixels discarded).
 
-# ── Guitar note textures (string 0 top → string 5 bottom) ──────────────────
-# Order: Red, Yellow, Cyan(Blue), Orange, Green, Purple
-const STRING_TEXTURES: Array[Texture2D] = [
-	preload("res://assets/textures/chartplayer/GuitarRed.png"),
-	preload("res://assets/textures/chartplayer/GuitarYellow.png"),
-	preload("res://assets/textures/chartplayer/GuitarCyan.png"),
-	preload("res://assets/textures/chartplayer/GuitarOrange.png"),
-	preload("res://assets/textures/chartplayer/GuitarGreen.png"),
-	preload("res://assets/textures/chartplayer/GuitarPurple.png"),
-]
-
-## Finger indicator shader — same as note.gd: circular texture with transparent
-## background, spherical billboard so the plane always faces the camera.
-const _FINGER_SHADER_CODE: String = """
-shader_type spatial;
-render_mode blend_mix, unshaded, cull_disabled, depth_test_disabled;
-uniform sampler2D albedo_texture : source_color, hint_default_white;
-void vertex() {
-	MODELVIEW_MATRIX = VIEW_MATRIX * mat4(
-		INV_VIEW_MATRIX[0], INV_VIEW_MATRIX[1], INV_VIEW_MATRIX[2], MODEL_MATRIX[3]);
-	MODELVIEW_NORMAL_MATRIX = mat3(MODELVIEW_MATRIX);
-}
-void fragment() {
-	vec4 tex = texture(albedo_texture, UV);
-	if (tex.a < 0.01) { discard; }
-	ALBEDO = tex.rgb;
-	ALPHA  = tex.a;
-}
-"""
+const NOTE_SCENE: PackedScene = preload("res://scenes/note.tscn")
 
 ## Project font — Inter 18pt Bold, used for the chord name Label3D.
 const _INTER_BOLD: FontFile = preload("res://assets/fonts/Inter_18pt-Bold.ttf")
@@ -195,22 +167,15 @@ func _ensure_label() -> void:
 
 ## Add a finger indicator MeshInstance3D child for one string-note.
 func _add_indicator(f: int, s: int, center_x: float, center_y: float) -> void:
-	var ind := MeshInstance3D.new()
+	var ind: Node3D = NOTE_SCENE.instantiate()
+	if ind.has_method("setup"):
+		ind.call("setup", f, s, 0.0, 0.25, false)
 	ind.position = Vector3(
 		ChartCommon.fret_mid_world_x(f - 1) - center_x,
 		ChartCommon.string_world_y(s)        - center_y,
 		0.08
 	)
-	var plane := PlaneMesh.new()
-	plane.size        = ChartCommon.note_indicator_size(f)
-	plane.orientation = PlaneMesh.FACE_Z
-	ind.mesh = plane
-	var shader := Shader.new()
-	shader.code = _FINGER_SHADER_CODE
-	var mat := ShaderMaterial.new()
-	mat.shader = shader
-	mat.set_shader_parameter("albedo_texture", STRING_TEXTURES[s])
-	ind.set_surface_override_material(0, mat)
+	ind.visible = true
 	add_child(ind)
 	_indicators.append(ind)
 
