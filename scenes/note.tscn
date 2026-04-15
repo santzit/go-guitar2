@@ -9,10 +9,7 @@ script = ExtResource("1_notescript")
 
 [node name="FingerIndicator" type="MeshInstance3D" parent="."]
 position = Vector3(0, 0, 0.08)
-mesh = ExtResource("3_note_mesh")
-
-[node name="FingerBorder" type="MeshInstance3D" parent="."]
-position = Vector3(0, 0, 0.08)
+rotation_degrees = Vector3(0, -90, 0)
 mesh = ExtResource("3_note_mesh")
 
 ; Fret-number label container – digit scenes are added at runtime by note.gd
