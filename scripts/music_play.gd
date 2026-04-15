@@ -70,7 +70,11 @@ const NOTE_NAMES      : Array[String] = ["C","C#","D","D#","E","F","F#","G","G#"
 ## Time window around the strum line used to detect the «current» chord for display.
 const DEBUG_CHORD_WINDOW : float = 0.25
 ## Maximum timestamp difference between notes to be considered part of the same chord.
-const CHORD_GROUP_THRESHOLD : float = 0.02
+## Matches TheStringTheory's chordGroupWindow default.
+const CHORD_GROUP_THRESHOLD : float = 0.06
+## Visual anchor used for open-string notes/chords (fret 0) so they render on the neck.
+## Mirrors TheStringTheory's defaultOpenAnchorFret.
+const OPEN_STRING_ANCHOR_FRET : int = 2
 
 # -- Scene references --------------------------------------------------------
 @onready var _pool        : Node3D            = $NotePool
@@ -283,13 +287,13 @@ func _process(delta: float) -> void:
 			group.append(_notes[nj])
 			nj += 1
 
-		# Filter to valid frets (1–24); open strings and out-of-range are skipped.
+		# Filter to valid frets (0–24); open strings are rendered at OPEN_STRING_ANCHOR_FRET.
 		var valid_notes : Array = []
 		for gn in group:
 			var f : int = int(gn.get("fret", 0))
 			var s : int = int(gn.get("string", 0))
-			if f >= 1 and f <= 24:
-				valid_notes.append({"fret": f, "string": s,
+			if f >= 0 and f <= 24 and s >= 0 and s < 6:
+				valid_notes.append({"fret": f, "visual_fret": _visual_fret_for_spawn(f), "string": s,
 					"duration": float(gn.get("duration", 0.25))})
 
 		if valid_notes.size() >= 2:
@@ -302,19 +306,27 @@ func _process(delta: float) -> void:
 			var root_s : int    = int(valid_notes[0].get("string", 0))
 			var chord_name : String = _get_note_name(root_f, root_s)
 			var dur : float = float(valid_notes[0].get("duration", 0.25))
-			_chord_pool.spawn_chord(valid_notes, t0, chord_name, show_details)
+			var chord_visual_notes : Array = []
+			for vn in valid_notes:
+				chord_visual_notes.append({
+					"fret": int(vn.get("visual_fret", 0)),
+					"string": int(vn.get("string", 0)),
+					"duration": float(vn.get("duration", 0.25))
+				})
+			_chord_pool.spawn_chord(chord_visual_notes, t0, chord_name, show_details)
 
 		elif valid_notes.size() == 1:
 			# ── Single note path ──────────────────────────────────────────────
 			var vn   : Dictionary = valid_notes[0]
 			var f    : int   = int(vn.get("fret", 0))
+			var vf   : int   = int(vn.get("visual_fret", 0))
 			var s    : int   = int(vn.get("string", 0))
 			var dur  : float = float(vn.get("duration", 0.25))
 			# Smart label: show fret number only when fret changes on this string.
-			var show_label : bool = (f != _last_fret_per_string[s])
+			var show_label : bool = (f != 0) and (f != _last_fret_per_string[s])
 			if show_label:
 				_last_fret_per_string[s] = f
-			_pool.spawn_note(f, s, t0, dur, show_label)
+			_pool.spawn_note(vf, s, t0, dur, show_label)
 
 		_next_idx = nj
 
@@ -420,8 +432,8 @@ func _update_fret_range_visuals() -> void:
 			break
 		if note_time > _song_time:
 			var f: int = int(nd.get("fret", 0))
-			if f >= 1 and f <= FRET_COUNT:
-				first_note_fret = f
+			if f >= 0 and f <= FRET_COUNT:
+				first_note_fret = _visual_fret_for_spawn(f)
 				first_note_time = note_time
 				break
 		i += 1
@@ -500,6 +512,10 @@ func _sort_notes_by_fret(notes: Array) -> Array:
 	var sorted : Array = notes.duplicate()
 	sorted.sort_custom(func(a, b): return int(a.get("fret", -1)) < int(b.get("fret", -1)))
 	return sorted
+
+
+func _visual_fret_for_spawn(fret: int) -> int:
+	return OPEN_STRING_ANCHOR_FRET if fret <= 0 else fret
 
 
 ## Build a compact debug string for a chord (group of notes at the same timestamp).
