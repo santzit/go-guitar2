@@ -10,7 +10,7 @@ extends Node3D
 ##   Z = STRUM_Z − (time_offset − song_time) × TRAVEL_SPEED
 ##       Notes spawn at Z = -20 and travel toward Z = 0.
 ##
-## Finger indicator is a 3D BoxMesh with a BoxMesh border:
+## Finger indicator is a 3D mesh (assets/models/note.obj) with a border mesh:
 ##   - Visual states: filled → transparent (final 1s) → hit flash
 
 # ── Per-string note colors (string 0 top → string 5 bottom) ───────────────────
@@ -49,6 +49,7 @@ const APPROACH_FADE_SECS: float = 1.0
 const HIT_FLASH_SECS: float = 0.25
 const BOX_DEPTH: float = 0.04
 const BORDER_EXTRA: float = 0.012
+const NOTE_MODEL_BASE_SIZE: Vector3 = Vector3(0.12, 0.2, 0.6)
 
 var fret         : int   = 0
 var string_index : int   = 0
@@ -62,6 +63,8 @@ var _indicator_color: Color = Color(1.0, 0.5, 0.1, 1.0)
 
 var _fill_mat: StandardMaterial3D = null
 var _border_mat: StandardMaterial3D = null
+var _finger_base_scale: Vector3 = Vector3.ONE
+var _border_base_scale: Vector3 = Vector3.ONE
 
 @onready var _finger     : MeshInstance3D = $FingerIndicator
 @onready var _finger_border: MeshInstance3D = $FingerBorder
@@ -117,9 +120,9 @@ func setup(p_fret: int, p_string: int, p_time: float, p_duration: float, p_show_
 			_update_indicator_geometry(fret)
 		_indicator_color = STRING_COLORS[string_index]
 		_update_indicator_visuals(0.85, 0.95, 1.0, 1.0)
-		_finger.scale = Vector3.ONE
+		_finger.scale = _finger_base_scale
 		if _finger_border:
-			_finger_border.scale = Vector3.ONE
+			_finger_border.scale = _border_base_scale
 
 	if p_show_label:
 		_rebuild_fret_label()
@@ -184,22 +187,20 @@ func _update_indicator_geometry(fret_num: int) -> void:
 	if _finger == null:
 		return
 	var sz2: Vector2 = ChartCommon.note_indicator_size(fret_num)
-	var finger_mesh := _finger.mesh as BoxMesh
-	if finger_mesh == null:
-		finger_mesh = BoxMesh.new()
-		_finger.mesh = finger_mesh
-	finger_mesh.size = Vector3(sz2.x, sz2.y, BOX_DEPTH)
+	_finger_base_scale = Vector3(
+		sz2.x / NOTE_MODEL_BASE_SIZE.x,
+		sz2.y / NOTE_MODEL_BASE_SIZE.y,
+		BOX_DEPTH / NOTE_MODEL_BASE_SIZE.z
+	)
 
 	if _finger_border:
-		var border_mesh := _finger_border.mesh as BoxMesh
-		if border_mesh == null:
-			border_mesh = BoxMesh.new()
-			_finger_border.mesh = border_mesh
-		border_mesh.size = Vector3(
-			sz2.x + BORDER_EXTRA,
-			sz2.y + BORDER_EXTRA,
-			BOX_DEPTH + BORDER_EXTRA
+		_border_base_scale = Vector3(
+			(sz2.x + BORDER_EXTRA) / NOTE_MODEL_BASE_SIZE.x,
+			(sz2.y + BORDER_EXTRA) / NOTE_MODEL_BASE_SIZE.y,
+			(BOX_DEPTH + BORDER_EXTRA) / NOTE_MODEL_BASE_SIZE.z
 		)
+	else:
+		_border_base_scale = Vector3.ONE
 
 
 func _update_hit_visuals(song_time: float) -> void:
@@ -240,6 +241,6 @@ func _update_indicator_visuals(fill_alpha: float, border_alpha: float, emission_
 		_border_mat.emission = _indicator_color.lightened(0.2)
 		_border_mat.emission_energy_multiplier = maxf(0.0, emission_energy * 0.8)
 	if _finger:
-		_finger.scale = Vector3.ONE * scale_mul
+		_finger.scale = _finger_base_scale * scale_mul
 	if _finger_border:
-		_finger_border.scale = Vector3.ONE * scale_mul
+		_finger_border.scale = _border_base_scale * scale_mul
