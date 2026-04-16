@@ -35,8 +35,9 @@ const NOTE_MARKER_NEON_GLOW_PULSE: float = 0.8
 const NOTE_MARKER_PULSE_FREQUENCY: float = 8.0
 const NOTE_VISUAL_ALPHA: float = 0.4
 const SUSTAIN_MIN_SECS: float = 0.05
-const SUSTAIN_TRAIL_WIDTH: float = 0.5 # Half of note marker length
-const SUSTAIN_TRAIL_HEIGHT: float = 0.035
+const SUSTAIN_TRAIL_WIDTH_RATIO: float = 0.5 # Half of note marker length
+const SUSTAIN_TRAIL_FALLBACK_WIDTH: float = 0.5
+const SUSTAIN_TRAIL_HEIGHT: float = 0.08
 const SUSTAIN_MIN_LENGTH: float = SUSTAIN_MIN_SECS * TRAVEL_SPEED
 
 var fret         : int   = 0
@@ -79,7 +80,8 @@ func _ready() -> void:
 		_sustain_trail_mat.emission_enabled = true
 		_sustain_trail_mat.emission = _with_visual_alpha(_indicator_color)
 		_sustain_trail_mat.metallic = 0.2
-		_sustain_trail_mat.roughness = 0.12
+		_sustain_trail_mat.roughness = 0.08
+		_sustain_trail_mat.emission_energy_multiplier = NOTE_MARKER_NEON_GLOW_BASE
 		_sustain_trail.set_surface_override_material(0, _sustain_trail_mat)
 		_sustain_trail.visible = false
 		add_child(_sustain_trail)
@@ -147,6 +149,8 @@ func _update_marker_glow(song_time: float) -> void:
 	var pulse: float = 0.5 + 0.5 * sin(song_time * NOTE_MARKER_PULSE_FREQUENCY)
 	var glow_energy: float = NOTE_MARKER_NEON_GLOW_BASE + NOTE_MARKER_NEON_GLOW_PULSE * pulse
 	_note_marker_mat.emission_energy_multiplier = glow_energy
+	if _sustain_trail_mat != null:
+		_sustain_trail_mat.emission_energy_multiplier = glow_energy
 
 
 func _update_sustain_trail() -> void:
@@ -160,7 +164,7 @@ func _update_sustain_trail() -> void:
 	if trail_mesh == null:
 		trail_mesh = BoxMesh.new()
 		_sustain_trail.mesh = trail_mesh
-	trail_mesh.size = Vector3(SUSTAIN_TRAIL_WIDTH, SUSTAIN_TRAIL_HEIGHT, sustain_length)
+	trail_mesh.size = Vector3(_get_sustain_trail_width(), SUSTAIN_TRAIL_HEIGHT, sustain_length)
 	_sustain_trail.position = Vector3(
 		NOTE_MARKER_LOCAL_OFFSET.x,
 		NOTE_MARKER_LOCAL_OFFSET.y,
@@ -171,3 +175,15 @@ func _update_sustain_trail() -> void:
 
 func _with_visual_alpha(c: Color) -> Color:
 	return Color(c.r, c.g, c.b, NOTE_VISUAL_ALPHA)
+
+
+func _get_sustain_trail_width() -> float:
+	if _note_marker == null:
+		return SUSTAIN_TRAIL_FALLBACK_WIDTH
+	var marker_aabb: AABB = _note_marker.get_aabb()
+	if marker_aabb.size == Vector3.ZERO:
+		return SUSTAIN_TRAIL_FALLBACK_WIDTH
+	var marker_length: float = maxf(marker_aabb.size.x, marker_aabb.size.z)
+	if marker_length <= 0.0:
+		return SUSTAIN_TRAIL_FALLBACK_WIDTH
+	return marker_length * SUSTAIN_TRAIL_WIDTH_RATIO
