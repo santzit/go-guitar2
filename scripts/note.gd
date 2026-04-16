@@ -51,13 +51,17 @@ func _ready() -> void:
 		_fill_mat = StandardMaterial3D.new()
 		_fill_mat.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
 		_fill_mat.albedo_color = Color(1.0, 0.5, 0.1, 1.0)
-		_fill_mat.metallic = 0.15
-		_fill_mat.roughness = 0.25
-		_fill_mat.metallic_specular = 1.0
+		_fill_mat.metallic = 0.0
+		_fill_mat.roughness = 1.0
+		_fill_mat.metallic_specular = 0.0
 		_fill_mat.emission_enabled = false
 		_fill_mat.albedo_texture = null
 		_fill_mat.emission_texture = null
 		_note_marker.material_override = _fill_mat
+		var note_mesh: Mesh = _note_marker.mesh
+		if note_mesh:
+			for i in note_mesh.get_surface_count():
+				_note_marker.set_surface_override_material(i, _fill_mat)
 		_update_note_marker_geometry(1)
 
 
