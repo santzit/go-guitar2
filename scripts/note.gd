@@ -5,7 +5,7 @@ extends Node3D
 ## can be shared with highway.gd, music_play.gd, and fretboard.gd.
 ##
 ## Coordinate mapping summary
-##   X = ChartCommon.fret_mid_world_x(fret)      — ChartPlayer fret spacing
+##   X = ChartCommon.fret_mid_world_x(fret)      — linear fret spacing (1 unit/fret)
 ##   Y = ChartCommon.string_world_y(string_index) — string 0 = top, 5 = bottom
 ##   Z = STRUM_Z − (time_offset − song_time) × TRAVEL_SPEED
 ##       Notes spawn at Z = -20 and travel toward Z = 0.

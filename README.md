@@ -53,7 +53,7 @@ Libraries / Projects used:
 
 | Axis | Meaning |
 |------|---------|
-| **X** | `scaleLength - scaleLength / 2^(fret/12)` (ChartPlayer-style), normalized to highway width |
+| **X** | Linear fret spacing (`1.0` world unit per fret) |
 | **Y** | `(3 + string_index × 4)` scaled to scene units |
 | **Z** | Time — notes spawn at Z = 0 and travel toward Z = 20 (strum line) |
 

@@ -23,7 +23,6 @@ uniform float vertical_line_strength : hint_range(0.0, 2.0) = 0.55;
 
 const int MAX_SHADER_LANES = 6; // lane_intensity uniforms are packed for 6 lanes.
 const int MAX_FRET_LINES = 25;
-const float SCALE_LENGTH = 300.0;
 const float MIN_FRET_POS = 0.0001;
 
 float lane_intensity(int lane) {
@@ -37,7 +36,7 @@ float lane_intensity(int lane) {
 }
 
 float chart_fret_pos(float fret_num) {
-	return SCALE_LENGTH - (SCALE_LENGTH / pow(2.0, fret_num / 12.0));
+	return fret_num;
 }
 
 float vertical_fret_line_alpha(vec2 uv) {
@@ -72,10 +71,9 @@ void fragment() {
 	float pulse = 0.86 + 0.14 * sin(TIME * pulse_speed + float(lane_idx));
 	float lane_energy = pow(lane_core, lane_glow_power) * lane_intensity(lane_idx) * pulse;
 
-	// Convert UV.x to linear fret position using inverse of chart_fret_pos
-	float max_pos = chart_fret_pos(float(fret_count));
-	float x_pos = uv.x * max_pos;
-	float fret = 12.0 * log2(SCALE_LENGTH / (SCALE_LENGTH - x_pos));
+	// Convert UV.x to fret position with 1 world unit per fret.
+	float max_pos = max(chart_fret_pos(float(fret_count)), MIN_FRET_POS);
+	float fret = uv.x * max_pos;
 	
 	float min_f = float(active_fret_min);
 	float max_f = float(active_fret_max);
