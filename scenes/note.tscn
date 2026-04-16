@@ -7,5 +7,5 @@
 script = ExtResource("1_notescript")
 
 [node name="NoteMarker" type="MeshInstance3D" parent="."]
-; position is applied at runtime by scripts/note.gd (NOTE_MARKER_LOCAL_OFFSET)
+; local transform is applied at runtime by scripts/note.gd
 mesh = ExtResource("2_note_mesh")
