@@ -31,14 +31,14 @@ const DEFAULT_CAMERA_FRET: float = FRET_COUNT * 0.5
 ## 60° gives a natural guitar-neck perspective without distortion.
 const CAM_FOV           : float = 60.0
 ## Camera elevation — raised to show the full fretboard lane depth.
-const CAMERA_Y          : float = 5.5
+const CAMERA_Y          : float = 4
 ## Camera is on the player/strum side (positive Z) looking down the highway.
 ## Fretboard strings are at Z=0 (strum/arrival side); notes spawn at Z=-20.
 ## Z=10 gives a good overview angle similar to ChartPlayer's default.
-const CAMERA_Z          : float = 10.0
+const CAMERA_Z          : float = 8
 ## Look-at target Z — aimed one-third into the highway depth for a natural rake.
 const CAMERA_LOOK_AT_Z  : float = -7.0
-const CAMERA_LERP_SPEED : float = 3.0    # units/s for smooth pan
+const CAMERA_LERP_SPEED : float = 1.0    # units/s for smooth pan
 ## Camera X clamp — keeps the camera from tracking to the highway edges.
 const CAMERA_X_MIN      : float = 1.75
 const CAMERA_X_MAX      : float = 24.0
