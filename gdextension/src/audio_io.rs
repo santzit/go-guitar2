@@ -15,7 +15,7 @@
 
 use std::sync::{Arc, Mutex};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{SampleFormat, StreamConfig};
+use cpal::StreamConfig;
 
 /// Configuration for the CPAL streams.
 pub struct AudioIoConfig {
