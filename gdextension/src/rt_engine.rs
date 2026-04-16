@@ -25,7 +25,6 @@ use crate::audio_engine_core::{EngineCmd, EngineCore};
 use crate::audio_io::{open_streams, AudioIoConfig};
 use crate::audio_mixer::BUS_COUNT;
 use godot::prelude::*;
-use rtrb::RingBuffer;
 use std::sync::{Arc, Mutex};
 
 // ── GDExtension class ─────────────────────────────────────────────────────────

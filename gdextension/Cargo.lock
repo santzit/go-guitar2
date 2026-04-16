@@ -871,7 +871,7 @@ checksum = "dc897dd8d9e8bd1ed8cdad82b5966c3e0ecae09fb1907d58efaa013543185d0a"
 [[package]]
 name = "rocksmith2014-psarc"
 version = "0.1.0"
-source = "git+https://github.com/santzit/Rocksmith2014.rs?branch=copilot%2Fadd-tests-xmlfiles-to-sng#7b1df7a6ed42f35b5610063a226227d96e719b99"
+source = "git+https://github.com/santzit/Rocksmith2014.rs?rev=fc4ccfbbc8e740970bc34a265f29ea711fa09817#fc4ccfbbc8e740970bc34a265f29ea711fa09817"
 dependencies = [
  "aes",
  "flate2",
@@ -882,7 +882,7 @@ dependencies = [
 [[package]]
 name = "rocksmith2014-sng"
 version = "0.1.0"
-source = "git+https://github.com/santzit/Rocksmith2014.rs?branch=copilot%2Fadd-tests-xmlfiles-to-sng#7b1df7a6ed42f35b5610063a226227d96e719b99"
+source = "git+https://github.com/santzit/Rocksmith2014.rs?rev=fc4ccfbbc8e740970bc34a265f29ea711fa09817#fc4ccfbbc8e740970bc34a265f29ea711fa09817"
 dependencies = [
  "aes",
  "bitflags 2.11.0",
