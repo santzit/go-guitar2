@@ -30,12 +30,8 @@ pub struct PsarcData {
 
 #[inline]
 fn display_fret_from_sng_fret(fret: i8, capo_fret: i8) -> i8 {
-    if fret <= 0 || capo_fret <= 0 {
-        fret
-    } else {
-        let adjusted = i16::from(fret) - i16::from(capo_fret);
-        adjusted.max(0) as i8
-    }
+    let _ = capo_fret;
+    fret
 }
 
 impl PsarcData {
@@ -270,9 +266,9 @@ mod tests {
     }
 
     #[test]
-    fn test_capo_subtraction_for_fretted_notes() {
-        assert_eq!(display_fret_from_sng_fret(7, 5), 2);
-        assert_eq!(display_fret_from_sng_fret(5, 5), 0);
-        assert_eq!(display_fret_from_sng_fret(3, 5), 0);
+    fn test_fretted_notes_preserve_sng_fret_with_capo_metadata() {
+        assert_eq!(display_fret_from_sng_fret(7, 5), 7);
+        assert_eq!(display_fret_from_sng_fret(5, 5), 5);
+        assert_eq!(display_fret_from_sng_fret(3, 5), 3);
     }
 }
