@@ -48,12 +48,13 @@ const MISS_LABEL_Z  : float = 0.30
 const APPROACH_FADE_SECS: float = 1.0
 const HIT_FLASH_SECS: float = 0.25
 const BOX_DEPTH: float = 0.04
-## Local offset recenters the imported mesh (which is authored with y=0..0.2) on the string lane
+## Local offset recenters the imported mesh (vertex bounds y=0.0..0.2) on the string lane
 ## while preserving legacy forward placement at z=0.08.
 const NOTE_MARKER_LOCAL_OFFSET: Vector3 = Vector3(0.0, -0.1, 0.08)
 ## Raw size from assets/models/note.obj vertex min/max (x: -0.06..0.06, y: 0.0..0.2, z: -0.3..0.3).
 ## If the model changes, recompute from OBJ `v` lines by taking per-axis min/max and (max - min).
 const NOTE_MARKER_MODEL_SIZE: Vector3 = Vector3(0.12, 0.2, 0.6)
+const NOTE_MARKER_MODEL_SIZE_TOLERANCE: float = 0.0005
 const BORDER_THICKNESS_RATIO: float = 0.18
 const TRAPEZOID_FRONT_RATIO: float = 0.55
 
@@ -80,6 +81,7 @@ var _border_segments: Array[MeshInstance3D] = []
 
 func _ready() -> void:
 	if _note_marker:
+		_validate_note_marker_model_size()
 		_note_marker.position = NOTE_MARKER_LOCAL_OFFSET
 		_fill_mat = StandardMaterial3D.new()
 		_fill_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -108,6 +110,19 @@ func _ready() -> void:
 
 	if _miss_label:
 		_miss_label.position = Vector3(0.0, 0.0, MISS_LABEL_Z)
+
+
+func _validate_note_marker_model_size() -> void:
+	var mesh_aabb: AABB = _note_marker.get_aabb()
+	var mesh_size: Vector3 = mesh_aabb.size
+	if mesh_size.is_equal_approx(NOTE_MARKER_MODEL_SIZE):
+		return
+	if absf(mesh_size.x - NOTE_MARKER_MODEL_SIZE.x) <= NOTE_MARKER_MODEL_SIZE_TOLERANCE \
+			and absf(mesh_size.y - NOTE_MARKER_MODEL_SIZE.y) <= NOTE_MARKER_MODEL_SIZE_TOLERANCE \
+			and absf(mesh_size.z - NOTE_MARKER_MODEL_SIZE.z) <= NOTE_MARKER_MODEL_SIZE_TOLERANCE:
+		return
+	push_warning("NoteMarker: note.obj bounds changed (actual=%s expected=%s). Update NOTE_MARKER_MODEL_SIZE." \
+		% [str(mesh_size), str(NOTE_MARKER_MODEL_SIZE)])
 
 
 func setup(p_fret: int, p_string: int, p_time: float, p_duration: float, p_show_label: bool = true) -> void:
