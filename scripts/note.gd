@@ -11,7 +11,7 @@ extends Node3D
 ##       Notes spawn at Z = -20 and travel toward Z = 0.
 ##
 ## Note marker is a 3D mesh from scenes/note.tscn:
-##   - Visual states: filled → transparent (final 1s) → hit flash
+##   - Solid color material with no per-frame visual animation
 
 # ── Per-string note colors (string 0 top → string 5 bottom) ───────────────────
 const STRING_COLORS: Array[Color] = [
@@ -28,8 +28,6 @@ const START_Z       : float = -20.0
 const STRUM_Z       : float = 0.0
 const TRAVEL_SPEED  : float = 2.0
 const MISS_HOLD_SECS: float = 1.0
-const APPROACH_FADE_SECS: float = 1.0
-const HIT_FLASH_SECS: float = 0.25
 const BOX_DEPTH: float = 0.04
 const NOTE_MARKER_BASE_SIZE: Vector3 = Vector3(0.12, 0.20, 0.60)
 
@@ -39,7 +37,6 @@ var time_offset  : float = 0.0
 var duration     : float = 0.25
 var is_active    : bool  = false
 var _miss_until  : float = -1.0
-var _hit_fx_start: float = -1.0
 var _last_sized_fret: int = -1
 var _note_marker_color: Color = Color(1.0, 0.5, 0.1, 1.0)
 
@@ -52,14 +49,12 @@ var _note_marker_base_scale: Vector3 = Vector3.ONE
 func _ready() -> void:
 	if _note_marker:
 		_fill_mat = StandardMaterial3D.new()
-		_fill_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		_fill_mat.albedo_color = Color(1.0, 0.5, 0.1, 0.0)
+		_fill_mat.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
+		_fill_mat.albedo_color = Color(1.0, 0.5, 0.1, 1.0)
 		_fill_mat.metallic = 0.15
 		_fill_mat.roughness = 0.25
 		_fill_mat.metallic_specular = 1.0
-		_fill_mat.emission_enabled = true
-		_fill_mat.emission = Color(1.0, 0.6, 0.2, 1.0)
-		_fill_mat.emission_energy_multiplier = 0.0
+		_fill_mat.emission_enabled = false
 		_fill_mat.albedo_texture = null
 		_fill_mat.emission_texture = null
 		_note_marker.material_override = _fill_mat
@@ -74,7 +69,6 @@ func setup(p_fret: int, p_string: int, p_time: float, p_duration: float, _p_show
 	is_active    = true
 	visible      = true
 	_miss_until  = -1.0
-	_hit_fx_start = -1.0
 
 	position = Vector3(ChartCommon.fret_mid_world_x(fret - 1), ChartCommon.string_world_y(string_index), START_Z)
 
@@ -83,7 +77,8 @@ func setup(p_fret: int, p_string: int, p_time: float, p_duration: float, _p_show
 			_last_sized_fret = fret
 			_update_note_marker_geometry(fret)
 		_note_marker_color = STRING_COLORS[string_index]
-		_update_note_marker_visuals(0.85, 1.0, 1.0)
+		if _fill_mat:
+			_fill_mat.albedo_color = _note_marker_color
 		_note_marker.scale = _note_marker_base_scale
 
 
@@ -92,7 +87,6 @@ func tick(p_song_time: float) -> void:
 		return
 
 	position.z = STRUM_Z - (time_offset - p_song_time) * TRAVEL_SPEED
-	_update_hit_visuals(p_song_time)
 
 	if _miss_until < 0.0 and p_song_time >= time_offset:
 		_miss_until = p_song_time + MISS_HOLD_SECS
@@ -105,7 +99,6 @@ func deactivate() -> void:
 	is_active    = false
 	visible      = false
 	_miss_until  = -1.0
-	_hit_fx_start = -1.0
 	var pool := get_parent()
 	if pool and pool.has_method("return_note"):
 		pool.return_note(self)
@@ -120,36 +113,3 @@ func _update_note_marker_geometry(fret_num: int) -> void:
 		sz2.y / NOTE_MARKER_BASE_SIZE.y,
 		BOX_DEPTH / NOTE_MARKER_BASE_SIZE.z
 	)
-
-
-func _update_hit_visuals(song_time: float) -> void:
-	var lead: float = time_offset - song_time
-	if _hit_fx_start < 0.0:
-		if lead <= 0.0:
-			_hit_fx_start = song_time
-			lead = 0.0
-		var fill_alpha: float = 0.85
-		var emit_energy: float = 1.0
-		if lead <= APPROACH_FADE_SECS:
-			var ramp: float = clampf((APPROACH_FADE_SECS - lead) / APPROACH_FADE_SECS, 0.0, 1.0)
-			fill_alpha = 0.0
-			emit_energy = lerpf(1.0, 1.6, ramp)
-		_update_note_marker_visuals(fill_alpha, emit_energy, 1.0)
-		return
-
-	var t: float = clampf((song_time - _hit_fx_start) / HIT_FLASH_SECS, 0.0, 1.0)
-	var fade: float = 1.0 - t
-	var pulse: float = sin(t * PI)
-	var scale_boost: float = 1.0 + pulse * 0.2
-	_update_note_marker_visuals(fade, lerpf(3.5, 0.0, t), scale_boost)
-
-
-func _update_note_marker_visuals(fill_alpha: float, emission_energy: float, scale_mul: float) -> void:
-	if _fill_mat:
-		var fill_col := _note_marker_color
-		fill_col.a = clampf(fill_alpha, 0.0, 1.0)
-		_fill_mat.albedo_color = fill_col
-		_fill_mat.emission = _note_marker_color
-		_fill_mat.emission_energy_multiplier = maxf(0.0, emission_energy)
-	if _note_marker:
-		_note_marker.scale = _note_marker_base_scale * scale_mul
