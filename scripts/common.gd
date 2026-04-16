@@ -10,6 +10,7 @@ extends RefCounted
 ## Total frets on the virtual guitar neck.
 const FRET_COUNT         : int   = 24
 ## Total world-unit width of the highway (fret 0 = X 0, fret 24 = X 24).
+## Kept separate from FRET_COUNT so scene/layout code can read an explicit width.
 const FRET_WORLD_WIDTH   : float = 24.0
 ## Multiplier that maps the raw GetStringHeight value to world units.
 const STRING_HEIGHT_SCALE: float = 0.125
@@ -17,6 +18,8 @@ const STRING_HEIGHT_SCALE: float = 0.125
 const STRING_SLOT_HEIGHT : float = 4.0 * STRING_HEIGHT_SCALE  # 0.5
 ## Guard against division by zero when FRET_COUNT is 0.
 const MIN_VALID_FRET_POS : float = 0.001
+## Fallback note size when fret geometry is unavailable.
+const DEFAULT_NOTE_INDICATOR_SIZE: Vector2 = Vector2(0.116, 0.06)
 
 
 # ── Core formula ──────────────────────────────────────────────────────────────
@@ -62,7 +65,7 @@ static func string_world_y(str_idx: int) -> float:
 ## so the indicator fits comfortably between strings.
 static func note_indicator_size(fret_num: int) -> Vector2:
 	if float(FRET_COUNT) <= MIN_VALID_FRET_POS:
-		return Vector2(0.116, 0.06)
+		return DEFAULT_NOTE_INDICATOR_SIZE
 	var w    := 1.0
 	var h    := STRING_SLOT_HEIGHT * 0.8
 	return Vector2(w, h)

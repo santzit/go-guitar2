@@ -14,7 +14,7 @@ var _fail_count := 0
 func _init() -> void:
 	_run_all()
 	_print_summary()
-	quit(_fail_count > 0)
+	quit(_fail_count)
 
 
 func _assert_near(actual: float, expected: float, description: String) -> void:
