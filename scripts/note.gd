@@ -35,7 +35,13 @@ func _ready() -> void:
 		_note_marker.position = NOTE_MARKER_LOCAL_OFFSET
 
 
-func setup(p_fret: int, p_string: int, p_time: float, p_duration: float) -> void:
+func setup(
+		p_fret: int,
+		p_string: int,
+		p_time: float,
+		p_duration: float,
+		_unused_show_label: bool = true
+) -> void:
 	fret         = p_fret
 	string_index = clampi(p_string, 0, 5)
 	time_offset  = p_time
