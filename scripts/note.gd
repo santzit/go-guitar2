@@ -36,7 +36,7 @@ const NOTE_MARKER_PULSE_FREQUENCY: float = 8.0
 const NOTE_VISUAL_ALPHA: float = 0.4
 const SUSTAIN_MIN_SECS: float = 0.05
 const SUSTAIN_TRAIL_WIDTH_RATIO: float = 0.5 # Half of note marker length
-const SUSTAIN_TRAIL_FALLBACK_WIDTH: float = 0.5
+const SUSTAIN_TRAIL_DEFAULT_WIDTH: float = 0.5
 const SUSTAIN_TRAIL_HEIGHT: float = 0.08
 const SUSTAIN_MIN_LENGTH: float = SUSTAIN_MIN_SECS * TRAVEL_SPEED
 
@@ -179,11 +179,11 @@ func _with_visual_alpha(c: Color) -> Color:
 
 func _get_sustain_trail_width() -> float:
 	if _note_marker == null:
-		return SUSTAIN_TRAIL_FALLBACK_WIDTH
+		return SUSTAIN_TRAIL_DEFAULT_WIDTH
 	var marker_aabb: AABB = _note_marker.get_aabb()
 	if marker_aabb.size == Vector3.ZERO:
-		return SUSTAIN_TRAIL_FALLBACK_WIDTH
+		return SUSTAIN_TRAIL_DEFAULT_WIDTH
 	var marker_max_dimension: float = maxf(marker_aabb.size.x, marker_aabb.size.z)
 	if marker_max_dimension <= 0.0:
-		return SUSTAIN_TRAIL_FALLBACK_WIDTH
+		return SUSTAIN_TRAIL_DEFAULT_WIDTH
 	return marker_max_dimension * SUSTAIN_TRAIL_WIDTH_RATIO
