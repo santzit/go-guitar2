@@ -28,11 +28,6 @@ pub struct PsarcData {
     pub preview_wem_bytes: Option<Vec<u8>>,
 }
 
-#[inline]
-fn display_fret_from_sng_fret(fret: i8) -> i8 {
-    fret
-}
-
 impl PsarcData {
     /// Open and fully parse a `.psarc` file.
     ///
@@ -95,7 +90,7 @@ impl PsarcData {
                                     if fret >= 0 {   // -1 means this string is not played
                                         entries.push(NoteEntry {
                                             time:         n.time,
-                                            fret:         display_fret_from_sng_fret(fret),
+                                            fret,
                                             string_index: s,
                                             sustain:      n.sustain,
                                         });
@@ -106,7 +101,7 @@ impl PsarcData {
                             // Single note.
                             entries.push(NoteEntry {
                                 time:         n.time,
-                                fret:         display_fret_from_sng_fret(n.fret),
+                                fret:         n.fret,
                                 string_index: n.string_index,
                                 sustain:      n.sustain,
                             });
@@ -248,23 +243,4 @@ fn wem_ids_from_bnk(data: &[u8]) -> Vec<u32> {
 
 fn is_preview_wem_name(name: &str) -> bool {
     name.contains("PREVIEW") 
-}
-
-#[cfg(test)]
-mod tests {
-    use super::display_fret_from_sng_fret;
-
-    #[test]
-    fn test_frets_unchanged_without_capo() {
-        assert_eq!(display_fret_from_sng_fret(7), 7);
-        assert_eq!(display_fret_from_sng_fret(0), 0);
-        assert_eq!(display_fret_from_sng_fret(-1), -1);
-    }
-
-    #[test]
-    fn test_fretted_notes_preserve_sng_fret_with_capo_metadata() {
-        assert_eq!(display_fret_from_sng_fret(7), 7);
-        assert_eq!(display_fret_from_sng_fret(5), 5);
-        assert_eq!(display_fret_from_sng_fret(3), 3);
-    }
 }
