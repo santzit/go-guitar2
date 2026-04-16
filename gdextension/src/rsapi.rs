@@ -29,8 +29,7 @@ pub struct PsarcData {
 }
 
 #[inline]
-fn display_fret_from_sng_fret(fret: i8, capo_fret: i8) -> i8 {
-    let _ = capo_fret;
+fn display_fret_from_sng_fret(fret: i8) -> i8 {
     fret
 }
 
@@ -74,8 +73,6 @@ impl PsarcData {
                 // Platform::Pc is correct for all official Rocksmith 2014 PC/Windows DLC.
                 // Mac DLC uses Platform::Mac (different AES key) and is not supported here.
                 .map_err(|e| format!("Failed to decrypt SNG '{}': {}", name, e))?;
-            let capo_fret = sng.metadata.capo_fret_id.max(0);
-
             // Use the highest-difficulty level (most notes).
             let best_level = sng.levels.iter()
                 .max_by_key(|lvl| lvl.notes.len());
@@ -98,7 +95,7 @@ impl PsarcData {
                                     if fret >= 0 {   // -1 means this string is not played
                                         entries.push(NoteEntry {
                                             time:         n.time,
-                                            fret:         display_fret_from_sng_fret(fret, capo_fret),
+                                            fret:         display_fret_from_sng_fret(fret),
                                             string_index: s,
                                             sustain:      n.sustain,
                                         });
@@ -109,7 +106,7 @@ impl PsarcData {
                             // Single note.
                             entries.push(NoteEntry {
                                 time:         n.time,
-                                fret:         display_fret_from_sng_fret(n.fret, capo_fret),
+                                fret:         display_fret_from_sng_fret(n.fret),
                                 string_index: n.string_index,
                                 sustain:      n.sustain,
                             });
@@ -259,16 +256,15 @@ mod tests {
 
     #[test]
     fn test_frets_unchanged_without_capo() {
-        assert_eq!(display_fret_from_sng_fret(7, 0), 7);
-        assert_eq!(display_fret_from_sng_fret(7, -1), 7);
-        assert_eq!(display_fret_from_sng_fret(0, 5), 0);
-        assert_eq!(display_fret_from_sng_fret(-1, 5), -1);
+        assert_eq!(display_fret_from_sng_fret(7), 7);
+        assert_eq!(display_fret_from_sng_fret(0), 0);
+        assert_eq!(display_fret_from_sng_fret(-1), -1);
     }
 
     #[test]
     fn test_fretted_notes_preserve_sng_fret_with_capo_metadata() {
-        assert_eq!(display_fret_from_sng_fret(7, 5), 7);
-        assert_eq!(display_fret_from_sng_fret(5, 5), 5);
-        assert_eq!(display_fret_from_sng_fret(3, 5), 3);
+        assert_eq!(display_fret_from_sng_fret(7), 7);
+        assert_eq!(display_fret_from_sng_fret(5), 5);
+        assert_eq!(display_fret_from_sng_fret(3), 3);
     }
 }
