@@ -1,7 +1,7 @@
 extends Node3D
 ## chord.gd — Chord container: bordered box spanning 4 frets × all involved strings.
 ##
-## For the first occurrence (or chord change): renders per-string finger indicators
+## For the first occurrence (or chord change): renders per-string note markers
 ## + chord name label to the top-left outside the container.
 ## For repeated chords: renders only the border outline.
 ##
@@ -54,14 +54,14 @@ var _chord_label   : Label3D        = null
 var _last_min_fret : int            = -1
 
 ## Dynamic indicator nodes — freed on each deactivate and recreated in setup.
-var _indicators    : Array          = []
+var _note_markers  : Array          = []
 
 
 ## Activate this chord container.
 ## p_notes:        Array[Dictionary{fret,string}] — the chord's notes
 ## p_time:         float  — timestamp (seconds)
 ## p_chord_name:   String — displayed only on first/changed occurrence
-## p_show_details: bool   — true = finger indicators + label; false = border only
+## p_show_details: bool   — true = note markers + label; false = border only
 func setup(
 		p_notes: Array,
 		p_time: float,
@@ -103,13 +103,13 @@ func setup(
 	var h : float = absf(top_y - bot_y) + ChartCommon.STRING_SLOT_HEIGHT
 	_ensure_border(min_fret, w, h)
 
-	# ── Per-string finger indicators (only on first / changed chord) ───────────
-	_clear_indicators()
+	# ── Per-string note markers (only on first / changed chord) ─────────────────
+	_clear_note_markers()
 	if p_show_details:
 		for n in p_notes:
 			var f : int = int(n.get("fret", 0))
 			var s : int = clampi(int(n.get("string", 0)), 0, 5)
-			_add_indicator(f, s, center_x, center_y)
+			_add_note_marker(f, s, center_x, center_y)
 
 	# ── Chord name label (top-left outside the container) ─────────────────────
 	_ensure_label()
@@ -165,8 +165,8 @@ func _ensure_label() -> void:
 		add_child(_chord_label)
 
 
-## Add a finger indicator MeshInstance3D child for one string-note.
-func _add_indicator(f: int, s: int, center_x: float, center_y: float) -> void:
+## Add a note marker child for one string-note.
+func _add_note_marker(f: int, s: int, center_x: float, center_y: float) -> void:
 	var ind: Node3D = NOTE_SCENE.instantiate()
 	var local_pos := Vector3(
 		ChartCommon.fret_mid_world_x(f - 1) - center_x,
@@ -175,11 +175,11 @@ func _add_indicator(f: int, s: int, center_x: float, center_y: float) -> void:
 	)
 	ind.position = local_pos
 	add_child(ind)
-	call_deferred("_setup_indicator_note", ind, f, s, local_pos)
-	_indicators.append(ind)
+	call_deferred("_setup_note_marker", ind, f, s, local_pos)
+	_note_markers.append(ind)
 
 
-func _setup_indicator_note(ind: Node3D, ind_fret: int, ind_string: int, local_pos: Vector3) -> void:
+func _setup_note_marker(ind: Node3D, ind_fret: int, ind_string: int, local_pos: Vector3) -> void:
 	if not is_instance_valid(ind):
 		return
 	if ind.has_method("setup"):
@@ -188,13 +188,13 @@ func _setup_indicator_note(ind: Node3D, ind_fret: int, ind_string: int, local_po
 	ind.visible = true
 
 
-## Free all per-string indicator children.
-func _clear_indicators() -> void:
-	for ind in _indicators:
+## Free all per-string note-marker children.
+func _clear_note_markers() -> void:
+	for ind in _note_markers:
 		if is_instance_valid(ind):
 			remove_child(ind)
 			ind.queue_free()
-	_indicators.clear()
+	_note_markers.clear()
 
 
 ## Update Z position every frame from the audio clock.
@@ -214,7 +214,7 @@ func deactivate() -> void:
 	is_active   = false
 	visible     = false
 	_miss_until = -1.0
-	_clear_indicators()
+	_clear_note_markers()
 	if is_instance_valid(_chord_label):
 		_chord_label.visible = false
 	var pool := get_parent()

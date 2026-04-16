@@ -1,5 +1,5 @@
 extends Node3D
-## note.gd  –  behaviour for a single pooled note with 3D finger indicators.
+## note.gd  –  behaviour for a single pooled note with 3D note markers.
 ##
 ## All coordinate formulas live in scripts/common.gd (class ChartCommon) so they
 ## can be shared with highway.gd, music_play.gd, and fretboard.gd.
@@ -10,7 +10,7 @@ extends Node3D
 ##   Z = STRUM_Z − (time_offset − song_time) × TRAVEL_SPEED
 ##       Notes spawn at Z = -20 and travel toward Z = 0.
 ##
-## Finger indicator is a 3D mesh (assets/models/note.obj):
+## Note marker uses a mesh from mesh_ref.tres:
 ##   - Visual states: filled → transparent (final 1s) → hit flash
 
 # ── Per-string note colors (string 0 top → string 5 bottom) ───────────────────
@@ -23,32 +23,17 @@ const STRING_COLORS: Array[Color] = [
 	Color(0.72, 0.38, 0.98, 1.0), # purple
 ]
 
-# ── Digit scenes (0–9) used to display the fret number on each note ──────────
-const DIGIT_SCENES: Array[PackedScene] = [
-	preload("res://scenes/number_0.tscn"),
-	preload("res://scenes/number_1.tscn"),
-	preload("res://scenes/number_2.tscn"),
-	preload("res://scenes/number_3.tscn"),
-	preload("res://scenes/number_4.tscn"),
-	preload("res://scenes/number_5.tscn"),
-	preload("res://scenes/number_6.tscn"),
-	preload("res://scenes/number_7.tscn"),
-	preload("res://scenes/number_8.tscn"),
-	preload("res://scenes/number_9.tscn"),
-]
-
-## Visual constants for 3D note indicators
-const LABEL_Z : float = 0.06
-const DIGIT_X_OFFSET : float = 0.07
+## Visual constants for 3D note markers
 const START_Z       : float = -20.0
 const STRUM_Z       : float = 0.0
 const TRAVEL_SPEED  : float = 2.0
 const MISS_HOLD_SECS: float = 1.0
-const MISS_LABEL_Z  : float = 0.30
 const APPROACH_FADE_SECS: float = 1.0
 const HIT_FLASH_SECS: float = 0.25
 const BOX_DEPTH: float = 0.04
-const NOTE_MODEL_BASE_SIZE: Vector3 = Vector3(0.12, 0.2, 0.6)
+const NOTE_MARKER_BASE_SIZE: Vector3 = Vector3(1.7, 0.7, 0.2)
+const NOTE_MARKER_MESH_LIBRARY: MeshLibrary = preload("res://mesh_ref.tres")
+const NOTE_MARKER_MESH_ID: int = 0
 
 var fret         : int   = 0
 var string_index : int   = 0
@@ -58,18 +43,17 @@ var is_active    : bool  = false
 var _miss_until  : float = -1.0
 var _hit_fx_start: float = -1.0
 var _last_sized_fret: int = -1
-var _indicator_color: Color = Color(1.0, 0.5, 0.1, 1.0)
+var _note_marker_color: Color = Color(1.0, 0.5, 0.1, 1.0)
 
 var _fill_mat: StandardMaterial3D = null
-var _finger_base_scale: Vector3 = Vector3.ONE
+var _note_marker_base_scale: Vector3 = Vector3.ONE
 
-@onready var _finger     : MeshInstance3D = $FingerIndicator
-@onready var _fret_label : Node3D         = $FretLabel
-@onready var _miss_label : Label3D        = $MissLabel
+@onready var _note_marker: MeshInstance3D = $NoteMarker
 
 
 func _ready() -> void:
-	if _finger:
+	if _note_marker:
+		_note_marker.mesh = NOTE_MARKER_MESH_LIBRARY.get_item_mesh(NOTE_MARKER_MESH_ID)
 		_fill_mat = StandardMaterial3D.new()
 		_fill_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		_fill_mat.albedo_color = Color(1.0, 0.5, 0.1, 0.0)
@@ -81,14 +65,11 @@ func _ready() -> void:
 		_fill_mat.emission_energy_multiplier = 0.0
 		_fill_mat.albedo_texture = null
 		_fill_mat.emission_texture = null
-		_finger.material_override = _fill_mat
-		_update_indicator_geometry(1)
-
-	if _miss_label:
-		_miss_label.position = Vector3(0.0, 0.0, MISS_LABEL_Z)
+		_note_marker.material_override = _fill_mat
+		_update_note_marker_geometry(1)
 
 
-func setup(p_fret: int, p_string: int, p_time: float, p_duration: float, p_show_label: bool = true) -> void:
+func setup(p_fret: int, p_string: int, p_time: float, p_duration: float, _p_show_label: bool = true) -> void:
 	fret         = p_fret
 	string_index = clampi(p_string, 0, 5)
 	time_offset  = p_time
@@ -99,47 +80,14 @@ func setup(p_fret: int, p_string: int, p_time: float, p_duration: float, p_show_
 	_hit_fx_start = -1.0
 
 	position = Vector3(ChartCommon.fret_mid_world_x(fret - 1), ChartCommon.string_world_y(string_index), START_Z)
-	_miss_label.visible = false
 
-	if _finger:
+	if _note_marker:
 		if fret != _last_sized_fret:
 			_last_sized_fret = fret
-			_update_indicator_geometry(fret)
-		_indicator_color = STRING_COLORS[string_index]
-		_update_indicator_visuals(0.85, 1.0, 1.0)
-		_finger.scale = _finger_base_scale
-
-	if p_show_label:
-		_rebuild_fret_label()
-	else:
-		for child in _fret_label.get_children():
-			_fret_label.remove_child(child)
-			child.free()
-
-
-func _rebuild_fret_label() -> void:
-	for child in _fret_label.get_children():
-		_fret_label.remove_child(child)
-		child.free()
-
-	if fret < 1 or fret > 24:
-		return
-
-	var tens := fret / 10
-	var ones := fret % 10
-
-	if tens > 0:
-		var d_tens := DIGIT_SCENES[tens].instantiate()
-		d_tens.position = Vector3(-DIGIT_X_OFFSET, 0.0, LABEL_Z)
-		_fret_label.add_child(d_tens)
-
-		var d_ones := DIGIT_SCENES[ones].instantiate()
-		d_ones.position = Vector3(DIGIT_X_OFFSET, 0.0, LABEL_Z)
-		_fret_label.add_child(d_ones)
-	else:
-		var d := DIGIT_SCENES[ones].instantiate()
-		d.position = Vector3(0.0, 0.0, LABEL_Z)
-		_fret_label.add_child(d)
+			_update_note_marker_geometry(fret)
+		_note_marker_color = STRING_COLORS[string_index]
+		_update_note_marker_visuals(0.85, 1.0, 1.0)
+		_note_marker.scale = _note_marker_base_scale
 
 
 func tick(p_song_time: float) -> void:
@@ -151,7 +99,6 @@ func tick(p_song_time: float) -> void:
 
 	if _miss_until < 0.0 and p_song_time >= time_offset:
 		_miss_until = p_song_time + MISS_HOLD_SECS
-		_miss_label.visible = true
 
 	elif _miss_until >= 0.0 and p_song_time >= _miss_until:
 		deactivate()
@@ -160,7 +107,6 @@ func tick(p_song_time: float) -> void:
 func deactivate() -> void:
 	is_active    = false
 	visible      = false
-	_miss_label.visible = false
 	_miss_until  = -1.0
 	_hit_fx_start = -1.0
 	var pool := get_parent()
@@ -168,14 +114,14 @@ func deactivate() -> void:
 		pool.return_note(self)
 
 
-func _update_indicator_geometry(fret_num: int) -> void:
-	if _finger == null:
+func _update_note_marker_geometry(fret_num: int) -> void:
+	if _note_marker == null:
 		return
 	var sz2: Vector2 = ChartCommon.note_indicator_size(fret_num)
-	_finger_base_scale = Vector3(
-		sz2.x / NOTE_MODEL_BASE_SIZE.x,
-		sz2.y / NOTE_MODEL_BASE_SIZE.y,
-		BOX_DEPTH / NOTE_MODEL_BASE_SIZE.z
+	_note_marker_base_scale = Vector3(
+		sz2.x / NOTE_MARKER_BASE_SIZE.x,
+		sz2.y / NOTE_MARKER_BASE_SIZE.y,
+		BOX_DEPTH / NOTE_MARKER_BASE_SIZE.z
 	)
 
 
@@ -191,22 +137,22 @@ func _update_hit_visuals(song_time: float) -> void:
 			var ramp: float = clampf((APPROACH_FADE_SECS - lead) / APPROACH_FADE_SECS, 0.0, 1.0)
 			fill_alpha = 0.0
 			emit_energy = lerpf(1.0, 1.6, ramp)
-		_update_indicator_visuals(fill_alpha, emit_energy, 1.0)
+		_update_note_marker_visuals(fill_alpha, emit_energy, 1.0)
 		return
 
 	var t: float = clampf((song_time - _hit_fx_start) / HIT_FLASH_SECS, 0.0, 1.0)
 	var fade: float = 1.0 - t
 	var pulse: float = sin(t * PI)
 	var scale_boost: float = 1.0 + pulse * 0.2
-	_update_indicator_visuals(fade, lerpf(3.5, 0.0, t), scale_boost)
+	_update_note_marker_visuals(fade, lerpf(3.5, 0.0, t), scale_boost)
 
 
-func _update_indicator_visuals(fill_alpha: float, emission_energy: float, scale_mul: float) -> void:
+func _update_note_marker_visuals(fill_alpha: float, emission_energy: float, scale_mul: float) -> void:
 	if _fill_mat:
-		var fill_col := _indicator_color
+		var fill_col := _note_marker_color
 		fill_col.a = clampf(fill_alpha, 0.0, 1.0)
 		_fill_mat.albedo_color = fill_col
-		_fill_mat.emission = _indicator_color
+		_fill_mat.emission = _note_marker_color
 		_fill_mat.emission_energy_multiplier = maxf(0.0, emission_energy)
-	if _finger:
-		_finger.scale = _finger_base_scale * scale_mul
+	if _note_marker:
+		_note_marker.scale = _note_marker_base_scale * scale_mul
