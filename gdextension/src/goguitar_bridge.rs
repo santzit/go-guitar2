@@ -32,7 +32,9 @@ pub struct RocksmithBridge {
     wem_data:         Option<Vec<u8>>,   // MAIN WEM — full-length backing track
     preview_wem_data: Option<Vec<u8>>,   // PREVIEW WEM — short clip for song-list preview
     sng_start_time:   f32,   // SNG arrangement start time (seconds from WEM position 0)
-    sng_difficulty:   i32,   // difficulty index of the selected level
+    sng_difficulty:   i32,   // difficulty index of the selected level (== max_difficulty)
+    sng_capo:         i8,    // capo fret (0 = no capo); frets already have this applied
+    sng_tuning:       Vec<i16>, // per-string semitone offsets from standard tuning
 }
 
 #[godot_api]
@@ -45,6 +47,8 @@ impl IObject for RocksmithBridge {
             preview_wem_data: None,
             sng_start_time:   0.0,
             sng_difficulty:   -1,
+            sng_capo:         0,
+            sng_tuning:       vec![],
         }
     }
 }
@@ -114,16 +118,26 @@ impl RocksmithBridge {
     }
 
     /// Returns a Dictionary with SNG diagnostic fields:
-    ///   `{ "start_time": float, "difficulty": int }`
+    ///   `{ "start_time": float, "difficulty": int, "capo": int, "tuning": Array[int] }`
     /// - `start_time`: when the arrangement begins in the WEM audio (seconds from WEM t=0).
     ///   Note times in `get_notes()` are already absolute from WEM t=0, so no offset
     ///   needs to be applied — this value is purely for diagnostic logging.
-    /// - `difficulty`: difficulty index of the selected level (highest = master).
+    /// - `difficulty`: difficulty index of the selected level (== max_difficulty).
+    /// - `capo`: capo fret (0 = no capo). Note fret values returned by get_notes() already
+    ///   have the capo offset applied (physical fret = SNG_fret + capo_fret_id).
+    /// - `tuning`: per-string semitone offsets from standard E-A-D-G-B-e tuning.
+    ///   Use these to compute correct note names for alternate-tuning songs.
     #[func]
     fn get_sng_info(&self) -> Dictionary<GString, Variant> {
         let mut dict: Dictionary<GString, Variant> = Dictionary::new();
         dict.set(&GString::from("start_time"), self.sng_start_time);
         dict.set(&GString::from("difficulty"),  self.sng_difficulty);
+        dict.set(&GString::from("capo"),        self.sng_capo as i32);
+        let mut tuning_arr: Array<Variant> = Array::new();
+        for &t in &self.sng_tuning {
+            tuning_arr.push(&Variant::from(t as i32));
+        }
+        dict.set(&GString::from("tuning"), &tuning_arr.to_variant());
         dict
     }
 }
@@ -137,10 +151,16 @@ impl RocksmithBridge {
         // ── SNG diagnostic metadata ───────────────────────────────────────────
         self.sng_start_time = data.sng_start_time;
         self.sng_difficulty = data.sng_difficulty;
+        self.sng_capo       = data.sng_capo;
+        self.sng_tuning     = data.sng_tuning;   // move — data.sng_tuning no longer needed
+
+        let tuning_str: Vec<String> = self.sng_tuning.iter().map(|t| t.to_string()).collect();
         godot_print!(
-            "RocksmithBridge: SNG difficulty={} start_time={:.3}s",
+            "RocksmithBridge: SNG difficulty={}  start_time={:.3}s  capo={}  tuning=[{}]",
             self.sng_difficulty,
             self.sng_start_time,
+            self.sng_capo,
+            tuning_str.join(", "),
         );
 
         // ── Notes from SNG ────────────────────────────────────────────────────

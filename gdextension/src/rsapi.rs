@@ -30,8 +30,15 @@ pub struct PsarcData {
     /// Note times are already absolute from WEM position 0, so this is
     /// informational only — no offset needs to be applied during playback.
     pub sng_start_time:    f32,
-    /// SNG difficulty index of the selected level (highest = master).
+    /// SNG difficulty index of the selected level (== metadata.max_difficulty).
     pub sng_difficulty:    i32,
+    /// Capo fret used by the arrangement (0 = no capo).
+    /// SNG fret values are stored relative to the capo; the physical fret
+    /// already has the capo offset added and is what Rocksmith displays.
+    pub sng_capo:          i8,
+    /// Per-string tuning offsets in semitones from standard E-A-D-G-B-e tuning.
+    /// An all-zero (or empty) vector means standard tuning.
+    pub sng_tuning:        Vec<i16>,
 }
 
 impl PsarcData {
@@ -66,7 +73,7 @@ impl PsarcData {
             })
             .cloned();
 
-        let (notes, sng_start_time, sng_difficulty) = if let Some(ref name) = sng_name {
+        let (notes, sng_start_time, sng_difficulty, sng_capo, sng_tuning) = if let Some(ref name) = sng_name {
             let encrypted = psarc.inflate_file(name)
                 .map_err(|e| format!("Failed to inflate SNG '{}': {}", name, e))?;
 
@@ -75,14 +82,16 @@ impl PsarcData {
                 // Mac DLC uses Platform::Mac (different AES key) and is not supported here.
                 .map_err(|e| format!("Failed to decrypt SNG '{}': {}", name, e))?;
 
-            // Use the highest-difficulty level, identified by the difficulty
-            // index stored in the Level rather than by raw note count.
-            // sng.metadata.max_difficulty gives the ceiling; matching by the
-            // Level.difficulty field is the most semantically correct approach.
-            let best_level = sng.levels.iter()
-                .max_by_key(|lvl| lvl.difficulty);
-
+            let max_diff   = sng.metadata.max_difficulty;
             let start_time = sng.metadata.start_time;
+            let capo       = sng.metadata.capo_fret_id;   // 0 = no capo
+            let tuning     = sng.metadata.tuning.clone();
+
+            // Select the level whose difficulty == max_difficulty (the master / 100% level).
+            // Fall back to max-by-difficulty-index if no level exactly matches (rare in CDLCs).
+            let best_level = sng.levels.iter()
+                .find(|lvl| lvl.difficulty == max_diff)
+                .or_else(|| sng.levels.iter().max_by_key(|lvl| lvl.difficulty));
 
             match best_level {
                 Some(lvl) => {
@@ -97,38 +106,45 @@ impl PsarcData {
                             continue;
                         }
 
+                        // Capo compensation: Rocksmith SNG stores fret values relative to
+                        // the capo position. The physical fret Rocksmith displays on screen is:
+                        //   physical_fret = sng_fret + capo_fret_id
+                        // For songs without a capo (capo_fret_id == 0) this is a no-op.
+                        let apply_capo = |sng_fret: i8| -> i8 {
+                            sng_fret.saturating_add(capo)
+                        };
+
                         if n.mask.contains(NoteMask::CHORD) && n.chord_id >= 0 {
                             // Chord event: the Note itself has fret=-1 / string_index=-1.
                             // The actual per-string frets live in sng.chords[chord_id].frets[].
                             if let Some(chord) = sng.chords.get(n.chord_id as usize) {
                                 for s in 0i8..6 {
-                                    let fret = chord.frets[s as usize];
-                                    if fret >= 0 {   // -1 means this string is not played
-                                        entries.push(NoteEntry {
-                                            time:         n.time,
-                                            fret,
-                                            string_index: s,
-                                            sustain:      n.sustain,
-                                        });
-                                    }
+                                    let raw_fret = chord.frets[s as usize];
+                                    if raw_fret < 0 { continue; }   // -1 = string not played
+                                    entries.push(NoteEntry {
+                                        time:         n.time,
+                                        fret:         apply_capo(raw_fret),
+                                        string_index: s,
+                                        sustain:      n.sustain,
+                                    });
                                 }
                             }
                         } else {
                             // Single note.
                             entries.push(NoteEntry {
                                 time:         n.time,
-                                fret:         n.fret,
+                                fret:         apply_capo(n.fret),
                                 string_index: n.string_index,
                                 sustain:      n.sustain,
                             });
                         }
                     }
-                    (entries, start_time, difficulty)
+                    (entries, start_time, difficulty, capo, tuning)
                 }
-                None => (Vec::new(), start_time, -1i32),
+                None => (Vec::new(), start_time, max_diff, capo, tuning),
             }
         } else {
-            (Vec::new(), 0.0f32, -1i32)
+            (Vec::new(), 0.0f32, -1i32, 0i8, vec![])
         };
 
         // ── Build WEM ID → role map from Wwise SoundBank (.bnk) files ─────────
@@ -217,7 +233,7 @@ impl PsarcData {
             None => preview_wem_bytes.clone(),  // use preview as MAIN fallback
         };
 
-        Ok(PsarcData { notes, wem_bytes, preview_wem_bytes, sng_start_time, sng_difficulty })
+        Ok(PsarcData { notes, wem_bytes, preview_wem_bytes, sng_start_time, sng_difficulty, sng_capo, sng_tuning })
     }
 }
 
