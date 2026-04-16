@@ -87,15 +87,33 @@ impl PsarcData {
             let capo       = sng.metadata.capo_fret_id;   // 0 = no capo
             let tuning     = sng.metadata.tuning.clone();
 
-            // Select the level whose difficulty == max_difficulty (the master / 100% level).
-            // Fall back to max-by-difficulty-index if no level exactly matches (rare in CDLCs).
+            // Select the master/100% difficulty level.
+            //
+            // Strategy: pick the level with the MOST notes.  In Rocksmith's DDC format,
+            // the master level is definitionally the one with the most notes — it is a
+            // superset of every lower level.  This is more reliable than using
+            // metadata.max_difficulty, which can be wrong in CDLC packages (the metadata
+            // field is sometimes set to an arbitrary or off-by-one value).
+            //
+            // Tie-break on difficulty index so we consistently pick the same level when
+            // multiple levels happen to have the same note count (rare but possible in
+            // hand-authored CDLCs).
+            let total_levels = sng.levels.len();
             let best_level = sng.levels.iter()
-                .find(|lvl| lvl.difficulty == max_diff)
-                .or_else(|| sng.levels.iter().max_by_key(|lvl| lvl.difficulty));
+                .max_by(|a, b| {
+                    a.notes.len().cmp(&b.notes.len())
+                        .then_with(|| a.difficulty.cmp(&b.difficulty))
+                });
 
             match best_level {
                 Some(lvl) => {
                     let difficulty = lvl.difficulty;
+                    let note_count = lvl.notes.len();
+                    // Log level selection details for diagnostics.
+                    eprintln!(
+                        "rsapi: SNG levels={} selected_difficulty={} note_events={} max_difficulty_meta={}",
+                        total_levels, difficulty, note_count, max_diff
+                    );
                     let mut entries: Vec<NoteEntry> = Vec::new();
                     for n in &lvl.notes {
                         // Skip notes flagged as IGNORE — they are never scored or displayed.
@@ -141,7 +159,13 @@ impl PsarcData {
                     }
                     (entries, start_time, difficulty, capo, tuning)
                 }
-                None => (Vec::new(), start_time, max_diff, capo, tuning),
+                None => {
+                    eprintln!(
+                        "rsapi: SNG levels={} — no level found, max_difficulty_meta={}",
+                        total_levels, max_diff
+                    );
+                    (Vec::new(), start_time, max_diff, capo, tuning)
+                }
             }
         } else {
             (Vec::new(), 0.0f32, -1i32, 0i8, vec![])
