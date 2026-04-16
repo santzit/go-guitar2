@@ -183,7 +183,7 @@ func _get_sustain_trail_width() -> float:
 	var marker_aabb: AABB = _note_marker.get_aabb()
 	if marker_aabb.size == Vector3.ZERO:
 		return SUSTAIN_TRAIL_FALLBACK_WIDTH
-	var marker_length: float = maxf(marker_aabb.size.x, marker_aabb.size.z)
-	if marker_length <= 0.0:
+	var marker_max_dimension: float = maxf(marker_aabb.size.x, marker_aabb.size.z)
+	if marker_max_dimension <= 0.0:
 		return SUSTAIN_TRAIL_FALLBACK_WIDTH
-	return marker_length * SUSTAIN_TRAIL_WIDTH_RATIO
+	return marker_max_dimension * SUSTAIN_TRAIL_WIDTH_RATIO
