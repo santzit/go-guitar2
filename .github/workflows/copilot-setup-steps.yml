@@ -12,8 +12,6 @@ on:
 jobs:
   copilot-setup-steps:
     runs-on: ubuntu-latest
-    env:
-      GODOT_VERSION: 4.4.1-stable
     permissions:
       contents: read
     steps:
@@ -38,6 +36,7 @@ jobs:
 
       - name: Download and install Godot
         run: |
+          GODOT_VERSION="${GODOT_VERSION:-4.4.1-stable}"
           GODOT_ZIP="Godot_v${GODOT_VERSION}_linux.x86_64.zip"
           GODOT_EXE="Godot_v${GODOT_VERSION}_linux.x86_64"
           GODOT_DIR="$RUNNER_TEMP/godot"
