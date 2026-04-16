@@ -48,7 +48,8 @@ const MISS_LABEL_Z  : float = 0.30
 const APPROACH_FADE_SECS: float = 1.0
 const HIT_FLASH_SECS: float = 0.25
 const BOX_DEPTH: float = 0.04
-## Raw size of assets/models/note.obj (X width, Y height, Z depth) used for scaling.
+const NOTE_MARKER_LOCAL_OFFSET: Vector3 = Vector3(0.0, -0.1, 0.08)
+## Raw size of assets/models/note.obj from OBJ vertex bounds (X width, Y height, Z depth) in Godot units.
 const NOTE_MARKER_MODEL_SIZE: Vector3 = Vector3(0.12, 0.2, 0.6)
 const BORDER_THICKNESS_RATIO: float = 0.18
 const TRAPEZOID_FRONT_RATIO: float = 0.55
@@ -76,6 +77,7 @@ var _border_segments: Array[MeshInstance3D] = []
 
 func _ready() -> void:
 	if _note_marker:
+		_note_marker.position = NOTE_MARKER_LOCAL_OFFSET
 		_fill_mat = StandardMaterial3D.new()
 		_fill_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		_fill_mat.albedo_color = Color(1.0, 0.5, 0.1, 0.0)
@@ -88,7 +90,7 @@ func _ready() -> void:
 		_note_marker.set_surface_override_material(0, _fill_mat)
 
 		_border_root = Node3D.new()
-		_border_root.position = _note_marker.position
+		_border_root.position = NOTE_MARKER_LOCAL_OFFSET
 		add_child(_border_root)
 		_border_mat = StandardMaterial3D.new()
 		_border_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
