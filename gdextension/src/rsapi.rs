@@ -26,6 +26,12 @@ pub struct PsarcData {
     pub wem_bytes:         Option<Vec<u8>>,
     /// Short preview clip (PREVIEW role) used in the song-list scene.
     pub preview_wem_bytes: Option<Vec<u8>>,
+    /// SNG arrangement start time (seconds from WEM position 0).
+    /// Note times are already absolute from WEM position 0, so this is
+    /// informational only — no offset needs to be applied during playback.
+    pub sng_start_time:    f32,
+    /// SNG difficulty index of the selected level (highest = master).
+    pub sng_difficulty:    i32,
 }
 
 impl PsarcData {
@@ -60,7 +66,7 @@ impl PsarcData {
             })
             .cloned();
 
-        let notes = if let Some(ref name) = sng_name {
+        let (notes, sng_start_time, sng_difficulty) = if let Some(ref name) = sng_name {
             let encrypted = psarc.inflate_file(name)
                 .map_err(|e| format!("Failed to inflate SNG '{}': {}", name, e))?;
 
@@ -68,16 +74,26 @@ impl PsarcData {
                 // Platform::Pc is correct for all official Rocksmith 2014 PC/Windows DLC.
                 // Mac DLC uses Platform::Mac (different AES key) and is not supported here.
                 .map_err(|e| format!("Failed to decrypt SNG '{}': {}", name, e))?;
-            // Use the highest-difficulty level (most notes).
+
+            // Use the highest-difficulty level, identified by the difficulty
+            // index stored in the Level rather than by raw note count.
+            // sng.metadata.max_difficulty gives the ceiling; matching by the
+            // Level.difficulty field is the most semantically correct approach.
             let best_level = sng.levels.iter()
-                .max_by_key(|lvl| lvl.notes.len());
+                .max_by_key(|lvl| lvl.difficulty);
+
+            let start_time = sng.metadata.start_time;
 
             match best_level {
                 Some(lvl) => {
+                    let difficulty = lvl.difficulty;
                     let mut entries: Vec<NoteEntry> = Vec::new();
                     for n in &lvl.notes {
-                        // Skip cosmetic high-density chord fills and explicitly ignored notes.
-                        if n.mask.intersects(NoteMask::HIGH_DENSITY | NoteMask::IGNORE) {
+                        // Skip notes flagged as IGNORE — they are never scored or displayed.
+                        // HIGH_DENSITY notes must NOT be skipped: they are genuine playable
+                        // notes that Rocksmith's DDC removes at lower difficulties but that
+                        // are required at the highest (master) difficulty level.
+                        if n.mask.contains(NoteMask::IGNORE) {
                             continue;
                         }
 
@@ -107,12 +123,12 @@ impl PsarcData {
                             });
                         }
                     }
-                    entries
+                    (entries, start_time, difficulty)
                 }
-                None => Vec::new(),
+                None => (Vec::new(), start_time, -1i32),
             }
         } else {
-            Vec::new()
+            (Vec::new(), 0.0f32, -1i32)
         };
 
         // ── Build WEM ID → role map from Wwise SoundBank (.bnk) files ─────────
@@ -201,7 +217,7 @@ impl PsarcData {
             None => preview_wem_bytes.clone(),  // use preview as MAIN fallback
         };
 
-        Ok(PsarcData { notes, wem_bytes, preview_wem_bytes })
+        Ok(PsarcData { notes, wem_bytes, preview_wem_bytes, sng_start_time, sng_difficulty })
     }
 }
 

@@ -104,6 +104,17 @@ func get_wem_bytes() -> PackedByteArray:
 	return PackedByteArray()
 
 
+## Returns SNG diagnostic info as a Dictionary:
+##   { "start_time": float, "difficulty": int }
+## start_time: when the arrangement begins in the WEM (seconds from WEM t=0).
+##             Note times are already absolute from WEM t=0 — no offset needed.
+## difficulty: difficulty index of the parsed level (highest = master).
+func get_sng_info() -> Dictionary:
+	if _ext == null or not _ext.has_method("get_sng_info"):
+		return {}
+	return _ext.get_sng_info()
+
+
 ## Decode WEM bytes into an AudioStreamWAV via the AudioEngine GDExtension.
 ## Returns null when the AudioEngine class is absent or decoding fails.
 func _decode_wem_to_stream(wem: PackedByteArray) -> AudioStream:

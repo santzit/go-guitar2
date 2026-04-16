@@ -31,6 +31,8 @@ pub struct RocksmithBridge {
     notes:            Vec<NoteData>,
     wem_data:         Option<Vec<u8>>,   // MAIN WEM — full-length backing track
     preview_wem_data: Option<Vec<u8>>,   // PREVIEW WEM — short clip for song-list preview
+    sng_start_time:   f32,   // SNG arrangement start time (seconds from WEM position 0)
+    sng_difficulty:   i32,   // difficulty index of the selected level
 }
 
 #[godot_api]
@@ -41,6 +43,8 @@ impl IObject for RocksmithBridge {
             notes:            Vec::new(),
             wem_data:         None,
             preview_wem_data: None,
+            sng_start_time:   0.0,
+            sng_difficulty:   -1,
         }
     }
 }
@@ -108,6 +112,20 @@ impl RocksmithBridge {
             None       => PackedByteArray::new(),
         }
     }
+
+    /// Returns a Dictionary with SNG diagnostic fields:
+    ///   `{ "start_time": float, "difficulty": int }`
+    /// - `start_time`: when the arrangement begins in the WEM audio (seconds from WEM t=0).
+    ///   Note times in `get_notes()` are already absolute from WEM t=0, so no offset
+    ///   needs to be applied — this value is purely for diagnostic logging.
+    /// - `difficulty`: difficulty index of the selected level (highest = master).
+    #[func]
+    fn get_sng_info(&self) -> Dictionary<GString, Variant> {
+        let mut dict: Dictionary<GString, Variant> = Dictionary::new();
+        dict.set(&GString::from("start_time"), self.sng_start_time);
+        dict.set(&GString::from("difficulty"),  self.sng_difficulty);
+        dict
+    }
 }
 
 // ── Private implementation ────────────────────────────────────────────────────
@@ -115,6 +133,15 @@ impl RocksmithBridge {
 impl RocksmithBridge {
     fn parse_psarc(&mut self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
         let data = PsarcData::open(path)?;
+
+        // ── SNG diagnostic metadata ───────────────────────────────────────────
+        self.sng_start_time = data.sng_start_time;
+        self.sng_difficulty = data.sng_difficulty;
+        godot_print!(
+            "RocksmithBridge: SNG difficulty={} start_time={:.3}s",
+            self.sng_difficulty,
+            self.sng_start_time,
+        );
 
         // ── Notes from SNG ────────────────────────────────────────────────────
         self.notes = data.notes.iter()

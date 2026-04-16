@@ -133,6 +133,12 @@ func _ready() -> void:
 	if _bridge.load_psarc_abs(selected_psarc_path):
 		_notes = _bridge.get_notes()
 		print("MusicPlay: %d notes loaded, requesting audio stream..." % _notes.size())
+		# -- Diagnostic: SNG info (difficulty level and start_time for timing check).
+		var sng_info : Dictionary = _bridge.get_sng_info()
+		if not sng_info.is_empty():
+			print("MusicPlay: SNG difficulty=%d  start_time=%.3fs (note times are absolute from WEM t=0)" % [
+				int(sng_info.get("difficulty", -1)),
+				float(sng_info.get("start_time", 0.0))])
 		# -- Diagnostic: print first 15 chord groups so fret/string values are visible.
 		# Notes at the same timestamp (within 20 ms) are grouped as a single chord line.
 		# Format: note[N] t=T.Ts  note=CHORD_ROOT  | fret=F1  string=S1(name), ...
