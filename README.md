@@ -25,7 +25,6 @@ scripts/
   rs_bridge.gd         – GDScript wrapper around the RocksmithBridge GDExtension
 shaders/
   highway.gdshader     – Dark background + 6 UV-masked glowing lanes with per-lane intensity
-  note.gdshader        – Per-string colour + pulsing emission glow
 assets/textures/chartplayer/ – Copied ChartPlayer Guitar*.png / FingerOutline textures used in-game
 ChartPlayer/           – Upstream ChartPlayer source snapshot for reference (temporary)
 DLC/                   – Drop .psarc CDLC files here for testing (5 songs included)
