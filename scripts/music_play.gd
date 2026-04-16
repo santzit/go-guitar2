@@ -80,6 +80,7 @@ const CHORD_GROUP_THRESHOLD : float = 0.02
 @onready var _player      : AudioStreamPlayer = $AudioStreamPlayer
 @onready var _camera      : Camera3D          = $Camera3D
 @onready var _debug_label : Label             = $DebugOverlay/DebugLabel
+@onready var _timeline    : Control           = $TimelineOverlay/NoteTimeline
 
 # -- State -------------------------------------------------------------------
 var _bridge              = null  # GoGuitarBridge instance (no static type — avoids parse errors when class is not yet registered)
@@ -192,6 +193,13 @@ func _ready() -> void:
 			if _notes.size() > 0:
 				var first_note_time: float = _notes[0]["time"]
 				print("MusicPlay: first note at t=%.2fs — starting playback from beginning" % first_note_time)
+			# Set up the timeline HUD with the full note list and song duration.
+			var total_dur : float = stream.get_length()
+			if total_dur <= 0.0 and _notes.size() > 0:
+				# Fallback: last note time + generous tail
+				total_dur = float(_notes[_notes.size() - 1].get("time", 0.0)) + 30.0
+			if is_instance_valid(_timeline):
+				_timeline.setup(_notes, total_dur)
 		else:
 			push_warning("MusicPlay: audio stream not available (no WEM/OGG in PSARC).")
 	else:
@@ -269,6 +277,10 @@ func _process(delta: float) -> void:
 	# positions are computed directly from the audio clock (not accumulated delta).
 	_pool.tick(_song_time)
 	_chord_pool.tick(_song_time)
+
+	# Update the timeline HUD playhead.
+	if is_instance_valid(_timeline):
+		_timeline.update_time(_song_time)
 
 	# ── Strum-line debug print ─────────────────────────────────────────────────
 	# Print each chord group the moment it crosses the strum line (song_time >= note.time).
