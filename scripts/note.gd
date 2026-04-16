@@ -115,14 +115,12 @@ func _ready() -> void:
 func _validate_note_marker_model_size() -> void:
 	var mesh_aabb: AABB = _note_marker.get_aabb()
 	var mesh_size: Vector3 = mesh_aabb.size
-	if mesh_size.is_equal_approx(NOTE_MARKER_MODEL_SIZE):
-		return
-	if absf(mesh_size.x - NOTE_MARKER_MODEL_SIZE.x) <= NOTE_MARKER_MODEL_SIZE_TOLERANCE \
-			and absf(mesh_size.y - NOTE_MARKER_MODEL_SIZE.y) <= NOTE_MARKER_MODEL_SIZE_TOLERANCE \
-			and absf(mesh_size.z - NOTE_MARKER_MODEL_SIZE.z) <= NOTE_MARKER_MODEL_SIZE_TOLERANCE:
+	var delta: Vector3 = mesh_size - NOTE_MARKER_MODEL_SIZE
+	var tolerance_len: float = NOTE_MARKER_MODEL_SIZE_TOLERANCE * sqrt(3.0)
+	if delta.length() <= tolerance_len:
 		return
 	push_warning("NoteMarker: note.obj bounds changed (actual=%s expected=%s). Update NOTE_MARKER_MODEL_SIZE." \
-		% [str(mesh_size), str(NOTE_MARKER_MODEL_SIZE)])
+		% [mesh_size, NOTE_MARKER_MODEL_SIZE])
 
 
 func setup(p_fret: int, p_string: int, p_time: float, p_duration: float, p_show_label: bool = true) -> void:
