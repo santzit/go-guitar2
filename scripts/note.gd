@@ -35,7 +35,7 @@ const NOTE_MARKER_NEON_GLOW_PULSE: float = 0.8
 const NOTE_MARKER_PULSE_FREQUENCY: float = 8.0
 const NOTE_VISUAL_ALPHA: float = 0.4
 const SUSTAIN_MIN_SECS: float = 0.05
-const SUSTAIN_TRAIL_WIDTH: float = 0.5
+const SUSTAIN_TRAIL_WIDTH: float = 0.5 # Half of note marker length
 const SUSTAIN_TRAIL_HEIGHT: float = 0.035
 const SUSTAIN_MIN_LENGTH: float = SUSTAIN_MIN_SECS * TRAVEL_SPEED
 
