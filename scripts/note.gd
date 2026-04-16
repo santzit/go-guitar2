@@ -32,6 +32,7 @@ const NOTE_MARKER_LOCAL_OFFSET: Vector3 = Vector3(0.0, -0.01, 0.08)
 const NOTE_MARKER_LOCAL_ROTATION_DEGREES: Vector3 = Vector3(0.0, 90.0, 0.0)
 const NOTE_MARKER_NEON_GLOW_BASE: float = 1.8
 const NOTE_MARKER_NEON_GLOW_PULSE: float = 0.8
+const NOTE_MARKER_PULSE_FREQUENCY: float = 8.0
 
 var fret         : int   = 0
 var string_index : int   = 0
@@ -82,7 +83,7 @@ func setup(
 	_miss_until  = -1.0
 
 	position = Vector3(ChartCommon.fret_mid_world_x(fret - 1), ChartCommon.string_world_y(string_index), START_Z)
-	_indicator_color = STRING_COLORS[string_index]
+	_indicator_color = STRING_COLORS[string_index] if string_index < STRING_COLORS.size() else Color.WHITE
 	_apply_marker_color()
 	_update_marker_glow(0.0)
 
@@ -120,6 +121,6 @@ func _apply_marker_color() -> void:
 func _update_marker_glow(song_time: float) -> void:
 	if _note_marker_mat == null:
 		return
-	var pulse: float = 0.5 + 0.5 * sin(song_time * 8.0)
+	var pulse: float = 0.5 + 0.5 * sin(song_time * NOTE_MARKER_PULSE_FREQUENCY)
 	var glow_energy: float = NOTE_MARKER_NEON_GLOW_BASE + NOTE_MARKER_NEON_GLOW_PULSE * pulse
 	_note_marker_mat.emission_energy_multiplier = glow_energy
