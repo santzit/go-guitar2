@@ -48,6 +48,7 @@ const MISS_LABEL_Z  : float = 0.30
 const APPROACH_FADE_SECS: float = 1.0
 const HIT_FLASH_SECS: float = 0.25
 const BOX_DEPTH: float = 0.04
+## Raw size of assets/models/note.obj (X width, Y height, Z depth) used for scaling.
 const NOTE_MARKER_MODEL_SIZE: Vector3 = Vector3(0.12, 0.2, 0.6)
 const BORDER_THICKNESS_RATIO: float = 0.18
 const TRAPEZOID_FRONT_RATIO: float = 0.55
