@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3 uid="uid://cnotescn0001"]
+[gd_scene load_steps=3 format=3 uid="uid://cnotescn0001"]
 
 [ext_resource type="Script" path="res://scripts/note.gd" id="1_notescript"]
+[ext_resource type="Mesh" path="res://assets/models/note.obj" id="2_notemesh"]
 
 [node name="Note" type="Node3D"]
 script = ExtResource("1_notescript")
@@ -8,3 +9,4 @@ script = ExtResource("1_notescript")
 [node name="NoteMarker" type="MeshInstance3D" parent="."]
 position = Vector3(0, 0, 0.08)
 rotation_degrees = Vector3(0, 0, 0)
+mesh = ExtResource("2_notemesh")

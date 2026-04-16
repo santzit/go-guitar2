@@ -10,7 +10,7 @@ extends Node3D
 ##   Z = STRUM_Z − (time_offset − song_time) × TRAVEL_SPEED
 ##       Notes spawn at Z = -20 and travel toward Z = 0.
 ##
-## Note marker uses a mesh from mesh_ref.tres:
+## Note marker is a 3D mesh from scenes/note.tscn:
 ##   - Visual states: filled → transparent (final 1s) → hit flash
 
 # ── Per-string note colors (string 0 top → string 5 bottom) ───────────────────
@@ -31,9 +31,7 @@ const MISS_HOLD_SECS: float = 1.0
 const APPROACH_FADE_SECS: float = 1.0
 const HIT_FLASH_SECS: float = 0.25
 const BOX_DEPTH: float = 0.04
-const NOTE_MARKER_BASE_SIZE: Vector3 = Vector3(1.7, 0.7, 0.2)
-const NOTE_MARKER_MESH_LIBRARY: MeshLibrary = preload("res://mesh_ref.tres")
-const NOTE_MARKER_MESH_ID: int = 0
+const NOTE_MARKER_BASE_SIZE: Vector3 = Vector3(0.12, 0.20, 0.60)
 
 var fret         : int   = 0
 var string_index : int   = 0
@@ -53,7 +51,6 @@ var _note_marker_base_scale: Vector3 = Vector3.ONE
 
 func _ready() -> void:
 	if _note_marker:
-		_note_marker.mesh = NOTE_MARKER_MESH_LIBRARY.get_item_mesh(NOTE_MARKER_MESH_ID)
 		_fill_mat = StandardMaterial3D.new()
 		_fill_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		_fill_mat.albedo_color = Color(1.0, 0.5, 0.1, 0.0)
