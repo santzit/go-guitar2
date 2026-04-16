@@ -8,6 +8,7 @@
 script = ExtResource("1_notescript")
 
 [node name="NoteMarker" type="MeshInstance3D" parent="."]
+; position is applied at runtime by scripts/note.gd (NOTE_MARKER_LOCAL_OFFSET)
 mesh = ExtResource("3_note_mesh")
 
 ; Fret-number label container – digit scenes are added at runtime by note.gd

@@ -48,6 +48,8 @@ const MISS_LABEL_Z  : float = 0.30
 const APPROACH_FADE_SECS: float = 1.0
 const HIT_FLASH_SECS: float = 0.25
 const BOX_DEPTH: float = 0.04
+## Local offset recenters the imported mesh (which is authored with y=0..0.2) on the string lane
+## while preserving legacy forward placement at z=0.08.
 const NOTE_MARKER_LOCAL_OFFSET: Vector3 = Vector3(0.0, -0.1, 0.08)
 ## Raw size from assets/models/note.obj vertex min/max (x: -0.06..0.06, y: 0.0..0.2, z: -0.3..0.3).
 ## If the model changes, recompute from OBJ vertex bounds: (max - min) per axis.
