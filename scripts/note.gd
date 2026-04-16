@@ -83,7 +83,8 @@ func setup(
 
 	position = Vector3(ChartCommon.fret_mid_world_x(fret - 1), ChartCommon.string_world_y(string_index), START_Z)
 	_indicator_color = STRING_COLORS[string_index]
-	_update_marker_visuals(0.0)
+	_apply_marker_color()
+	_update_marker_glow(0.0)
 
 
 func tick(p_song_time: float) -> void:
@@ -91,7 +92,7 @@ func tick(p_song_time: float) -> void:
 		return
 
 	position.z = STRUM_Z - (time_offset - p_song_time) * TRAVEL_SPEED
-	_update_marker_visuals(p_song_time)
+	_update_marker_glow(p_song_time)
 
 	if _miss_until < 0.0 and p_song_time >= time_offset:
 		_miss_until = p_song_time + MISS_HOLD_SECS
@@ -109,11 +110,16 @@ func deactivate() -> void:
 		pool.return_note(self)
 
 
-func _update_marker_visuals(song_time: float) -> void:
+func _apply_marker_color() -> void:
+	if _note_marker_mat == null:
+		return
+	_note_marker_mat.albedo_color = _indicator_color
+	_note_marker_mat.emission = _indicator_color
+
+
+func _update_marker_glow(song_time: float) -> void:
 	if _note_marker_mat == null:
 		return
 	var pulse: float = 0.5 + 0.5 * sin(song_time * 8.0)
 	var glow_energy: float = NOTE_MARKER_NEON_GLOW_BASE + NOTE_MARKER_NEON_GLOW_PULSE * pulse
-	_note_marker_mat.albedo_color = _indicator_color
-	_note_marker_mat.emission = _indicator_color
 	_note_marker_mat.emission_energy_multiplier = glow_energy
