@@ -11,7 +11,7 @@ scenes/
   music_play.tscn      – Root Node3D: Camera3D, DirectionalLight3D, Highway, NotePool, Background
   fretboard.tscn       – 6 visible string lines at the strum position (Z=0)
   highway.tscn         – HighwaySurface MeshInstance3D (shader-drawn fret lanes) + StrumLine + walls
-  note.tscn            – Pooled note with ChartPlayer Guitar*.png finger indicator sprites
+  note.tscn            – Pooled note with 3D NoteMarker mesh (assets/models/note.obj)
   note_pool.tscn       – Manages up to 128 active note instances
   background.tscn      – WorldEnvironment (procedural sky + bloom)
 scripts/

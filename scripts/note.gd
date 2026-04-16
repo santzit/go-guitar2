@@ -1,5 +1,5 @@
 extends Node3D
-## note.gd  –  behaviour for a single pooled note with 3D trapezoidal prism finger indicators.
+## note.gd  –  behaviour for a single pooled note with 3D NoteMarker visuals.
 ##
 ## All coordinate formulas live in scripts/common.gd (class ChartCommon) so they
 ## can be shared with highway.gd, music_play.gd, and fretboard.gd.
@@ -10,9 +10,8 @@ extends Node3D
 ##   Z = STRUM_Z − (time_offset − song_time) × TRAVEL_SPEED
 ##       Notes spawn at Z = -20 and travel toward Z = 0.
 ##
-## Finger indicator is a 3D trapezoidal prism:
-##   - Small face at front (+Z), larger face at back (-Z)
-##   - Visual states: filled → transparent (final 1s) → hit flash
+## NoteMarker uses assets/models/note.obj (scaled per fret slot).
+## Visual states: filled → transparent (final 1s) → hit flash
 
 # ── Per-string note colors (string 0 top → string 5 bottom) ───────────────────
 const STRING_COLORS: Array[Color] = [
@@ -38,7 +37,7 @@ const DIGIT_SCENES: Array[PackedScene] = [
 	preload("res://scenes/number_9.tscn"),
 ]
 
-## Visual constants for trapezoidal prism
+## Visual constants for note marker
 const LABEL_Z : float = 0.06
 const DIGIT_X_OFFSET : float = 0.07
 const START_Z       : float = -20.0
@@ -49,6 +48,7 @@ const MISS_LABEL_Z  : float = 0.30
 const APPROACH_FADE_SECS: float = 1.0
 const HIT_FLASH_SECS: float = 0.25
 const BOX_DEPTH: float = 0.04
+const NOTE_MARKER_MODEL_SIZE: Vector3 = Vector3(0.12, 0.2, 0.6)
 const BORDER_THICKNESS_RATIO: float = 0.18
 const TRAPEZOID_FRONT_RATIO: float = 0.55
 
@@ -61,19 +61,20 @@ var _miss_until  : float = -1.0
 var _hit_fx_start: float = -1.0
 var _last_sized_fret: int = -1
 var _indicator_color: Color = Color(1.0, 0.5, 0.1, 1.0)
+var _note_marker_base_scale: Vector3 = Vector3.ONE
 
 var _fill_mat: StandardMaterial3D = null
 var _border_mat: StandardMaterial3D = null
 var _border_root: Node3D = null
 var _border_segments: Array[MeshInstance3D] = []
 
-@onready var _finger     : MeshInstance3D = $FingerIndicator
+@onready var _note_marker: MeshInstance3D = $NoteMarker
 @onready var _fret_label : Node3D         = $FretLabel
 @onready var _miss_label : Label3D        = $MissLabel
 
 
 func _ready() -> void:
-	if _finger:
+	if _note_marker:
 		_fill_mat = StandardMaterial3D.new()
 		_fill_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		_fill_mat.albedo_color = Color(1.0, 0.5, 0.1, 0.0)
@@ -83,10 +84,10 @@ func _ready() -> void:
 		_fill_mat.emission_enabled = true
 		_fill_mat.emission = Color(1.0, 0.6, 0.2, 1.0)
 		_fill_mat.emission_energy_multiplier = 0.0
-		_finger.set_surface_override_material(0, _fill_mat)
+		_note_marker.set_surface_override_material(0, _fill_mat)
 
 		_border_root = Node3D.new()
-		_border_root.position = _finger.position
+		_border_root.position = _note_marker.position
 		add_child(_border_root)
 		_border_mat = StandardMaterial3D.new()
 		_border_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -116,13 +117,13 @@ func setup(p_fret: int, p_string: int, p_time: float, p_duration: float, p_show_
 	position = Vector3(ChartCommon.fret_mid_world_x(fret - 1), ChartCommon.string_world_y(string_index), START_Z)
 	_miss_label.visible = false
 
-	if _finger:
+	if _note_marker:
 		if fret != _last_sized_fret:
 			_last_sized_fret = fret
 			_update_indicator_geometry(fret)
 		_indicator_color = STRING_COLORS[string_index]
 		_update_indicator_visuals(0.85, 0.95, 1.0, 1.0)
-		_finger.scale = Vector3.ONE
+		_note_marker.scale = _note_marker_base_scale
 		if _border_root:
 			_border_root.scale = Vector3.ONE
 
@@ -186,10 +187,15 @@ func deactivate() -> void:
 
 
 func _update_indicator_geometry(fret_num: int) -> void:
-	if _finger == null:
+	if _note_marker == null:
 		return
 	var sz2: Vector2 = ChartCommon.note_indicator_size(fret_num)
-	_finger.mesh = _build_trapezoid_mesh(sz2, BOX_DEPTH)
+	_note_marker_base_scale = Vector3(
+		sz2.x / NOTE_MARKER_MODEL_SIZE.x,
+		sz2.y / NOTE_MARKER_MODEL_SIZE.y,
+		BOX_DEPTH / NOTE_MARKER_MODEL_SIZE.z
+	)
+	_note_marker.scale = _note_marker_base_scale
 	_resize_border_segments(sz2)
 
 
@@ -255,45 +261,6 @@ func _set_edge_segment(seg: MeshInstance3D, from_pt: Vector3, to_pt: Vector3, th
 	seg.look_at(to_pt, Vector3.UP, true)
 
 
-func _build_trapezoid_mesh(size_xy: Vector2, depth: float) -> ArrayMesh:
-	var hw_back: float = size_xy.x * 0.5
-	var hh_back: float = size_xy.y * 0.5
-	var hw_front: float = hw_back * TRAPEZOID_FRONT_RATIO
-	var hh_front: float = hh_back
-	var hz: float = depth * 0.5
-
-	var v0 := Vector3(-hw_front, -hh_front, hz)
-	var v1 := Vector3(hw_front, -hh_front, hz)
-	var v2 := Vector3(hw_front, hh_front, hz)
-	var v3 := Vector3(-hw_front, hh_front, hz)
-	var v4 := Vector3(-hw_back, -hh_back, -hz)
-	var v5 := Vector3(hw_back, -hh_back, -hz)
-	var v6 := Vector3(hw_back, hh_back, -hz)
-	var v7 := Vector3(-hw_back, hh_back, -hz)
-
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-
-	_add_quad(st, v0, v1, v2, v3)
-	_add_quad(st, v5, v4, v7, v6)
-	_add_quad(st, v4, v0, v3, v7)
-	_add_quad(st, v1, v5, v6, v2)
-	_add_quad(st, v3, v2, v6, v7)
-	_add_quad(st, v4, v5, v1, v0)
-
-	st.generate_normals()
-	return st.commit()
-
-
-func _add_quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> void:
-	st.add_vertex(a)
-	st.add_vertex(b)
-	st.add_vertex(c)
-	st.add_vertex(a)
-	st.add_vertex(c)
-	st.add_vertex(d)
-
-
 func _update_hit_visuals(song_time: float) -> void:
 	var lead: float = time_offset - song_time
 	if _hit_fx_start < 0.0:
@@ -331,7 +298,7 @@ func _update_indicator_visuals(fill_alpha: float, border_alpha: float, emission_
 		_border_mat.albedo_color = edge_col
 		_border_mat.emission = _indicator_color.lightened(0.2)
 		_border_mat.emission_energy_multiplier = maxf(0.0, emission_energy * 0.8)
-	if _finger:
-		_finger.scale = Vector3.ONE * scale_mul
+	if _note_marker:
+		_note_marker.scale = _note_marker_base_scale * scale_mul
 	if _border_root:
 		_border_root.scale = Vector3.ONE * scale_mul

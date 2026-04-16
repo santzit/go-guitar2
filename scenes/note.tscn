@@ -2,18 +2,14 @@
 
 [ext_resource type="Script" path="res://scripts/note.gd" id="1_notescript"]
 [ext_resource type="FontFile" path="res://assets/fonts/Inter_18pt-Bold.ttf" id="2_font"]
-
-; 3D trapezoidal prism finger indicator (BoxMesh base, geometry updated at runtime)
-; Size is adjusted by note.gd to match fret size
-[sub_resource type="BoxMesh" id="BoxMesh_finger"]
-size = Vector3(0.116, 0.06, 0.04)
+[ext_resource type="ArrayMesh" path="res://assets/models/note.obj" id="3_note_mesh"]
 
 [node name="Note" type="Node3D"]
 script = ExtResource("1_notescript")
 
-[node name="FingerIndicator" type="MeshInstance3D" parent="."]
-position = Vector3(0, 0, 0.08)
-mesh = SubResource("BoxMesh_finger")
+[node name="NoteMarker" type="MeshInstance3D" parent="."]
+position = Vector3(0, -0.1, 0.08)
+mesh = ExtResource("3_note_mesh")
 
 ; Fret-number label container – digit scenes are added at runtime by note.gd
 [node name="FretLabel" type="Node3D" parent="."]
