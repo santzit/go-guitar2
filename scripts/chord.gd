@@ -11,35 +11,18 @@ extends Node3D
 ## The border always spans BORDER_FRET_SPAN (4) frets starting from min_fret.
 ## The interior of the border box is fully transparent (non-edge pixels discarded).
 
-# ── Guitar note textures (string 0 top → string 5 bottom) ──────────────────
-# Order: Red, Yellow, Cyan(Blue), Orange, Green, Purple
-const STRING_TEXTURES: Array[Texture2D] = [
-	preload("res://assets/textures/chartplayer/GuitarRed.png"),
-	preload("res://assets/textures/chartplayer/GuitarYellow.png"),
-	preload("res://assets/textures/chartplayer/GuitarCyan.png"),
-	preload("res://assets/textures/chartplayer/GuitarOrange.png"),
-	preload("res://assets/textures/chartplayer/GuitarGreen.png"),
-	preload("res://assets/textures/chartplayer/GuitarPurple.png"),
+# ── Chord indicator visual: same mesh/color mapping as NoteMarker ────────────
+const NOTE_MESH: ArrayMesh = preload("res://assets/models/note.obj")
+const STRING_COLORS: Array[Color] = [
+	Color(0.98, 0.26, 0.22, 1.0), # red
+	Color(0.98, 0.78, 0.16, 1.0), # yellow
+	Color(0.20, 0.80, 0.95, 1.0), # cyan
+	Color(1.00, 0.55, 0.10, 1.0), # orange
+	Color(0.20, 0.88, 0.30, 1.0), # green
+	Color(0.72, 0.38, 0.98, 1.0), # purple
 ]
-
-## Finger indicator shader — same as note.gd: circular texture with transparent
-## background, spherical billboard so the plane always faces the camera.
-const _FINGER_SHADER_CODE: String = """
-shader_type spatial;
-render_mode blend_mix, unshaded, cull_disabled, depth_test_disabled;
-uniform sampler2D albedo_texture : source_color, hint_default_white;
-void vertex() {
-	MODELVIEW_MATRIX = VIEW_MATRIX * mat4(
-		INV_VIEW_MATRIX[0], INV_VIEW_MATRIX[1], INV_VIEW_MATRIX[2], MODEL_MATRIX[3]);
-	MODELVIEW_NORMAL_MATRIX = mat3(MODELVIEW_MATRIX);
-}
-void fragment() {
-	vec4 tex = texture(albedo_texture, UV);
-	if (tex.a < 0.01) { discard; }
-	ALBEDO = tex.rgb;
-	ALPHA  = tex.a;
-}
-"""
+const NOTE_MARKER_LOCAL_OFFSET: Vector3 = Vector3(0.0, -0.01, 0.08)
+const NOTE_MARKER_LOCAL_ROTATION_DEGREES: Vector3 = Vector3(0.0, 90.0, 0.0)
 
 ## Project font — Inter 18pt Bold, used for the chord name Label3D.
 const _INTER_BOLD: FontFile = preload("res://assets/fonts/Inter_18pt-Bold.ttf")
@@ -197,19 +180,26 @@ func _ensure_label() -> void:
 func _add_indicator(f: int, s: int, center_x: float, center_y: float) -> void:
 	var ind := MeshInstance3D.new()
 	ind.position = Vector3(
-		ChartCommon.fret_mid_world_x(f - 1) - center_x,
-		ChartCommon.string_world_y(s)        - center_y,
-		0.08
+		ChartCommon.fret_mid_world_x(f - 1) - center_x + NOTE_MARKER_LOCAL_OFFSET.x,
+		ChartCommon.string_world_y(s)        - center_y + NOTE_MARKER_LOCAL_OFFSET.y,
+		NOTE_MARKER_LOCAL_OFFSET.z
 	)
-	var plane := PlaneMesh.new()
-	plane.size        = ChartCommon.note_indicator_size(f)
-	plane.orientation = PlaneMesh.FACE_Z
-	ind.mesh = plane
-	var shader := Shader.new()
-	shader.code = _FINGER_SHADER_CODE
-	var mat := ShaderMaterial.new()
-	mat.shader = shader
-	mat.set_shader_parameter("albedo_texture", STRING_TEXTURES[s])
+	ind.rotation_degrees = NOTE_MARKER_LOCAL_ROTATION_DEGREES
+	ind.mesh = NOTE_MESH
+	var mat := StandardMaterial3D.new()
+	var color: Color = STRING_COLORS[s] if s < STRING_COLORS.size() else Color.WHITE
+	mat.albedo_color = color
+	mat.emission_enabled = true
+	mat.emission = color
+	mat.emission_energy_multiplier = 1.8
+	mat.metallic = 0.2
+	mat.roughness = 0.08
+	mat.clearcoat_enabled = true
+	mat.clearcoat = 1.0
+	mat.clearcoat_roughness = 0.0
+	mat.rim_enabled = true
+	mat.rim = 0.45
+	mat.rim_tint = 0.35
 	ind.set_surface_override_material(0, mat)
 	add_child(ind)
 	_indicators.append(ind)
