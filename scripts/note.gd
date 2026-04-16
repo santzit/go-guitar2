@@ -33,6 +33,10 @@ const NOTE_MARKER_LOCAL_ROTATION_DEGREES: Vector3 = Vector3(0.0, 90.0, 0.0)
 const NOTE_MARKER_NEON_GLOW_BASE: float = 1.8
 const NOTE_MARKER_NEON_GLOW_PULSE: float = 0.8
 const NOTE_MARKER_PULSE_FREQUENCY: float = 8.0
+const NOTE_VISUAL_ALPHA: float = 0.4
+const SUSTAIN_MIN_SECS: float = 0.05
+const SUSTAIN_TRAIL_WIDTH: float = 0.12
+const SUSTAIN_TRAIL_HEIGHT: float = 0.035
 
 var fret         : int   = 0
 var string_index : int   = 0
@@ -41,6 +45,8 @@ var duration     : float = 0.25
 var is_active    : bool  = false
 var _miss_until  : float = -1.0
 var _note_marker_mat: StandardMaterial3D = null
+var _sustain_trail: MeshInstance3D = null
+var _sustain_trail_mat: StandardMaterial3D = null
 var _indicator_color: Color = Color(1.0, 0.5, 0.1, 1.0)
 
 @onready var _note_marker: MeshInstance3D = $NoteMarker
@@ -52,9 +58,9 @@ func _ready() -> void:
 		_note_marker.rotation_degrees = NOTE_MARKER_LOCAL_ROTATION_DEGREES
 		_note_marker_mat = StandardMaterial3D.new()
 		_note_marker_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		_note_marker_mat.albedo_color = _indicator_color
+		_note_marker_mat.albedo_color = _with_visual_alpha(_indicator_color)
 		_note_marker_mat.emission_enabled = true
-		_note_marker_mat.emission = _indicator_color
+		_note_marker_mat.emission = _with_visual_alpha(_indicator_color)
 		_note_marker_mat.emission_energy_multiplier = NOTE_MARKER_NEON_GLOW_BASE
 		_note_marker_mat.metallic = 0.2
 		_note_marker_mat.roughness = 0.08
@@ -65,6 +71,15 @@ func _ready() -> void:
 		_note_marker_mat.rim = 0.45
 		_note_marker_mat.rim_tint = 0.35
 		_note_marker.set_surface_override_material(0, _note_marker_mat)
+		_sustain_trail = MeshInstance3D.new()
+		_sustain_trail_mat = StandardMaterial3D.new()
+		_sustain_trail_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_sustain_trail_mat.emission_enabled = true
+		_sustain_trail_mat.metallic = 0.2
+		_sustain_trail_mat.roughness = 0.12
+		_sustain_trail.set_surface_override_material(0, _sustain_trail_mat)
+		_sustain_trail.visible = false
+		add_child(_sustain_trail)
 
 
 func setup(
@@ -85,6 +100,7 @@ func setup(
 	position = Vector3(ChartCommon.fret_mid_world_x(fret - 1), ChartCommon.string_world_y(string_index), START_Z)
 	_indicator_color = STRING_COLORS[string_index] if string_index < STRING_COLORS.size() else Color.WHITE
 	_apply_marker_color()
+	_update_sustain_trail()
 	_update_marker_glow(0.0)
 
 
@@ -114,8 +130,12 @@ func deactivate() -> void:
 func _apply_marker_color() -> void:
 	if _note_marker_mat == null:
 		return
-	_note_marker_mat.albedo_color = _indicator_color
-	_note_marker_mat.emission = _indicator_color
+	var visual_color := _with_visual_alpha(_indicator_color)
+	_note_marker_mat.albedo_color = visual_color
+	_note_marker_mat.emission = visual_color
+	if _sustain_trail_mat != null:
+		_sustain_trail_mat.albedo_color = visual_color
+		_sustain_trail_mat.emission = visual_color
 
 
 func _update_marker_glow(song_time: float) -> void:
@@ -124,3 +144,25 @@ func _update_marker_glow(song_time: float) -> void:
 	var pulse: float = 0.5 + 0.5 * sin(song_time * NOTE_MARKER_PULSE_FREQUENCY)
 	var glow_energy: float = NOTE_MARKER_NEON_GLOW_BASE + NOTE_MARKER_NEON_GLOW_PULSE * pulse
 	_note_marker_mat.emission_energy_multiplier = glow_energy
+
+
+func _update_sustain_trail() -> void:
+	if _sustain_trail == null:
+		return
+	var sustain_length: float = maxf(duration * TRAVEL_SPEED, 0.0)
+	if sustain_length < SUSTAIN_MIN_SECS * TRAVEL_SPEED:
+		_sustain_trail.visible = false
+		return
+	var trail_mesh := BoxMesh.new()
+	trail_mesh.size = Vector3(SUSTAIN_TRAIL_WIDTH, SUSTAIN_TRAIL_HEIGHT, sustain_length)
+	_sustain_trail.mesh = trail_mesh
+	_sustain_trail.position = Vector3(
+		NOTE_MARKER_LOCAL_OFFSET.x,
+		NOTE_MARKER_LOCAL_OFFSET.y,
+		NOTE_MARKER_LOCAL_OFFSET.z - sustain_length * 0.5
+	)
+	_sustain_trail.visible = true
+
+
+func _with_visual_alpha(c: Color) -> Color:
+	return Color(c.r, c.g, c.b, NOTE_VISUAL_ALPHA)
