@@ -37,6 +37,7 @@ const NOTE_VISUAL_ALPHA: float = 0.4
 const SUSTAIN_MIN_SECS: float = 0.05
 const SUSTAIN_TRAIL_WIDTH: float = 0.12
 const SUSTAIN_TRAIL_HEIGHT: float = 0.035
+const SUSTAIN_MIN_LENGTH: float = SUSTAIN_MIN_SECS * TRAVEL_SPEED
 
 var fret         : int   = 0
 var string_index : int   = 0
@@ -74,7 +75,9 @@ func _ready() -> void:
 		_sustain_trail = MeshInstance3D.new()
 		_sustain_trail_mat = StandardMaterial3D.new()
 		_sustain_trail_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_sustain_trail_mat.albedo_color = _with_visual_alpha(_indicator_color)
 		_sustain_trail_mat.emission_enabled = true
+		_sustain_trail_mat.emission = _with_visual_alpha(_indicator_color)
 		_sustain_trail_mat.metallic = 0.2
 		_sustain_trail_mat.roughness = 0.12
 		_sustain_trail.set_surface_override_material(0, _sustain_trail_mat)
@@ -150,12 +153,14 @@ func _update_sustain_trail() -> void:
 	if _sustain_trail == null:
 		return
 	var sustain_length: float = maxf(duration * TRAVEL_SPEED, 0.0)
-	if sustain_length < SUSTAIN_MIN_SECS * TRAVEL_SPEED:
+	if sustain_length < SUSTAIN_MIN_LENGTH:
 		_sustain_trail.visible = false
 		return
-	var trail_mesh := BoxMesh.new()
+	var trail_mesh: BoxMesh = _sustain_trail.mesh as BoxMesh
+	if trail_mesh == null:
+		trail_mesh = BoxMesh.new()
+		_sustain_trail.mesh = trail_mesh
 	trail_mesh.size = Vector3(SUSTAIN_TRAIL_WIDTH, SUSTAIN_TRAIL_HEIGHT, sustain_length)
-	_sustain_trail.mesh = trail_mesh
 	_sustain_trail.position = Vector3(
 		NOTE_MARKER_LOCAL_OFFSET.x,
 		NOTE_MARKER_LOCAL_OFFSET.y,
