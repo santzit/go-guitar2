@@ -262,7 +262,7 @@ mod tests {
     use super::display_fret_from_sng_fret;
 
     #[test]
-    fn leaves_frets_unchanged_without_capo() {
+    fn test_frets_unchanged_without_capo() {
         assert_eq!(display_fret_from_sng_fret(7, 0), 7);
         assert_eq!(display_fret_from_sng_fret(7, -1), 7);
         assert_eq!(display_fret_from_sng_fret(0, 5), 0);
@@ -270,7 +270,7 @@ mod tests {
     }
 
     #[test]
-    fn subtracts_capo_for_fretted_notes() {
+    fn test_capo_subtraction_for_fretted_notes() {
         assert_eq!(display_fret_from_sng_fret(7, 5), 2);
         assert_eq!(display_fret_from_sng_fret(5, 5), 0);
         assert_eq!(display_fret_from_sng_fret(3, 5), 0);
