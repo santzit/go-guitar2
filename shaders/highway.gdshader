@@ -22,11 +22,11 @@ uniform sampler2D fret_glow_map : hint_default_black;
 // Width of each separator line, in UV space (0–1 across all 24 frets).
 // 0.003 ≈ 0.07 world-units per line — thin crisp line visible from the play camera.
 uniform float vertical_line_width : hint_range(0.001, 0.1) = 0.003;
-uniform float separator_base_intensity : hint_range(0.0, 4.0) = 2.0;
+uniform float separator_base_intensity : hint_range(0.0, 4.0) = 0.5;
 // Glow map R channel = note-start intensity (bright flash at note head).
 // Glow map G channel = sustain intensity (soft persistent glow along sustain tail).
-uniform float note_start_glow_strength : hint_range(0.0, 12.0) = 8.0;
-uniform float sustain_glow_strength    : hint_range(0.0, 6.0)  = 2.0;
+uniform float note_start_glow_strength : hint_range(0.0, 30.0) = 20.0;
+uniform float sustain_glow_strength    : hint_range(0.0, 10.0)  = 5.0;
 uniform vec4  separator_line_color  : source_color = vec4(0.55, 0.85, 1.00, 1.0);
 
 const int MAX_SHADER_LANES = 6;
@@ -65,43 +65,23 @@ vec2 separator_glow(vec2 uv) {
 	return texture(fret_glow_map, vec2(u, uv.y)).rg;
 }
 
-// Sample both boundary columns that flank the current UV.x position and take
-// the maximum. This spreads the glow across the entire fret lane rather than
-// only on the thin separator line pixels — making the floor visibly glow near
-// note positions even between the lines.
-vec2 separator_glow_floor(vec2 uv) {
-	float fc    = max(float(fret_count), 1.0);
-	float x_f   = uv.x * fc;
-	float left  = clamp(floor(x_f), 0.0, fc);
-	float right  = clamp(ceil(x_f),  0.0, fc);
-	float inv   = 1.0 / (fc + 1.0);
-	vec2 gl = texture(fret_glow_map, vec2((left  + 0.5) * inv, uv.y)).rg;
-	vec2 gr = texture(fret_glow_map, vec2((right + 0.5) * inv, uv.y)).rg;
-	return max(gl, gr);
-}
-
 void fragment() {
-	float mask       = separator_line_mask(UV);
-	vec2  line_glow  = separator_glow(UV);
-	vec2  floor_glow = separator_glow_floor(UV);
+	float mask = separator_line_mask(UV);
+	vec2  glow = separator_glow(UV);
 
-	// Separator line emission: base glow + note-start bright flash + sustain dim glow.
-	float line_emission = separator_base_intensity
-		+ line_glow.r * note_start_glow_strength
-		+ line_glow.g * sustain_glow_strength;
-
-	// Floor area glow: spreads across the full fret lane.
-	// Note-start uses 25% of line strength (bright); sustain uses 40% of its own strength (dim).
-	// This gives a clearly visible pool of light under note heads that fades along sustain tails.
-	float floor_emission = floor_glow.r * note_start_glow_strength * 0.25
-	                     + floor_glow.g * sustain_glow_strength * 0.40;
+	// Only the separator line pixels glow. The emission scales from the dim base
+	// to a very bright flash at note-start and a softer glow along sustains.
+	// The contrast (dim base vs bright note mark) is what makes the moving mark
+	// clearly visible against the thin quiescent lines.
+	float emission_strength = separator_base_intensity
+		+ glow.r * note_start_glow_strength
+		+ glow.g * sustain_glow_strength;
 
 	vec3 line_rgb = separator_line_color.rgb;
 
-	// ALBEDO: separator line colour on lines; floor tinted with note glow between lines.
-	ALBEDO = mix(base_color.rgb + line_rgb * floor_emission * 0.35, line_rgb, mask);
-	// EMISSION: separator lines glow brightly; floor area emits dimmer glow from note positions.
-	EMISSION = line_rgb * mask * line_emission
-	         + line_rgb * (1.0 - mask) * floor_emission;
+	// Full-brightness ALBEDO on separator line pixels; base floor elsewhere.
+	ALBEDO   = mix(base_color.rgb, line_rgb, mask);
+	// EMISSION only on line pixels — creates a bright mark that follows the note.
+	EMISSION = line_rgb * mask * emission_strength;
 	// ALPHA is implicitly 1.0 in the opaque render_mode (no blend_mix).
 }
