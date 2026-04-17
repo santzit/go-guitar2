@@ -15,7 +15,7 @@ shader_parameter/fret_count        = 24
 shader_parameter/string_count      = 6
 shader_parameter/active_fret_min   = 0
 shader_parameter/active_fret_max   = -1
-shader_parameter/base_color        = Color(0.01, 0.01, 0.02, 1)
+shader_parameter/base_color        = Color(0.04, 0.04, 0.07, 1)
 shader_parameter/lane_glow_color   = Color(0.30, 0.70, 1.0, 1)
 shader_parameter/range_glow_color  = Color(0.95, 0.95, 1.0, 1)
 shader_parameter/strum_glow_color  = Color(0.40, 0.80, 1.00, 1)
@@ -25,12 +25,11 @@ shader_parameter/lane_width        = 0.65
 shader_parameter/lane_glow_power   = 1.6
 shader_parameter/pulse_speed       = 3.0
 shader_parameter/glow_strength     = 1.20
-shader_parameter/vertical_line_width = 0.012
-shader_parameter/separator_base_intensity = 1.5
-shader_parameter/separator_glow_strength = 3.5
+shader_parameter/vertical_line_width = 0.025
+shader_parameter/separator_base_intensity = 2.0
+shader_parameter/separator_glow_strength = 4.0
 shader_parameter/separator_line_color = Color(0.55, 0.85, 1.00, 1.0)
-shader_parameter/separator_line_albedo = 0.5
-shader_parameter/highway_alpha = 0.5
+shader_parameter/separator_line_albedo = 0.8
 
 ; ── Strum-line marker (thin bright box) ───────────────────────────────────────
 [sub_resource type="BoxMesh" id="BoxMesh_strum"]
