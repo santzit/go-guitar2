@@ -1,6 +1,6 @@
 shader_type spatial;
 // Opaque, unlit highway floor. Notes, strings, and fret markers are rendered
-// ABOVE Y=0, so the highway can be fully opaque without hiding any game objects.
+// above Y=0, so the highway can be fully opaque without hiding any game objects.
 render_mode cull_disabled, unshaded;
 
 uniform int   fret_count       : hint_range(1, 24) = 24;
@@ -68,7 +68,7 @@ void fragment() {
 
 	vec3 line_rgb = separator_line_color.rgb;
 
-	// Full-brightness ALBEDO so lines are visible in all render modes (no albedo dimming).
+	// Full-brightness ALBEDO so lines are visible in the opaque render mode (no albedo dimming).
 	ALBEDO   = mix(base_color.rgb, line_rgb, mask);
 	// EMISSION: bright enough (> glow_hdr_threshold) to trigger HDR bloom on separator lines.
 	EMISSION = line_rgb * mask * emission_strength;
