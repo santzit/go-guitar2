@@ -6,9 +6,12 @@ const LANE_COUNT : int = 6
 const TRAVEL_SPEED : float = 2.0
 const HIGHWAY_Z_MIN : float = -20.0
 const HIGHWAY_Z_MAX : float = 0.0
-const FRET_GLOW_MAP_HEIGHT : int = 256
-## Must match music_play.gd LEAD_TIME (HIGHWAY_DEPTH / TRAVEL_SPEED = 10.0 s).
+## Dim full-line sustain glow intensity for hand-window boundaries.
+const HAND_WINDOW_GLOW : float = 0.1
+## Boundaries with an active note mark above this threshold won't be overridden.
+const HAND_WINDOW_PEAK_THRESHOLD : float = 0.01
 ## Glow mark follows the note for its entire visible journey on the highway.
+## Must match music_play.gd LEAD_TIME (HIGHWAY_DEPTH / TRAVEL_SPEED = 10.0 s).
 const APPROACH_WINDOW_SECS : float = 10.0
 const HIT_WINDOW_SECS : float = 0.08
 const SUSTAIN_KEEP_SECS : float = 0.05
@@ -80,6 +83,14 @@ func _zero_lanes() -> Array[float]:
 	return values
 
 
+## Update the 1D fret-glow texture each frame.
+## Each of the (fret_count+1) columns stores RGBA8 data for one separator line:
+##   R = note-start peak intensity   [0..1]
+##   G = note-head UV.y position     [0=far end, 1=strum line]
+##   B = sustain peak intensity      [0..1]
+##   A = sustain-tail UV.y position  [0..1, ≤ G]
+## The shader reads G to place a Gaussian mark at the note's current UV.y position,
+## completely sidestepping any row-to-UV.y mapping ambiguity.
 func update_fret_glow_map(
 		notes: Array,
 		song_time: float,
@@ -90,17 +101,20 @@ func update_fret_glow_map(
 	if _glow_image == null or _glow_texture == null or _glow_map_width <= 0:
 		return
 
-	var sample_count: int = _glow_map_width * FRET_GLOW_MAP_HEIGHT
-	# R channel: note-start / head-bump glow (bright flash).
-	var accum_r := PackedFloat32Array()
-	accum_r.resize(sample_count)
-	for i in sample_count:
-		accum_r[i] = 0.0
-	# G channel: sustain glow (soft, dimmer).
-	var accum_g := PackedFloat32Array()
-	accum_g.resize(sample_count)
-	for i in sample_count:
-		accum_g[i] = 0.0
+	# Per-boundary arrays: best (highest-peak) note for each of the 25 columns.
+	var peaks     := PackedFloat32Array()
+	var note_ys   := PackedFloat32Array()
+	var sus_peaks := PackedFloat32Array()
+	var sus_ys    := PackedFloat32Array()
+	peaks.resize(_glow_map_width)
+	note_ys.resize(_glow_map_width)
+	sus_peaks.resize(_glow_map_width)
+	sus_ys.resize(_glow_map_width)
+	for b in _glow_map_width:
+		peaks[b]     = 0.0
+		note_ys[b]   = 0.5   # default centre (unused when peak = 0)
+		sus_peaks[b] = 0.0
+		sus_ys[b]    = 0.0
 
 	var note_idx: int = maxi(start_index, 0)
 	while note_idx < notes.size():
@@ -108,9 +122,9 @@ func update_fret_glow_map(
 		if not nd.has("time"):
 			note_idx += 1
 			continue
-		var note_time: float = float(nd.get("time", -1.0))
-		var duration: float = maxf(float(nd.get("duration", 0.0)), 0.0)
-		var sustain_end: float = note_time + duration
+		var note_time: float    = float(nd.get("time", -1.0))
+		var duration: float     = maxf(float(nd.get("duration", 0.0)), 0.0)
+		var sustain_end: float  = note_time + duration
 		if note_time > song_time + APPROACH_WINDOW_SECS:
 			break
 		if sustain_end < song_time - SUSTAIN_KEEP_SECS:
@@ -122,44 +136,65 @@ func update_fret_glow_map(
 			note_idx += 1
 			continue
 
-		var left_boundary: int = clampi(fret - 1, 0, _fret_count)
-		var right_boundary: int = clampi(fret, 0, _fret_count)
-
+		# Note-start peak: ramps from dim (0.1) at max approach to bright (0.65)
+		# at the strum line, then snaps to 1.0 inside the hit window.
+		# Notes outside the approach window never reach this code (loop breaks above),
+		# so peak stays 0.0 for any note that has already passed without being hit.
 		var dt: float = note_time - song_time
-		# Peak ramps from dim (0.1) at APPROACH_WINDOW_SECS away to bright (0.65) at hit,
-		# then to max (1.0) inside the hit window. This makes the mark clearly visible
-		# from the far end of the highway and intensifies as the note approaches.
-		var peak: float = 0.1
+		var peak: float = 0.0
 		if dt >= 0.0 and dt <= APPROACH_WINDOW_SECS:
 			peak = lerpf(0.1, 0.65, 1.0 - dt / APPROACH_WINDOW_SECS)
 		if absf(dt) <= HIT_WINDOW_SECS:
 			peak = 1.0
 
-		# Note-start head bump → R channel (bright).
-		_add_head_bump(accum_r, left_boundary, note_time, song_time, peak)
-		_add_head_bump(accum_r, right_boundary, note_time, song_time, peak)
+		# UV.y of note head: (z + 20) / 20, where z = world Z = (song_time - note_time) * speed.
+		# UV.y = 0 at far end (Z = -20), UV.y = 1 at strum (Z = 0) — matches PlaneMesh UV.
+		var z: float = _note_time_to_world_z(note_time, song_time)
+		var uv_y: float = clampf((z - HIGHWAY_Z_MIN) / (HIGHWAY_Z_MAX - HIGHWAY_Z_MIN), 0.0, 1.0)
 
-		# Sustain segment → G channel (dim).
+		# UV.y of sustain tail (always <= uv_y since the tail is further from the strum).
+		var sus_uv_y: float = 0.0
+		var sus_peak: float = 0.0
 		if duration >= SUSTAIN_MIN_SECS:
-			_add_sustain_segment(accum_g, left_boundary, note_time, sustain_end, song_time)
-			_add_sustain_segment(accum_g, right_boundary, note_time, sustain_end, song_time)
+			var z_end: float = _note_time_to_world_z(sustain_end, song_time)
+			sus_uv_y = clampf((z_end - HIGHWAY_Z_MIN) / (HIGHWAY_Z_MAX - HIGHWAY_Z_MIN), 0.0, 1.0)
+			sus_peak = 0.5   # sustain is visibly dimmer than the note-start mark
+
+		var left_boundary:  int = clampi(fret - 1, 0, _fret_count)
+		var right_boundary: int = clampi(fret,     0, _fret_count)
+
+		for boundary in [left_boundary, right_boundary]:
+			if peak > peaks[boundary]:
+				peaks[boundary]     = peak
+				note_ys[boundary]   = uv_y
+				sus_peaks[boundary] = sus_peak
+				sus_ys[boundary]    = sus_uv_y
 
 		note_idx += 1
 
+	# Hand-window boundary: a constant dim glow across the full separator line.
 	if hand_window_start >= 0 and hand_window_end >= hand_window_start:
-		var start_boundary: int = clampi(hand_window_start, 0, _fret_count)
-		var end_boundary: int = clampi(hand_window_end, 0, _fret_count)
-		_add_window_boundary_glow(accum_r, start_boundary, 0.45)
-		_add_window_boundary_glow(accum_r, end_boundary, 0.45)
+		for boundary in [clampi(hand_window_start, 0, _fret_count),
+						 clampi(hand_window_end,   0, _fret_count)]:
+			if sus_peaks[boundary] < HAND_WINDOW_GLOW:
+				sus_peaks[boundary] = HAND_WINDOW_GLOW
+				# Full-line coverage: sustain from UV.y 0 to 1.
+				# If no note on this boundary, set note_ys = 1.0 so the sustain
+				# fill (sus_ys..note_ys) spans the whole highway depth.
+				if peaks[boundary] < HAND_WINDOW_PEAK_THRESHOLD:
+					note_ys[boundary] = 1.0
+				sus_ys[boundary] = 0.0
 
-	# Pack as RG8: 2 bytes per pixel (R = note-start, G = sustain).
+	# Pack as RGBA8 (1 row × _glow_map_width columns = 25 pixels = 100 bytes).
 	var packed := PackedByteArray()
-	packed.resize(sample_count * 2)
-	for i in sample_count:
-		packed[i * 2]     = int(clampf(accum_r[i], 0.0, 1.0) * 255.0)
-		packed[i * 2 + 1] = int(clampf(accum_g[i], 0.0, 1.0) * 255.0)
+	packed.resize(_glow_map_width * 4)
+	for b in _glow_map_width:
+		packed[b * 4 + 0] = int(clampf(peaks[b],     0.0, 1.0) * 255.0)
+		packed[b * 4 + 1] = int(clampf(note_ys[b],   0.0, 1.0) * 255.0)
+		packed[b * 4 + 2] = int(clampf(sus_peaks[b], 0.0, 1.0) * 255.0)
+		packed[b * 4 + 3] = int(clampf(sus_ys[b],    0.0, 1.0) * 255.0)
 
-	_glow_image.set_data(_glow_map_width, FRET_GLOW_MAP_HEIGHT, false, Image.FORMAT_RG8, packed)
+	_glow_image.set_data(_glow_map_width, 1, false, Image.FORMAT_RGBA8, packed)
 	_glow_texture.update(_glow_image)
 
 
@@ -167,7 +202,8 @@ func _init_fret_glow_map() -> void:
 	_glow_map_width = _fret_count + 1
 	if _glow_map_width <= 0:
 		return
-	_glow_image = Image.create(_glow_map_width, FRET_GLOW_MAP_HEIGHT, false, Image.FORMAT_RG8)
+	# 1D RGBA8 texture: one row, one column per fret boundary.
+	_glow_image = Image.create(_glow_map_width, 1, false, Image.FORMAT_RGBA8)
 	_glow_image.fill(Color(0.0, 0.0, 0.0, 1.0))
 	if _glow_texture == null:
 		_glow_texture = ImageTexture.create_from_image(_glow_image)
@@ -178,82 +214,7 @@ func _init_fret_glow_map() -> void:
 		mat.set_shader_parameter("fret_glow_map", _glow_texture)
 
 
-func _add_head_bump(
-		accum: PackedFloat32Array,
-		boundary_idx: int,
-		note_time: float,
-		song_time: float,
-		peak: float
-) -> void:
-	var z: float = _note_time_to_world_z(note_time, song_time)
-	var center: int = _z_to_row(z)
-	if center < 0:
-		return
-	const RADIUS: int = 10
-	for offset in range(-RADIUS, RADIUS + 1):
-		var row: int = center + offset
-		if row < 0 or row >= FRET_GLOW_MAP_HEIGHT:
-			continue
-		var t: float = float(offset) / float(RADIUS)
-		var intensity: float = peak * exp(-3.0 * t * t)
-		_accumulate_sample(accum, boundary_idx, row, intensity)
-
-
-func _add_sustain_segment(
-		accum: PackedFloat32Array,
-		boundary_idx: int,
-		start_time: float,
-		end_time: float,
-		song_time: float
-) -> void:
-	var z_start: float = _note_time_to_world_z(start_time, song_time)
-	var z_end: float = _note_time_to_world_z(end_time, song_time)
-	var row_start: int = _z_to_row_clamped(z_start)
-	var row_end: int = _z_to_row_clamped(z_end)
-	var row_min: int = mini(row_start, row_end)
-	var row_max: int = maxi(row_start, row_end)
-	var span: int = maxi(1, row_max - row_min)
-	for row in range(row_min, row_max + 1):
-		var head_mix: float = 1.0 - float(row - row_min) / float(span)
-		var intensity: float = 0.28 + head_mix * 0.22
-		_accumulate_sample(accum, boundary_idx, row, intensity)
-
-
-func _add_window_boundary_glow(
-		accum: PackedFloat32Array,
-		boundary_idx: int,
-		intensity: float
-) -> void:
-	for row in FRET_GLOW_MAP_HEIGHT:
-		_accumulate_sample(accum, boundary_idx, row, intensity)
-
-
-func _accumulate_sample(
-		accum: PackedFloat32Array,
-		boundary_idx: int,
-		row: int,
-		value: float
-) -> void:
-	if boundary_idx < 0 or boundary_idx >= _glow_map_width:
-		return
-	if row < 0 or row >= FRET_GLOW_MAP_HEIGHT:
-		return
-	var idx: int = row * _glow_map_width + boundary_idx
-	accum[idx] = maxf(accum[idx], value)
-
-
 func _note_time_to_world_z(note_time: float, song_time: float) -> float:
-	# Future notes (note_time > song_time) move toward negative Z on the highway.
-	# Hit line is z=0, far end is z=-20.
+	# Future notes (note_time > song_time) sit at negative Z (far end of highway).
+	# Hit line is z = 0, far end is z = -20.
 	return (song_time - note_time) * TRAVEL_SPEED
-
-
-func _z_to_row(z: float) -> int:
-	if z < HIGHWAY_Z_MIN or z > HIGHWAY_Z_MAX:
-		return -1
-	return _z_to_row_clamped(z)
-
-
-func _z_to_row_clamped(z: float) -> int:
-	var t: float = inverse_lerp(HIGHWAY_Z_MIN, HIGHWAY_Z_MAX, clampf(z, HIGHWAY_Z_MIN, HIGHWAY_Z_MAX))
-	return int(round(t * float(FRET_GLOW_MAP_HEIGHT - 1)))

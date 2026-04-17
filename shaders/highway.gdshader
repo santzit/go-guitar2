@@ -56,13 +56,34 @@ float separator_line_mask(vec2 uv) {
 	return 1.0 - smoothstep(0.0, half_width, dist);
 }
 
-// Sample the runtime glow texture at the nearest fret boundary column.
-// Returns vec2(note_start_intensity, sustain_intensity) from the RG8 map.
+// Sample per-boundary glow data from a 1D RGBA8 texture (single row):
+//   R = note-start peak intensity  [0..1]
+//   G = note-head UV.y position    [0 = far end, 1 = strum line]
+//   B = sustain peak intensity     [0..1]
+//   A = sustain-tail UV.y position [0..1, always <= G]
+// Returns vec2(note_start_glow, sustain_glow) by computing a Gaussian in UV.y space
+// so the mark tracks the note regardless of texture resolution or V-axis direction.
 vec2 separator_glow(vec2 uv) {
 	float x_f      = uv.x * float(fret_count);
 	float boundary = clamp(round(x_f), 0.0, float(fret_count));
-	float u        = (boundary + 0.5) / float(fret_count + 1);
-	return texture(fret_glow_map, vec2(u, uv.y)).rg;
+	float tex_u    = (boundary + 0.5) / float(fret_count + 1);
+
+	// Always sample the single row of the 1D texture (V = 0.5).
+	vec4 data    = texture(fret_glow_map, vec2(tex_u, 0.5));
+	float peak   = data.r;   // note-start peak intensity
+	float note_v = data.g;   // UV.y of note head (0=far, 1=strum)
+	float sus_p  = data.b;   // sustain peak intensity
+	float sus_v  = data.a;   // UV.y of sustain tail (farther from strum ⟹ smaller)
+
+	// Gaussian mark centred at the note head's UV.y position (σ ≈ 0.10 UV units).
+	float dv   = uv.y - note_v;
+	float mark = peak * exp(-dv * dv * 100.0);
+
+	// Sustain fill: from sus_v (tail) up to note_v (head), inclusive.
+	float in_s    = step(sus_v, uv.y) * (1.0 - step(note_v + 0.005, uv.y));
+	float sustain = sus_p * in_s;
+
+	return vec2(mark, sustain);
 }
 
 void fragment() {
