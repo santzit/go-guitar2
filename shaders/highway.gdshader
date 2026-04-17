@@ -20,8 +20,8 @@ uniform float pulse_speed      : hint_range(0.0, 10.0) = 3.0;
 uniform float glow_strength    : hint_range(0.0, 3.0) = 1.2;
 uniform sampler2D fret_glow_map : hint_default_black;
 // Width of each separator line, in UV space (0–1 across all 24 frets).
-// 0.025 ≈ 0.60 world-units per line — clearly visible from the play camera.
-uniform float vertical_line_width : hint_range(0.001, 0.1) = 0.025;
+// 0.003 ≈ 0.07 world-units per line — thin crisp line visible from the play camera.
+uniform float vertical_line_width : hint_range(0.001, 0.1) = 0.003;
 uniform float separator_base_intensity : hint_range(0.0, 4.0) = 2.0;
 uniform float separator_glow_strength  : hint_range(0.0, 8.0) = 4.0;
 uniform vec4  separator_line_color  : source_color = vec4(0.55, 0.85, 1.00, 1.0);
