@@ -109,6 +109,8 @@ var _string_glow         : Array[float] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 ## Advances past notes that have fully passed the strum line.
 var _glow_cursor         : int      = 0
 var _lane_glow           : Array[float] = []
+var _active_window_min_fret : int = -1
+var _active_window_max_fret : int = -1
 
 ## Per-string fret-change tracker for smart label logic on single notes.
 ## -1 = no note has been spawned on this string yet.
@@ -370,6 +372,7 @@ func _process(delta: float) -> void:
 
 	# ── Update lane highlighting every frame based on next upcoming note ──────────────
 	_update_fret_range_visuals()
+	_update_fret_separator_glow()
 
 	# Update debug info overlay.
 	_update_debug_info()
@@ -477,16 +480,33 @@ func _update_fret_range_visuals() -> void:
 				targets[lane] = 1.0
 		
 		_highway.call("set_active_fret_range", range_min_fret, range_max_fret)
+		_active_window_min_fret = range_min_fret
+		_active_window_max_fret = range_max_fret
 	else:
 		# No upcoming notes - dim the highway
 		_highway.call("set_active_fret_range", 0, -1)
 		_camera_target_min_fret = FRET_COUNT / 2
 		_camera_target_max_fret = FRET_COUNT / 2
+		_active_window_min_fret = -1
+		_active_window_max_fret = -1
 
 	# Smooth transition of lane glow
 	for lane in LANE_COUNT:
 		_lane_glow[lane] = lerpf(_lane_glow[lane], targets[lane], 0.15)
 	_highway.call("set_lane_intensities", _lane_glow)
+
+
+func _update_fret_separator_glow() -> void:
+	if not is_instance_valid(_highway):
+		return
+	_highway.call(
+		"update_fret_glow_map",
+		_notes,
+		_song_time,
+		_glow_cursor,
+		_active_window_min_fret,
+		_active_window_max_fret
+	)
 
 
 func _zero_lane_array() -> Array[float]:
