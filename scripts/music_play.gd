@@ -135,6 +135,9 @@ func _ready() -> void:
 		return
 
 	print("MusicPlay: loading " + selected_psarc_path)
+	var difficulty_pct: float = _GameStateScript.difficulty_percent
+	_bridge.set_difficulty(difficulty_pct)
+	print("MusicPlay: difficulty=%.0f%%" % difficulty_pct)
 	if _bridge.load_psarc_abs(selected_psarc_path):
 		_notes = _bridge.get_notes()
 		print("MusicPlay: %d notes loaded, requesting audio stream..." % _notes.size())

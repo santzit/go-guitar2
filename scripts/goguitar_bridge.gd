@@ -27,6 +27,13 @@ func _init() -> void:
 		)
 
 
+## Set the difficulty level (0–100).  Maps to Easy / Medium / Hard (100%) bands.
+## Call before load_psarc / load_psarc_abs.  Default is 100 (Hard / full arrangement).
+func set_difficulty(percent: float) -> void:
+	if _ext != null and _ext.has_method("set_difficulty"):
+		_ext.set_difficulty(percent)
+
+
 ## Load a .psarc archive from a res:// or user:// Godot path.
 ## The path is converted to an absolute filesystem path before being passed
 ## to the native bridge (needed when running from the editor).

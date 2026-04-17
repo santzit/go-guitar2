@@ -4,6 +4,10 @@ class_name GameState
 ## Absolute filesystem path to the PSARC selected in the game menu.
 static var selected_psarc_path: String = ""
 
+## Gameplay difficulty (0–100).  100 = Hard / 100% full arrangement (default).
+## Maps to DDC bands: 0–33=Easy, 34–66=Medium, 67–100=Hard.
+static var difficulty_percent: float = 100.0
+
 ## ── Mixer settings (persisted to user://mixer_settings.cfg) ─────────────────
 
 const BUS_COUNT: int = 9

@@ -53,7 +53,11 @@ impl PsarcData {
     ///    the same ID appears in both.
     /// 4. Classifies every `.wem` entry using the role map and returns the largest
     ///    MAIN WEM as `wem_bytes` and the largest PREVIEW WEM as `preview_wem_bytes`.
-    pub fn open(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    /// `difficulty_band` selects which of the three DDC difficulty bands to play:
+    ///   0 = Easy, 1 = Medium, 2 = Hard / 100% (default).
+    /// Each SNG `PhraseIteration` carries `difficulty[3]` = [easy_level, medium_level, hard_level].
+    /// Notes are assembled per-phrase using the level index at `difficulty[difficulty_band]`.
+    pub fn open(path: &str, difficulty_band: usize) -> Result<Self, Box<dyn std::error::Error>> {
         let file = File::open(path)
             .map_err(|e| format!("Failed to open '{}': {}", path, e))?;
 
@@ -90,102 +94,120 @@ impl PsarcData {
             let capo       = sng.metadata.capo_fret_id;
             let tuning     = sng.metadata.tuning.clone();
 
-            // Select the master/100% difficulty level.
-            //
-            // Strategy: always pick the level with the most note events.
+            // ── Assemble notes via phrase-iteration difficulty bands ──────────────
             //
             // Rocksmith DDC (Dynamic Difficulty Creator) stores each difficulty
-            // level as a SELF-CONTAINED, non-additive set of notes.  Levels must
-            // never be summed.  The level with the most note events is universally
-            // the full "master" arrangement — this holds for both official DLC
-            // (where max_difficulty also points to it) and CDLCs (where the
-            // metadata field is often unreliable or points to a sparse variant
-            // level, as seen in DDC songs where level N may have fewer notes than
-            // level N-3).  Tie-break on difficulty index for determinism.
-            let total_levels = sng.levels.len();
-            let best_level = sng.levels.iter()
-                .max_by(|a, b| {
-                    a.notes.len().cmp(&b.notes.len())
-                        .then_with(|| a.difficulty.cmp(&b.difficulty))
-                });
+            // level as a SELF-CONTAINED, non-additive snapshot.  Levels must NEVER
+            // be summed.  The "100% / master" arrangement is NOT a single flat level;
+            // it is assembled phrase-by-phrase:
+            //
+            //   Each PhraseIteration carries  difficulty[3] = [easy, medium, hard].
+            //   For the requested difficulty_band (0=Easy, 1=Medium, 2=Hard/100%),
+            //   we look up the corresponding level index and extract only the notes
+            //   whose timestamps fall within that phrase iteration's [start, end).
+            //
+            // This correctly reproduces Rocksmith's own behaviour: different song
+            // sections can live at different SNG levels even at "maximum difficulty",
+            // which is why a flat "level with most notes" strategy always under-counts.
+            //
+            // Examples with difficulty_band=2 (Hard/100%):
+            //   Love Is a Long Road  – flat level 15 gives 729 notes,
+            //                          phrase assembly gives 1046 (all correct).
+            //   Runnin' Down a Dream – flat level 4 gives 582,
+            //                          phrase assembly gives 1214.
+            let total_levels     = sng.levels.len();
+            let total_phrase_iters = sng.phrase_iterations.len();
+            let diff_band        = difficulty_band.min(2);   // clamp to valid band index
 
-            match best_level {
-                Some(lvl) => {
-                    let difficulty = lvl.difficulty;
-                    let note_count = lvl.notes.len();
-                    // Log level selection details for diagnostics.
-                    eprintln!(
-                        "rsapi: SNG levels={} selected_difficulty={} note_events={} max_difficulty_meta={}",
-                        total_levels, difficulty, note_count, max_diff
-                    );
-                    let mut entries: Vec<NoteEntry> = Vec::new();
-                    for n in &lvl.notes {
-                        // Skip notes flagged as IGNORE — they are never scored or displayed.
-                        // HIGH_DENSITY notes must NOT be skipped: they are genuine playable
-                        // notes that Rocksmith's DDC removes at lower difficulties but that
-                        // are required at the highest (master) difficulty level.
-                        if n.mask.contains(NoteMask::IGNORE) {
-                            continue;
-                        }
+            eprintln!(
+                "rsapi: SNG levels={} phrase_iters={} difficulty_band={} max_difficulty_meta={}",
+                total_levels, total_phrase_iters, diff_band, max_diff
+            );
 
-                        // SNG frets are physical (absolute) fret numbers — identical to
-                        // what is displayed on screen in Rocksmith 2014.  The sng_to_xml
-                        // reference conversion uses them as-is, with zero capo offset.
-                        //
-                        // Rocksmith 2014 has NO capo feature (only RocksmithPlus does).
-                        // capo_fret_id in SNG metadata is unreliable and must NEVER be
-                        // added to fret values.  All observed CDLC/DLC patterns:
-                        //
-                        //   capo_fret_id == -1  →  unset / invalid sentinel; adding it
-                        //                          shifts every fret down by one.
-                        //   capo_fret_id ==  0  →  "no capo" marker; adding it is a no-op
-                        //                          but we still don't rely on this.
-                        //   capo_fret_id  >  0  →  some CDLCs set a value here but the
-                        //                          fret numbers are ALREADY physical/baked,
-                        //                          so adding it again would double-count.
-                        //
-                        // Conclusion: always use fret values verbatim.
+            // Helper closure: push one SNG note event into `entries`.
+            // Skips IGNORE notes.  Expands chord events into per-string NoteEntries.
+            // SNG frets are always physical (absolute) — no capo offset is applied.
+            let mut entries: Vec<NoteEntry> = Vec::new();
 
-                        if n.chord_id >= 0 {
-                            // Chord event: look up per-string frets from the global chord
-                            // template.  The note's own fret/string fields are meaningless for
-                            // chord events (chord_id takes precedence).
-                            //
-                            // We intentionally check chord_id, not NoteMask::CHORD.  The
-                            // authoritative sng_to_xml reference conversion uses the same
-                            // logic: `if chord_id == -1 → single note, else → chord`.
-                            // Using only chord_id avoids a class of bugs where the mask bit
-                            // and chord_id are inconsistent in some CDLC packages.
-                            if let Some(chord) = sng.chords.get(n.chord_id as usize) {
-                                for s in 0i8..6 {
-                                    let raw_fret = chord.frets[s as usize];
-                                    if raw_fret < 0 { continue; }   // -1 = string not played
-                                    entries.push(NoteEntry {
-                                        time:         n.time,
-                                        fret:         raw_fret,
-                                        string_index: s,
-                                        sustain:      n.sustain,
-                                    });
-                                }
-                            }
-                        } else {
-                            // Single note: use fret/string directly from the note record.
+            let push_note = |entries: &mut Vec<NoteEntry>,
+                             n: &rocksmith2014_sng::Note,
+                             chords: &[rocksmith2014_sng::Chord]| {
+                // Skip notes flagged as IGNORE — never scored or displayed.
+                // HIGH_DENSITY notes must NOT be skipped: they are genuine playable
+                // notes required at higher difficulties.
+                if n.mask.contains(NoteMask::IGNORE) {
+                    return;
+                }
+                if n.chord_id >= 0 {
+                    // Chord event: expand per-string frets from the chord template.
+                    // chord_id is authoritative (sng_to_xml reference confirms this).
+                    if let Some(chord) = chords.get(n.chord_id as usize) {
+                        for s in 0i8..6 {
+                            let raw_fret = chord.frets[s as usize];
+                            if raw_fret < 0 { continue; }   // -1 = string not played
                             entries.push(NoteEntry {
                                 time:         n.time,
-                                fret:         n.fret,
-                                string_index: n.string_index,
+                                fret:         raw_fret,
+                                string_index: s,
                                 sustain:      n.sustain,
                             });
                         }
                     }
-                    (entries, start_time, difficulty, capo, tuning)
+                } else {
+                    // Single note: use fret/string directly from the note record.
+                    entries.push(NoteEntry {
+                        time:         n.time,
+                        fret:         n.fret,
+                        string_index: n.string_index,
+                        sustain:      n.sustain,
+                    });
                 }
-                None => {
-                    eprintln!(
-                        "rsapi: SNG levels={} — no level found, max_difficulty_meta={}",
-                        total_levels, max_diff
-                    );
-                    (Vec::new(), start_time, max_diff, capo, tuning)
+            };
+
+            if !sng.phrase_iterations.is_empty() {
+                // ── Phrase-iteration assembly (primary path) ─────────────────────
+                let mut selected_difficulty = 0i32;
+                for pi in &sng.phrase_iterations {
+                    let t_start = pi.start_time;
+                    let t_end   = pi.end_time;
+                    let band_d  = pi.difficulty[diff_band];
+                    if band_d > selected_difficulty { selected_difficulty = band_d; }
+
+                    let lvl = match sng.levels.iter().find(|l| l.difficulty == band_d) {
+                        Some(l) => l,
+                        None    => continue,
+                    };
+                    for n in &lvl.notes {
+                        if n.time < t_start || n.time >= t_end { continue; }
+                        push_note(&mut entries, n, &sng.chords);
+                    }
+                }
+                eprintln!(
+                    "rsapi: phrase-assembly complete — {} note_events (max band_d={})",
+                    entries.len(), selected_difficulty
+                );
+                (entries, start_time, selected_difficulty, capo, tuning)
+            } else {
+                // ── Fallback: flat level with most note events ───────────────────
+                // Used for malformed/non-DDC SNG files that have no phraseIterations.
+                eprintln!("rsapi: no phraseIterations — falling back to flat max-note level");
+                let best = sng.levels.iter()
+                    .max_by(|a, b| {
+                        a.notes.len().cmp(&b.notes.len())
+                            .then_with(|| a.difficulty.cmp(&b.difficulty))
+                    });
+                match best {
+                    Some(lvl) => {
+                        for n in &lvl.notes {
+                            push_note(&mut entries, n, &sng.chords);
+                        }
+                        eprintln!("rsapi: fallback level {} — {} note_events", lvl.difficulty, entries.len());
+                        (entries, start_time, lvl.difficulty, capo, tuning)
+                    }
+                    None => {
+                        eprintln!("rsapi: SNG has no levels at all");
+                        (Vec::new(), start_time, max_diff, capo, tuning)
+                    }
                 }
             }
         } else {
