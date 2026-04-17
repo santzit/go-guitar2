@@ -139,6 +139,12 @@ impl PsarcData {
                             // Chord event: look up per-string frets from the global chord
                             // template.  The note's own fret/string fields are meaningless for
                             // chord events (chord_id takes precedence).
+                            //
+                            // We intentionally check chord_id, not NoteMask::CHORD.  The
+                            // authoritative sng_to_xml reference conversion uses the same
+                            // logic: `if chord_id == -1 → single note, else → chord`.
+                            // Using only chord_id avoids a class of bugs where the mask bit
+                            // and chord_id are inconsistent in some CDLC packages.
                             if let Some(chord) = sng.chords.get(n.chord_id as usize) {
                                 for s in 0i8..6 {
                                     let raw_fret = chord.frets[s as usize];
