@@ -22,6 +22,8 @@ jobs:
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-gnu
 
       - name: Install system dependencies
         run: |
@@ -34,7 +36,8 @@ jobs:
             mesa-vulkan-drivers \
             libgl1-mesa-dri \
             libgles2 \
-            unzip
+            unzip \
+            g++-mingw-w64-x86-64
 
       - name: Download and install Godot
         run: |
