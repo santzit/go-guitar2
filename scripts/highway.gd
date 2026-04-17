@@ -7,7 +7,9 @@ const TRAVEL_SPEED : float = 2.0
 const HIGHWAY_Z_MIN : float = -20.0
 const HIGHWAY_Z_MAX : float = 0.0
 const FRET_GLOW_MAP_HEIGHT : int = 256
-const APPROACH_WINDOW_SECS : float = 1.5
+## Must match music_play.gd LEAD_TIME (HIGHWAY_DEPTH / TRAVEL_SPEED = 10.0 s).
+## Glow mark follows the note for its entire visible journey on the highway.
+const APPROACH_WINDOW_SECS : float = 10.0
 const HIT_WINDOW_SECS : float = 0.08
 const SUSTAIN_KEEP_SECS : float = 0.05
 const SUSTAIN_MIN_SECS : float = 0.05
@@ -124,9 +126,12 @@ func update_fret_glow_map(
 		var right_boundary: int = clampi(fret, 0, _fret_count)
 
 		var dt: float = note_time - song_time
-		var peak: float = 0.15
+		# Peak ramps from dim (0.1) at APPROACH_WINDOW_SECS away to bright (0.65) at hit,
+		# then to max (1.0) inside the hit window. This makes the mark clearly visible
+		# from the far end of the highway and intensifies as the note approaches.
+		var peak: float = 0.1
 		if dt >= 0.0 and dt <= APPROACH_WINDOW_SECS:
-			peak = lerpf(0.15, 0.55, 1.0 - dt / APPROACH_WINDOW_SECS)
+			peak = lerpf(0.1, 0.65, 1.0 - dt / APPROACH_WINDOW_SECS)
 		if absf(dt) <= HIT_WINDOW_SECS:
 			peak = 1.0
 
