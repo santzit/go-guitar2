@@ -29,6 +29,9 @@ shader_parameter/glow_strength     = 1.20
 shader_parameter/vertical_fret_line_tex = ExtResource("3_vfret")
 shader_parameter/vertical_line_width = 0.008
 shader_parameter/vertical_line_strength = 0.55
+shader_parameter/separator_base_intensity = 0.5
+shader_parameter/separator_glow_strength = 2.2
+shader_parameter/separator_glow_color = Color(0.40, 0.85, 1.00, 1.0)
 
 ; ── Strum-line marker (thin bright box) ───────────────────────────────────────
 [sub_resource type="BoxMesh" id="BoxMesh_strum"]

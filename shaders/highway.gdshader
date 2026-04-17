@@ -21,7 +21,7 @@ uniform sampler2D vertical_fret_line_tex : source_color;
 uniform sampler2D fret_glow_map : source_color;
 uniform float vertical_line_width : hint_range(0.001, 0.05) = 0.008;
 uniform float vertical_line_strength : hint_range(0.0, 2.0) = 0.55;
-uniform float separator_base_intensity : hint_range(0.0, 1.0) = 0.12;
+uniform float separator_base_intensity : hint_range(0.0, 1.0) = 0.5;
 uniform float separator_glow_strength  : hint_range(0.0, 6.0) = 2.2;
 uniform vec4 separator_glow_color : source_color = vec4(0.40, 0.85, 1.00, 1.0);
 
@@ -75,9 +75,7 @@ void fragment() {
 	ALBEDO = base_color.rgb;
 	float separator_mask = vertical_fret_line_alpha(UV);
 	float glow = separator_glow(UV);
-	float glow_mix = clamp(glow * 1.25, 0.0, 1.0);
-	vec3 separator_color = mix(base_color.rgb, separator_glow_color.rgb, glow_mix);
 	float emission_strength = separator_base_intensity + glow * separator_glow_strength;
-	EMISSION = separator_color * separator_mask * emission_strength;
+	EMISSION = separator_glow_color.rgb * separator_mask * emission_strength;
 	ALPHA    = 1.0;
 }
