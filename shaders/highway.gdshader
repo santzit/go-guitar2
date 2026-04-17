@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode cull_disabled, unshaded, depth_prepass_alpha;
+render_mode cull_disabled, unshaded, blend_mix;
 
 // Fixed highway mesh. Visual effects are currently disabled for a flat base look.
 uniform int   fret_count       : hint_range(1, 24) = 24;
@@ -24,6 +24,7 @@ uniform float vertical_line_strength : hint_range(0.0, 2.0) = 0.55;
 uniform float separator_base_intensity : hint_range(0.0, 1.0) = 0.5;
 uniform float separator_glow_strength  : hint_range(0.0, 6.0) = 2.2;
 uniform vec4 separator_glow_color : source_color = vec4(0.40, 0.85, 1.00, 1.0);
+uniform float highway_alpha : hint_range(0.0, 1.0) = 0.5;
 
 const int MAX_SHADER_LANES = 6; // lane_intensity uniforms are packed for 6 lanes.
 const int MAX_FRET_LINES = 25;
@@ -77,5 +78,5 @@ void fragment() {
 	float glow = separator_glow(UV);
 	float emission_strength = separator_base_intensity + glow * separator_glow_strength;
 	EMISSION = separator_glow_color.rgb * separator_mask * emission_strength;
-	ALPHA    = 1.0;
+	ALPHA    = highway_alpha;
 }
