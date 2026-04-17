@@ -32,9 +32,10 @@ pub struct PsarcData {
     pub sng_start_time:    f32,
     /// SNG difficulty index of the selected level (== metadata.max_difficulty).
     pub sng_difficulty:    i32,
-    /// Capo fret used by the arrangement (0 = no capo).
-    /// SNG fret values are stored relative to the capo; the physical fret
-    /// already has the capo offset added and is what Rocksmith displays.
+    /// Capo fret used by the arrangement (0 = no capo, -1 = not set).
+    /// SNG fret values are already physical (absolute) fret numbers — identical to
+    /// what Rocksmith displays on screen.  This field is informational only; it tells
+    /// the player where to place the physical capo before playing.
     pub sng_capo:          i8,
     /// Per-string tuning offsets in semitones from standard E-A-D-G-B-e tuning.
     /// An all-zero (or empty) vector means standard tuning.
@@ -84,25 +85,26 @@ impl PsarcData {
 
             let max_diff   = sng.metadata.max_difficulty;
             let start_time = sng.metadata.start_time;
-            let capo       = sng.metadata.capo_fret_id;   // 0 = no capo
+            // capo_fret_id is diagnostic only — Rocksmith 2014 has no capo support.
+            // The field is typically 0 or -1.  Frets in the SNG are physical (absolute).
+            let capo       = sng.metadata.capo_fret_id;
             let tuning     = sng.metadata.tuning.clone();
 
             // Select the master/100% difficulty level.
             //
-            // Strategy: pick the level with the MOST notes.  In Rocksmith's DDC format,
-            // the master level is definitionally the one with the most notes — it is a
-            // superset of every lower level.  This is more reliable than using
-            // metadata.max_difficulty, which can be wrong in CDLC packages (the metadata
-            // field is sometimes set to an arbitrary or off-by-one value).
-            //
-            // Tie-break on difficulty index so we consistently pick the same level when
-            // multiple levels happen to have the same note count (rare but possible in
-            // hand-authored CDLCs).
+            // Strategy: prefer the level whose .difficulty index matches
+            // metadata.max_difficulty (the authoritative 100% level marker).
+            // Fall back to max-notes-count for CDLCs where the metadata field is
+            // unreliable (sometimes off-by-one or unset).  Tie-break on difficulty
+            // index for determinism.
             let total_levels = sng.levels.len();
             let best_level = sng.levels.iter()
-                .max_by(|a, b| {
-                    a.notes.len().cmp(&b.notes.len())
-                        .then_with(|| a.difficulty.cmp(&b.difficulty))
+                .find(|lvl| lvl.difficulty == max_diff)
+                .or_else(|| {
+                    sng.levels.iter().max_by(|a, b| {
+                        a.notes.len().cmp(&b.notes.len())
+                            .then_with(|| a.difficulty.cmp(&b.difficulty))
+                    })
                 });
 
             match best_level {
@@ -124,34 +126,36 @@ impl PsarcData {
                             continue;
                         }
 
-                        // Capo compensation: Rocksmith SNG stores fret values relative to
-                        // the capo position. The physical fret Rocksmith displays on screen is:
-                        //   physical_fret = sng_fret + capo_fret_id
-                        // For songs without a capo (capo_fret_id == 0) this is a no-op.
-                        let apply_capo = |sng_fret: i8| -> i8 {
-                            sng_fret.saturating_add(capo)
-                        };
+                        // SNG frets are physical (absolute) fret numbers — identical to
+                        // what is displayed on screen in Rocksmith.  The sng_to_xml reference
+                        // conversion uses them as-is without any capo offset.
+                        // capo_fret_id is stored in metadata for informational purposes only
+                        // (it tells you where to place the physical capo on the guitar before
+                        // playing).  We must NOT add it to fret values; for songs without a
+                        // capo, capo_fret_id is often -1, and adding it would shift every fret
+                        // down by one, producing wrong notes.
 
-                        if n.mask.contains(NoteMask::CHORD) && n.chord_id >= 0 {
-                            // Chord event: the Note itself has fret=-1 / string_index=-1.
-                            // The actual per-string frets live in sng.chords[chord_id].frets[].
+                        if n.chord_id >= 0 {
+                            // Chord event: look up per-string frets from the global chord
+                            // template.  The note's own fret/string fields are meaningless for
+                            // chord events (chord_id takes precedence).
                             if let Some(chord) = sng.chords.get(n.chord_id as usize) {
                                 for s in 0i8..6 {
                                     let raw_fret = chord.frets[s as usize];
                                     if raw_fret < 0 { continue; }   // -1 = string not played
                                     entries.push(NoteEntry {
                                         time:         n.time,
-                                        fret:         apply_capo(raw_fret),
+                                        fret:         raw_fret,
                                         string_index: s,
                                         sustain:      n.sustain,
                                     });
                                 }
                             }
                         } else {
-                            // Single note.
+                            // Single note: use fret/string directly from the note record.
                             entries.push(NoteEntry {
                                 time:         n.time,
-                                fret:         apply_capo(n.fret),
+                                fret:         n.fret,
                                 string_index: n.string_index,
                                 sustain:      n.sustain,
                             });
