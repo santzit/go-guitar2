@@ -8,6 +8,7 @@ ambient_light_source = 0
 glow_enabled     = true
 glow_intensity   = 1.0
 glow_bloom       = 0.35
+glow_hdr_threshold = 0.5
 
 [node name="Background" type="Node3D"]
 

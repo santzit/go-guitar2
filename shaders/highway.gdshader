@@ -18,7 +18,7 @@ uniform float lane_glow_power  : hint_range(0.1, 4.0) = 1.6;
 uniform float pulse_speed      : hint_range(0.0, 10.0) = 3.0;
 uniform float glow_strength    : hint_range(0.0, 3.0) = 1.2;
 uniform sampler2D vertical_fret_line_tex : source_color;
-uniform sampler2D fret_glow_map : source_color;
+uniform sampler2D fret_glow_map : hint_default_black;
 uniform float vertical_line_width : hint_range(0.001, 0.05) = 0.008;
 uniform float vertical_line_strength : hint_range(0.0, 2.0) = 0.55;
 uniform float separator_base_intensity : hint_range(0.0, 1.0) = 0.5;

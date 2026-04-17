@@ -399,9 +399,16 @@ func _update_string_glows() -> void:
 	if not is_instance_valid(_fretboard):
 		return
 
-	# Advance the glow cursor past notes that have already left the strum zone.
-	while _glow_cursor < _notes.size() \
-			and (_notes[_glow_cursor]["time"] as float) < _song_time - 0.20:
+	# Advance the glow cursor past notes that have fully left the strum zone,
+	# including any sustain. A note is fully gone when its sustain_end is also past.
+	while _glow_cursor < _notes.size():
+		var _nd: Dictionary = _notes[_glow_cursor]
+		var _nt: float = float(_nd.get("time", 0.0))
+		if _nt >= _song_time - 0.20:
+			break
+		var _dur: float = maxf(float(_nd.get("duration", 0.0)), 0.0)
+		if _nt + _dur >= _song_time - 0.05:
+			break
 		_glow_cursor += 1
 
 	# Compute target glow intensity per string: highest intensity wins when
