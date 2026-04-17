@@ -170,7 +170,7 @@ impl PsarcData {
                 for pi in &sng.phrase_iterations {
                     let t_start = pi.start_time;
                     let t_end   = pi.end_time;
-                    let band_d  = pi.difficulty[diff_band];
+                    let band_d  = pi.difficulty[diff_band];   // level index for this phrase at the requested band
                     if band_d > selected_difficulty { selected_difficulty = band_d; }
 
                     let lvl = match sng.levels.iter().find(|l| l.difficulty == band_d) {

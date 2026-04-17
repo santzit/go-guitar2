@@ -74,7 +74,10 @@ impl RocksmithBridge {
     /// If not called, the default is 100% (Hard).
     #[func]
     fn set_difficulty(&mut self, percent: f64) {
-        self.difficulty_band = if percent <= 33.0 { 0 } else if percent <= 66.0 { 1 } else { 2 };
+        // Map 0–100% to DDC band: 0–33=Easy, 34–66=Medium, 67–100=Hard/100%
+        const EASY_MAX:   f64 = 33.0;
+        const MEDIUM_MAX: f64 = 66.0;
+        self.difficulty_band = if percent <= EASY_MAX { 0 } else if percent <= MEDIUM_MAX { 1 } else { 2 };
         godot_print!(
             "RocksmithBridge: difficulty set to {:.0}% → band {}",
             percent, self.difficulty_band
