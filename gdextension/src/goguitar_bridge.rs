@@ -33,9 +33,10 @@ pub struct RocksmithBridge {
     preview_wem_data: Option<Vec<u8>>,   // PREVIEW WEM — short clip for song-list preview
     sng_start_time:   f32,   // SNG arrangement start time (seconds from WEM position 0)
     sng_difficulty:   i32,   // difficulty index of the selected level (== max_difficulty)
-    sng_capo:         i8,    // capo_fret_id from SNG metadata (-1 = not set, 0 = none).
-                             // Rocksmith 2014 does not support capo; this field is diagnostic only.
-                             // Fret values are physical (absolute) — no offset is applied.
+    sng_capo:         i8,    // raw capo_fret_id from SNG metadata.
+                             // RS2014 has no capo feature; field is diagnostic only.
+                             // -1 = unset/invalid, 0 = no capo, >0 = frets already physical/baked.
+                             // Fret values are ALWAYS physical — no offset is ever applied.
     sng_tuning:       Vec<i16>, // per-string semitone offsets from standard tuning
 }
 
@@ -125,10 +126,10 @@ impl RocksmithBridge {
     ///   Note times in `get_notes()` are already absolute from WEM t=0, so no offset
     ///   needs to be applied — this value is purely for diagnostic logging.
     /// - `difficulty`: difficulty index of the selected level (== max_difficulty).
-    /// - `capo`: raw capo_fret_id from SNG metadata (-1 = not set, 0 = none).
-    ///   Rocksmith 2014 does not support capo — this value is diagnostic only.
-    ///   Fret values in get_notes() are physical (absolute) fret numbers; no offset
-    ///   is applied regardless of this field.
+    /// - `capo`: raw capo_fret_id from SNG metadata.  RS2014 has no capo feature;
+    ///   this is diagnostic only.  -1=unset, 0=no capo, >0=value present but frets
+    ///   are already physical/baked.  Fret values in get_notes() are always physical;
+    ///   no offset is applied regardless of this field.
     /// - `tuning`: per-string semitone offsets from standard E-A-D-G-B-e tuning.
     ///   Use these to compute correct note names for alternate-tuning songs.
     #[func]

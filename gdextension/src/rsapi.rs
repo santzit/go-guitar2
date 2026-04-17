@@ -32,10 +32,10 @@ pub struct PsarcData {
     pub sng_start_time:    f32,
     /// SNG difficulty index of the selected level (== metadata.max_difficulty).
     pub sng_difficulty:    i32,
-    /// Capo fret used by the arrangement (0 = no capo, -1 = not set).
-    /// SNG fret values are already physical (absolute) fret numbers — identical to
-    /// what Rocksmith displays on screen.  This field is informational only; it tells
-    /// the player where to place the physical capo before playing.
+    /// Raw capo_fret_id from SNG metadata.  Rocksmith 2014 has no capo feature;
+    /// this field is unreliable in CDLCs (-1 = unset, 0 = no capo, >0 = frets
+    /// already physical/baked).  It is exposed for diagnostics only — fret values
+    /// in `notes` are always physical and must be used as-is with no offset.
     pub sng_capo:          i8,
     /// Per-string tuning offsets in semitones from standard E-A-D-G-B-e tuning.
     /// An all-zero (or empty) vector means standard tuning.
@@ -127,13 +127,22 @@ impl PsarcData {
                         }
 
                         // SNG frets are physical (absolute) fret numbers — identical to
-                        // what is displayed on screen in Rocksmith.  The sng_to_xml reference
-                        // conversion uses them as-is without any capo offset.
-                        // capo_fret_id is stored in metadata for informational purposes only
-                        // (it tells you where to place the physical capo on the guitar before
-                        // playing).  We must NOT add it to fret values; for songs without a
-                        // capo, capo_fret_id is often -1, and adding it would shift every fret
-                        // down by one, producing wrong notes.
+                        // what is displayed on screen in Rocksmith 2014.  The sng_to_xml
+                        // reference conversion uses them as-is, with zero capo offset.
+                        //
+                        // Rocksmith 2014 has NO capo feature (only RocksmithPlus does).
+                        // capo_fret_id in SNG metadata is unreliable and must NEVER be
+                        // added to fret values.  All observed CDLC/DLC patterns:
+                        //
+                        //   capo_fret_id == -1  →  unset / invalid sentinel; adding it
+                        //                          shifts every fret down by one.
+                        //   capo_fret_id ==  0  →  "no capo" marker; adding it is a no-op
+                        //                          but we still don't rely on this.
+                        //   capo_fret_id  >  0  →  some CDLCs set a value here but the
+                        //                          fret numbers are ALREADY physical/baked,
+                        //                          so adding it again would double-count.
+                        //
+                        // Conclusion: always use fret values verbatim.
 
                         if n.chord_id >= 0 {
                             // Chord event: look up per-string frets from the global chord
