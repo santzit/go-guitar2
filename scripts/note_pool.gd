@@ -14,18 +14,21 @@ func _ready() -> void:
 
 func _build_pool() -> void:
 	for i in MAX_NOTES:
-		var note: Node3D = NOTE_SCENE.instantiate()
-		note.visible = false
-		add_child(note)
-		_pool.append(note)
+		_pool.append(_make_note())
+
+
+func _make_note() -> Node3D:
+	var note: Node3D = NOTE_SCENE.instantiate()
+	note.visible = false
+	add_child(note)
+	return note
 
 
 ## Activate a note from the pool.
 ## Returns the note node, or null if the pool is exhausted.
 func spawn_note(p_fret: int, p_string: int, p_time: float, p_duration: float, _unused_show_label: bool = true) -> Node3D:
 	if _pool.is_empty():
-		push_warning("NotePool: pool exhausted – cannot spawn note.")
-		return null
+		_pool.append(_make_note())
 
 	var note: Node3D = _pool.pop_back()
 	note.setup(p_fret, p_string, p_time, p_duration)

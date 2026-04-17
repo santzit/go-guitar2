@@ -97,6 +97,11 @@ var _warmup_timer        : float    = WARMUP_SECS  # counts down to 0.0, then au
 ## Cached volume_db sent to the AudioStreamPlayer last frame.  -999 = first frame.
 var _cached_volume_db    : float    = -999.0
 
+## Per-string tuning offsets (semitones from standard tuning), loaded from SNG metadata.
+## Used to compute correct note names for alternate-tuning songs.
+## Index 0 = low E string, 5 = high e string.
+var _string_tuning       : Array[int] = [0, 0, 0, 0, 0, 0]
+
 ## Per-string glow state for smooth transitions.
 ## Tracks the current shader intensity so we can lerp toward the target each frame.
 var _string_glow         : Array[float] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
@@ -130,9 +135,29 @@ func _ready() -> void:
 		return
 
 	print("MusicPlay: loading " + selected_psarc_path)
+	var difficulty_pct: float = _GameStateScript.difficulty_percent
+	_bridge.set_difficulty(difficulty_pct)
+	print("MusicPlay: difficulty=%.0f%%" % difficulty_pct)
 	if _bridge.load_psarc_abs(selected_psarc_path):
 		_notes = _bridge.get_notes()
 		print("MusicPlay: %d notes loaded, requesting audio stream..." % _notes.size())
+		# -- Diagnostic: SNG info (difficulty level, start_time, capo, tuning).
+		var sng_info : Dictionary = _bridge.get_sng_info()
+		if not sng_info.is_empty():
+			var capo_val  : int   = int(sng_info.get("capo", 0))
+			var start_val : float = float(sng_info.get("start_time", 0.0))
+			var diff_val  : int   = int(sng_info.get("difficulty", -1))
+			var raw_tuning        = sng_info.get("tuning", [])
+			var tuning_str : String = ""
+			if raw_tuning is Array:
+				for idx in raw_tuning.size():
+					if idx > 0:
+						tuning_str += ","
+					tuning_str += str(int(raw_tuning[idx]))
+					if idx < _string_tuning.size():
+						_string_tuning[idx] = int(raw_tuning[idx])
+			print("MusicPlay: SNG difficulty=%d  start_time=%.3fs  capo=%d  tuning=[%s]" % [
+				diff_val, start_val, capo_val, tuning_str])
 		# -- Diagnostic: print first 15 chord groups so fret/string values are visible.
 		# Notes at the same timestamp (within 20 ms) are grouped as a single chord line.
 		# Format: note[N] t=T.Ts  note=CHORD_ROOT  | fret=F1  string=S1(name), ...
@@ -481,7 +506,9 @@ func _return_to_menu() -> void:
 func _get_note_name(fret: int, string_idx: int) -> String:
 	if string_idx < 0 or string_idx >= 6 or fret < 0 or fret > 24:
 		return "?"
-	var midi := STRING_OPEN_MIDI[string_idx] + fret
+	# Apply per-string tuning offset so note names are correct for alternate tunings.
+	var tuning_offset : int = _string_tuning[string_idx] if string_idx < _string_tuning.size() else 0
+	var midi := STRING_OPEN_MIDI[string_idx] + tuning_offset + fret
 	return NOTE_NAMES[midi % 12]
 
 

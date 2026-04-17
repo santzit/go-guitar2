@@ -14,10 +14,14 @@ var _active: Array = []   # currently moving containers
 
 func _ready() -> void:
 	for i in MAX_CHORDS:
-		var chord : Node3D = CHORD_SCENE.instantiate()
-		chord.visible = false
-		add_child(chord)
-		_pool.append(chord)
+		_pool.append(_make_chord())
+
+
+func _make_chord() -> Node3D:
+	var chord : Node3D = CHORD_SCENE.instantiate()
+	chord.visible = false
+	add_child(chord)
+	return chord
 
 
 ## Activate a chord container from the pool.
@@ -29,8 +33,7 @@ func spawn_chord(
 		p_show_details: bool
 ) -> Node3D:
 	if _pool.is_empty():
-		push_warning("ChordPool: pool exhausted — cannot spawn chord.")
-		return null
+		_pool.append(_make_chord())
 	var chord : Node3D = _pool.pop_back()
 	chord.setup(p_notes, p_time, p_chord_name, p_show_details)
 	_active.append(chord)

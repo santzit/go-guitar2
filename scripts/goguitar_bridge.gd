@@ -27,6 +27,13 @@ func _init() -> void:
 		)
 
 
+## Set the difficulty level (0–100).  Maps to Easy / Medium / Hard (100%) bands.
+## Call before load_psarc / load_psarc_abs.  Default is 100 (Hard / full arrangement).
+func set_difficulty(percent: float) -> void:
+	if _ext != null and _ext.has_method("set_difficulty"):
+		_ext.set_difficulty(percent)
+
+
 ## Load a .psarc archive from a res:// or user:// Godot path.
 ## The path is converted to an absolute filesystem path before being passed
 ## to the native bridge (needed when running from the editor).
@@ -102,6 +109,17 @@ func get_wem_bytes() -> PackedByteArray:
 	if _ext.has_method("get_wem_bytes"):
 		return _ext.get_wem_bytes()
 	return PackedByteArray()
+
+
+## Returns SNG diagnostic info as a Dictionary:
+##   { "start_time": float, "difficulty": int }
+## start_time: when the arrangement begins in the WEM (seconds from WEM t=0).
+##             Note times are already absolute from WEM t=0 — no offset needed.
+## difficulty: difficulty index of the parsed level (highest = master).
+func get_sng_info() -> Dictionary:
+	if _ext == null or not _ext.has_method("get_sng_info"):
+		return {}
+	return _ext.get_sng_info()
 
 
 ## Decode WEM bytes into an AudioStreamWAV via the AudioEngine GDExtension.
