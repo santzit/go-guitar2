@@ -45,7 +45,7 @@ float lane_intensity(int lane) {
 // UV.x spans fret 0 (left) → fret 24 (right) linearly.
 // Returns 1.0 at each fret boundary, falling to 0.0 at ±half_width UV distance.
 float separator_line_mask(vec2 uv) {
-	float half_w = vertical_line_width * 0.5;
+	float half_width = vertical_line_width * 0.5;
 	float fc = max(float(fret_count), 0.0001);
 	float best = 0.0;
 	for (int i = 0; i < MAX_FRET_LINES; i++) {
@@ -54,8 +54,8 @@ float separator_line_mask(vec2 uv) {
 		}
 		float fret_x = float(i) / fc;
 		float dist   = abs(uv.x - fret_x);
-		if (dist < half_w) {
-			best = max(best, 1.0 - dist / half_w);
+		if (dist < half_width) {
+			best = max(best, 1.0 - dist / half_width);
 		}
 	}
 	return best;
@@ -72,13 +72,13 @@ float separator_glow(vec2 uv) {
 void fragment() {
 	float mask  = separator_line_mask(UV);
 	float glow  = separator_glow(UV);
-	float emstr = separator_base_intensity + glow * separator_glow_strength;
+	float emission_strength = separator_base_intensity + glow * separator_glow_strength;
 
 	vec3 line_rgb = separator_line_color.rgb;
 
 	// ALBEDO: blend line colour on top of the dark floor — visible even without bloom.
 	ALBEDO   = mix(base_color.rgb, line_rgb * separator_line_albedo, mask);
 	// EMISSION: bright enough (>0.5) to trigger HDR bloom on the separator lines.
-	EMISSION = line_rgb * mask * emstr;
+	EMISSION = line_rgb * mask * emission_strength;
 	// ALPHA is implicitly 1.0 in the default opaque render_mode.
 }
