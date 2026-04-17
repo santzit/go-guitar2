@@ -92,19 +92,21 @@ impl PsarcData {
 
             // Select the master/100% difficulty level.
             //
-            // Strategy: prefer the level whose .difficulty index matches
-            // metadata.max_difficulty (the authoritative 100% level marker).
-            // Fall back to max-notes-count for CDLCs where the metadata field is
-            // unreliable (sometimes off-by-one or unset).  Tie-break on difficulty
-            // index for determinism.
+            // Strategy: always pick the level with the most note events.
+            //
+            // Rocksmith DDC (Dynamic Difficulty Creator) stores each difficulty
+            // level as a SELF-CONTAINED, non-additive set of notes.  Levels must
+            // never be summed.  The level with the most note events is universally
+            // the full "master" arrangement — this holds for both official DLC
+            // (where max_difficulty also points to it) and CDLCs (where the
+            // metadata field is often unreliable or points to a sparse variant
+            // level, as seen in DDC songs where level N may have fewer notes than
+            // level N-3).  Tie-break on difficulty index for determinism.
             let total_levels = sng.levels.len();
             let best_level = sng.levels.iter()
-                .find(|lvl| lvl.difficulty == max_diff)
-                .or_else(|| {
-                    sng.levels.iter().max_by(|a, b| {
-                        a.notes.len().cmp(&b.notes.len())
-                            .then_with(|| a.difficulty.cmp(&b.difficulty))
-                    })
+                .max_by(|a, b| {
+                    a.notes.len().cmp(&b.notes.len())
+                        .then_with(|| a.difficulty.cmp(&b.difficulty))
                 });
 
             match best_level {
