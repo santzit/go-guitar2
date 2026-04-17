@@ -23,7 +23,10 @@ uniform sampler2D fret_glow_map : hint_default_black;
 // 0.003 ≈ 0.07 world-units per line — thin crisp line visible from the play camera.
 uniform float vertical_line_width : hint_range(0.001, 0.1) = 0.003;
 uniform float separator_base_intensity : hint_range(0.0, 4.0) = 2.0;
-uniform float separator_glow_strength  : hint_range(0.0, 8.0) = 4.0;
+// Glow map R channel = note-start intensity (bright flash at note head).
+// Glow map G channel = sustain intensity (soft persistent glow along sustain tail).
+uniform float note_start_glow_strength : hint_range(0.0, 12.0) = 8.0;
+uniform float sustain_glow_strength    : hint_range(0.0, 6.0)  = 2.0;
 uniform vec4  separator_line_color  : source_color = vec4(0.55, 0.85, 1.00, 1.0);
 
 const int MAX_SHADER_LANES = 6;
@@ -54,17 +57,21 @@ float separator_line_mask(vec2 uv) {
 }
 
 // Sample the runtime glow texture at the nearest fret boundary column.
-float separator_glow(vec2 uv) {
+// Returns vec2(note_start_intensity, sustain_intensity) from the RG8 map.
+vec2 separator_glow(vec2 uv) {
 	float x_f      = uv.x * float(fret_count);
 	float boundary = clamp(round(x_f), 0.0, float(fret_count));
 	float u        = (boundary + 0.5) / float(fret_count + 1);
-	return texture(fret_glow_map, vec2(u, uv.y)).r;
+	return texture(fret_glow_map, vec2(u, uv.y)).rg;
 }
 
 void fragment() {
-	float mask  = separator_line_mask(UV);
-	float glow  = separator_glow(UV);
-	float emission_strength = separator_base_intensity + glow * separator_glow_strength;
+	float mask        = separator_line_mask(UV);
+	vec2  glow        = separator_glow(UV);
+	// R = note-start (bright); G = sustain (dim).
+	float emission_strength = separator_base_intensity
+		+ glow.r * note_start_glow_strength
+		+ glow.g * sustain_glow_strength;
 
 	vec3 line_rgb = separator_line_color.rgb;
 

@@ -89,10 +89,16 @@ func update_fret_glow_map(
 		return
 
 	var sample_count: int = _glow_map_width * FRET_GLOW_MAP_HEIGHT
-	var accum := PackedFloat32Array()
-	accum.resize(sample_count)
+	# R channel: note-start / head-bump glow (bright flash).
+	var accum_r := PackedFloat32Array()
+	accum_r.resize(sample_count)
 	for i in sample_count:
-		accum[i] = 0.0
+		accum_r[i] = 0.0
+	# G channel: sustain glow (soft, dimmer).
+	var accum_g := PackedFloat32Array()
+	accum_g.resize(sample_count)
+	for i in sample_count:
+		accum_g[i] = 0.0
 
 	var note_idx: int = maxi(start_index, 0)
 	while note_idx < notes.size():
@@ -124,27 +130,31 @@ func update_fret_glow_map(
 		if absf(dt) <= HIT_WINDOW_SECS:
 			peak = 1.0
 
-		_add_head_bump(accum, left_boundary, note_time, song_time, peak)
-		_add_head_bump(accum, right_boundary, note_time, song_time, peak)
+		# Note-start head bump → R channel (bright).
+		_add_head_bump(accum_r, left_boundary, note_time, song_time, peak)
+		_add_head_bump(accum_r, right_boundary, note_time, song_time, peak)
 
+		# Sustain segment → G channel (dim).
 		if duration >= SUSTAIN_MIN_SECS:
-			_add_sustain_segment(accum, left_boundary, note_time, sustain_end, song_time)
-			_add_sustain_segment(accum, right_boundary, note_time, sustain_end, song_time)
+			_add_sustain_segment(accum_g, left_boundary, note_time, sustain_end, song_time)
+			_add_sustain_segment(accum_g, right_boundary, note_time, sustain_end, song_time)
 
 		note_idx += 1
 
 	if hand_window_start >= 0 and hand_window_end >= hand_window_start:
 		var start_boundary: int = clampi(hand_window_start, 0, _fret_count)
 		var end_boundary: int = clampi(hand_window_end, 0, _fret_count)
-		_add_window_boundary_glow(accum, start_boundary, 0.45)
-		_add_window_boundary_glow(accum, end_boundary, 0.45)
+		_add_window_boundary_glow(accum_r, start_boundary, 0.45)
+		_add_window_boundary_glow(accum_r, end_boundary, 0.45)
 
+	# Pack as RG8: 2 bytes per pixel (R = note-start, G = sustain).
 	var packed := PackedByteArray()
-	packed.resize(sample_count)
+	packed.resize(sample_count * 2)
 	for i in sample_count:
-		packed[i] = int(clampf(accum[i], 0.0, 1.0) * 255.0)
+		packed[i * 2]     = int(clampf(accum_r[i], 0.0, 1.0) * 255.0)
+		packed[i * 2 + 1] = int(clampf(accum_g[i], 0.0, 1.0) * 255.0)
 
-	_glow_image.set_data(_glow_map_width, FRET_GLOW_MAP_HEIGHT, false, Image.FORMAT_R8, packed)
+	_glow_image.set_data(_glow_map_width, FRET_GLOW_MAP_HEIGHT, false, Image.FORMAT_RG8, packed)
 	_glow_texture.update(_glow_image)
 
 
@@ -152,7 +162,7 @@ func _init_fret_glow_map() -> void:
 	_glow_map_width = _fret_count + 1
 	if _glow_map_width <= 0:
 		return
-	_glow_image = Image.create(_glow_map_width, FRET_GLOW_MAP_HEIGHT, false, Image.FORMAT_R8)
+	_glow_image = Image.create(_glow_map_width, FRET_GLOW_MAP_HEIGHT, false, Image.FORMAT_RG8)
 	_glow_image.fill(Color(0.0, 0.0, 0.0, 1.0))
 	if _glow_texture == null:
 		_glow_texture = ImageTexture.create_from_image(_glow_image)
