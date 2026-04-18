@@ -29,7 +29,8 @@ const TRAVEL_SPEED  : float = ChartCommon.Z_UNITS_PER_SECOND
 const MISS_HOLD_SECS: float = 1.0
 
 ## Local transform aligns the imported note mesh in-lane.
-const NOTE_MARKER_LOCAL_OFFSET: Vector3 = Vector3(0.0, -0.01, 0.08)
+## Y = 0.0 keeps the marker centred on the string cylinder (radius 0.015).
+const NOTE_MARKER_LOCAL_OFFSET: Vector3 = Vector3(0.0, 0.0, 0.08)
 const NOTE_MARKER_LOCAL_ROTATION_DEGREES: Vector3 = Vector3(0.0, 90.0, 0.0)
 const NOTE_MARKER_NEON_GLOW_BASE: float = 1.8
 const NOTE_MARKER_NEON_GLOW_PULSE: float = 0.8

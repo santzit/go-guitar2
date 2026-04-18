@@ -63,11 +63,12 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24, 0, -10)
 mesh = SubResource("PlaneMesh_hw01")
 surface_material_override/0 = SubResource("ShaderMat_hw01")
 
-; Strum line at Y = 0, Z = 0 (note/chord hit line), centred at X = 24
+; Strum line at Y = 0, Z = 0 (note/chord hit line), centred at X = 24 — hidden in-game
 [node name="StrumLine" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24, 0, 0)
 mesh = SubResource("BoxMesh_strum")
 surface_material_override/0 = SubResource("StrumMat")
+visible = false
 
 ; Left wall at X = 0 (invisible – walls removed from player view)
 [node name="WallLeft" type="MeshInstance3D" parent="."]
