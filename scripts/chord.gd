@@ -87,20 +87,23 @@ func setup(
 
 	# ── Determine extent of notes ──────────────────────────────────────────────
 	var min_fret   : int = 999
+	var max_fret   : int = -1
 	var min_string : int = 999
 	var max_string : int = -1
 	for n in p_notes:
 		var f : int = int(n.get("fret", 0))
 		var s : int = int(n.get("string", 0))
 		if f < min_fret:   min_fret   = f
+		if f > max_fret:   max_fret   = f
 		if s < min_string: min_string = s
 		if s > max_string: max_string = s
 	if min_fret == 999 or min_string == 999:
 		return
 
 	# ── Container world position (for border / label anchor) ──────────────────
-	# Single-note events use exactly one fret slot; chord events use a 4-fret hand window.
-	var fret_span : int = 1 if is_single_event else BORDER_FRET_SPAN
+	# Use the actual fret spread of the notes so the box is always centered on
+	# the chord shape (notes use fret-1 convention, so box edges follow the same).
+	var fret_span : int = 1 if is_single_event else maxi(max_fret - min_fret + 1, 1)
 	var left_x   : float = ChartCommon.fret_separator_world_x(min_fret - 1)
 	var right_x  : float = ChartCommon.fret_separator_world_x(min_fret - 1 + fret_span)
 	# top_y = separator above the topmost string used.
