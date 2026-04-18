@@ -103,10 +103,13 @@ func setup(
 	# Both edges are computed directly from fret_separator_world_x so they land
 	# on exactly the same separator line positions drawn by fretboard.gd and
 	# the highway shader.
-	# left_x  = separator to the LEFT of the leftmost note's slot  (wire min_fret-1)
-	# right_x = separator to the RIGHT of the rightmost note's slot (wire max_fret)
+	# left_x  = separator to the LEFT of the leftmost note's slot  (min_fret - 1)
+	# right_x = separator at min_fret + 3, so the box is always exactly 4 frets wide
+	#           (covering slots min_fret, min_fret+1, min_fret+2, min_fret+3)
 	var left_x   : float = ChartCommon.fret_separator_world_x(min_fret - 1)
-	var right_x  : float = ChartCommon.fret_separator_world_x(max_fret)
+	var right_x  : float = ChartCommon.fret_separator_world_x(
+		mini(min_fret + 3, ChartCommon.FRET_COUNT)
+	)
 	# top_y = separator above the topmost string used.
 	# bot_y = separator below the last string (highway floor) — constant so every
 	# chord box bottom always touches the highway fret-separator lines.
