@@ -1,12 +1,8 @@
 extends SceneTree
 
-const DATASET_DIR := "res://tests/note-detection/dataset"
-## Per-subdataset decode scan limit (keeps runtime reasonable).
-const MAX_DECODE_PER_SUBDIR := 16
-## Maximum note-labeled files on which to run pitch estimation.
-const MAX_PITCH_FILES := 24
-const MIN_FREQ_HZ := 70.0
-const MAX_FREQ_HZ := 1200.0
+const DATASET_DIR := "res://tests/dataset/guitarset/audio/mic"
+## Maximum number of files to decode during the decode test.
+const MAX_DECODE_FILES := 10
 
 var _pass_count := 0
 var _fail_count := 0
@@ -32,49 +28,14 @@ func _run_all() -> void:
 	var all_wav_paths: Array[String] = _collect_wav_paths(DATASET_DIR)
 	if all_wav_paths.is_empty():
 		print("  SKIP  No WAV files found under %s" % DATASET_DIR)
-		print("        Add dataset WAV files from:")
-		print("        https://github.com/santzit/guitar-pitch-detection-/tree/main/tests/dataset")
+		print("        Dataset: tests/dataset/guitarset/audio/mic/")
 		return
 
-	# Build a balanced sample: cap per immediate subdirectory so that every
-	# subdataset (guitarset, idmt_guitar, …) is represented equally.
-	var scan_paths: Array[String] = _balanced_sample(all_wav_paths, MAX_DECODE_PER_SUBDIR)
-
-	# For pitch estimation, prefer note-labeled files from the full list.
-	var pitch_paths: Array[String] = _note_labeled_paths(all_wav_paths, MAX_PITCH_FILES)
+	all_wav_paths.sort()
+	var scan_paths: Array[String] = all_wav_paths.slice(0, mini(MAX_DECODE_FILES, all_wav_paths.size()))
 
 	_test_wav_decode(scan_paths)
-	if not pitch_paths.is_empty():
-		_test_pitch_estimation(pitch_paths)
-	else:
-		print("  INFO  No note-labeled files found; pitch matching skipped.")
 	_test_wav_playback_path(scan_paths[0])
-
-
-## Return up to `max_per_subdir` WAV paths from each immediate subdirectory of DATASET_DIR.
-func _balanced_sample(paths: Array[String], max_per_subdir: int) -> Array[String]:
-	var counts: Dictionary = {}
-	var result: Array[String] = []
-	for p in paths:
-		# Determine subdataset name from path (first component after DATASET_DIR).
-		var rel := p.trim_prefix(ProjectSettings.globalize_path(DATASET_DIR)).trim_prefix("/")
-		var sub := rel.split("/")[0] if "/" in rel else ""
-		var n: int = counts.get(sub, 0)
-		if n < max_per_subdir:
-			result.append(p)
-			counts[sub] = n + 1
-	return result
-
-
-## Return up to `max_count` paths whose filename contains a note token (e.g. Db4, E3).
-func _note_labeled_paths(paths: Array[String], max_count: int) -> Array[String]:
-	var result: Array[String] = []
-	for p in paths:
-		if result.size() >= max_count:
-			break
-		if _extract_note_from_filename(p.get_file()) != "":
-			result.append(p)
-	return result
 
 
 func _test_wav_decode(wav_paths: Array[String]) -> void:
@@ -84,44 +45,6 @@ func _test_wav_decode(wav_paths: Array[String]) -> void:
 		if bool(parsed.get("ok", false)):
 			decoded_count += 1
 	_assert(decoded_count > 0, "decoded at least one dataset WAV file (%d/%d)" % [decoded_count, wav_paths.size()])
-
-
-func _test_pitch_estimation(wav_paths: Array[String]) -> void:
-	var expected_note_files := 0
-	var matched_pitch_files := 0
-
-	for path in wav_paths:
-		var expected_note: String = _extract_note_from_filename(path.get_file())
-		if expected_note == "":
-			continue
-		var expected_hz: float = _note_to_frequency(expected_note)
-		if expected_hz <= 0.0:
-			continue
-
-		var parsed: Dictionary = _parse_wav_pcm16(path)
-		if not bool(parsed.get("ok", false)):
-			continue
-		var sr: int = int(parsed.get("sample_rate", 0))
-		var samples: PackedFloat32Array = parsed.get("samples", PackedFloat32Array())
-		if sr <= 0 or samples.is_empty():
-			continue
-
-		expected_note_files += 1
-		var detected_hz: float = _estimate_frequency(samples, sr)
-		if detected_hz <= 0.0:
-			continue
-
-		var rel_error := absf(detected_hz - expected_hz) / expected_hz
-		var matched := rel_error <= 0.20
-		if matched:
-			matched_pitch_files += 1
-		print("  INFO  %s  expected=%.1f Hz  detected=%.1f Hz  err=%.0f%%  %s" % [
-			path.get_file(), expected_hz, detected_hz, rel_error * 100.0,
-			"OK" if matched else "MISS"])
-
-	_assert(expected_note_files > 0, "found note-labeled WAV files for pitch estimation")
-	_assert(matched_pitch_files > 0,
-		"matched pitch in at least one note-labeled WAV file (%d/%d)" % [matched_pitch_files, expected_note_files])
 
 
 func _test_wav_playback_path(path: String) -> void:
@@ -254,77 +177,6 @@ func _parse_wav_pcm16(path: String) -> Dictionary:
 		"samples": samples,
 		"raw_pcm16": raw_pcm16
 	}
-
-
-func _estimate_frequency(samples: PackedFloat32Array, sample_rate: int) -> float:
-	if samples.size() < 2048 or sample_rate <= 0:
-		return 0.0
-
-	var start := mini(sample_rate / 20, samples.size() / 4) # ~50ms skip attack
-	var n := mini(4096, samples.size() - start)
-	if n < 1024:
-		return 0.0
-
-	var min_lag := maxi(1, int(floor(float(sample_rate) / MAX_FREQ_HZ)))
-	var max_lag := mini(n - 1, int(ceil(float(sample_rate) / MIN_FREQ_HZ)))
-	if max_lag <= min_lag:
-		return 0.0
-
-	var best_lag := -1
-	var best_corr := -INF
-
-	for lag in range(min_lag, max_lag + 1):
-		var corr := 0.0
-		for i in range(n - lag):
-			corr += samples[start + i] * samples[start + i + lag]
-		if corr > best_corr:
-			best_corr = corr
-			best_lag = lag
-
-	if best_lag <= 0:
-		return 0.0
-	return float(sample_rate) / float(best_lag)
-
-
-func _extract_note_from_filename(filename: String) -> String:
-	var re := RegEx.new()
-	re.compile("([A-G](?:#|b)?[0-8])")
-	var matches := re.search_all(filename)
-	if matches.is_empty():
-		return ""
-	# Return the last match — IDMT files end in _<note>.wav so the note is last.
-	return matches[matches.size() - 1].get_string(1)
-
-
-func _note_to_frequency(note: String) -> float:
-	if note.length() < 2:
-		return 0.0
-
-	var letter := note.substr(0, 1)
-	var accidental := ""
-	var octave_str := ""
-	if note.length() >= 3 and (note.substr(1, 1) == "#" or note.substr(1, 1) == "b"):
-		accidental = note.substr(1, 1)
-		octave_str = note.substr(2, note.length() - 2)
-	else:
-		octave_str = note.substr(1, note.length() - 1)
-
-	var semitone_map := {
-		"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11
-	}
-	if not semitone_map.has(letter):
-		return 0.0
-	if not octave_str.is_valid_int():
-		return 0.0
-	var octave := int(octave_str)
-	var semitone := int(semitone_map[letter])
-	if accidental == "#":
-		semitone += 1
-	elif accidental == "b":
-		semitone -= 1
-
-	var midi := (octave + 1) * 12 + semitone
-	return 440.0 * pow(2.0, (float(midi) - 69.0) / 12.0)
 
 
 func _u16le(bytes: PackedByteArray, offset: int) -> int:

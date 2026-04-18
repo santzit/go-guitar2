@@ -32,8 +32,7 @@ Godot_v4.4.1-stable_linux.x86_64
 Godot_v4.4.1-stable_linux.x86_64.zip
 g.zip
 
-# Dataset WAV files — large binary assets populated locally via:
-# git clone https://github.com/santzit/guitar-pitch-detection- /tmp/gpd
-# cp -r /tmp/gpd/tests/dataset/* tests/note-detection/dataset/
+# Dataset WAV files in note-detection scratch folder are not tracked.
+# The committed dataset lives at tests/dataset/guitarset/audio/mic/.
 tests/note-detection/dataset/**/*.wav
 tests/note-detection/dataset/**/*.WAV
