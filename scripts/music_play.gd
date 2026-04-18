@@ -5,6 +5,8 @@ extends Node3D
 
 const _GoGuitarBridgeScript = preload("res://scripts/goguitar_bridge.gd")
 const _GameStateScript = preload("res://scripts/game_state.gd")
+const _NoteDetectionScript = preload("res://scripts/note_detection.gd")
+const _ScoreScript = preload("res://scripts/score.gd")
 const ChartCommon = preload("res://scripts/common.gd")
 
 # -- Mixer bus indices (must match GameState.BUS_NAMES / gg-mixer BusId) ------
@@ -83,6 +85,8 @@ const CHORD_GROUP_THRESHOLD : float = 0.02
 
 # -- State -------------------------------------------------------------------
 var _bridge              = null  # GoGuitarBridge instance (no static type — avoids parse errors when class is not yet registered)
+var _note_detection      = null  # NoteDetection helper (chord/event grouping)
+var _score               = null  # Score helper
 var _notes               : Array    = []
 var _events              : Array    = []
 var _next_event_idx      : int      = 0
@@ -120,6 +124,8 @@ var _last_chord_sig: String = ""
 
 func _ready() -> void:
 	_bridge = _GoGuitarBridgeScript.new()
+	_note_detection = _NoteDetectionScript.new()
+	_score = _ScoreScript.new()
 
 	# Load persisted mixer settings so volume/mute state is correct from the start.
 	_GameStateScript.load_mixer_settings()
@@ -141,6 +147,7 @@ func _ready() -> void:
 		_notes = _bridge.get_notes()
 		_last_chord_sig = ""
 		_events = _build_play_events(_notes)
+		_score.register_chart_events(_events)
 		print("MusicPlay: %d notes loaded, requesting audio stream..." % _notes.size())
 		print("MusicPlay: %d unified events built (single + chord)." % _events.size())
 		# -- Diagnostic: SNG info (difficulty level, start_time, capo, tuning).
@@ -343,58 +350,15 @@ func _process(delta: float) -> void:
 ##  - notes[] (size 1 for single-note events, >1 for chords)
 ##  - kind ("single" or "chord")
 func _build_play_events(src_notes: Array) -> Array:
-	var events: Array = []
-	var i: int = 0
-	while i < src_notes.size():
-		var nd : Dictionary = src_notes[i]
-		var t0 : float = float(nd.get("time", 0.0))
-		var group: Array = [nd]
-		var j: int = i + 1
-		while j < src_notes.size() \
-				and absf(float(src_notes[j].get("time", 0.0)) - t0) < CHORD_GROUP_THRESHOLD:
-			group.append(src_notes[j])
-			j += 1
-
-		var valid_notes: Array = []
-		var max_duration: float = 0.0
-		var min_fret: int = 999
-		for gn in group:
-			var f: int = int(gn.get("fret", 0))
-			var s: int = int(gn.get("string", 0))
-			if f < 1 or f > FRET_COUNT or s < 0 or s > 5:
-				continue
-			var dur: float = maxf(float(gn.get("duration", 0.25)), 0.0)
-			valid_notes.append({"fret": f, "string": s, "duration": dur})
-			max_duration = maxf(max_duration, dur)
-			min_fret = mini(min_fret, f)
-
-		if not valid_notes.is_empty():
-			var event_kind: String = "single" if valid_notes.size() == 1 else "chord"
-			var hand_start: int = maxi(min_fret - 1, 1)
-			var hand_end: int = mini(hand_start + 3, FRET_COUNT)
-			var chord_name: String = ""
-			var show_details: bool = false
-			if event_kind == "chord":
-				var sig := _chord_signature(valid_notes)
-				show_details = (sig != _last_chord_sig)
-				_last_chord_sig = sig
-				var root_f: int = int(valid_notes[0].get("fret", 0))
-				var root_s: int = int(valid_notes[0].get("string", 0))
-				chord_name = _get_note_name(root_f, root_s)
-
-			events.append({
-				"time_start": t0,
-				"time_end": t0 + max_duration,
-				"hand_fret_start": hand_start,
-				"hand_fret_end": hand_end,
-				"notes": valid_notes,
-				"kind": event_kind,
-				"chord_name": chord_name,
-				"show_details": show_details
-			})
-
-		i = j
-	return events
+	var result: Dictionary = _note_detection.build_play_events(
+		src_notes,
+		FRET_COUNT,
+		CHORD_GROUP_THRESHOLD,
+		Callable(self, "_get_note_name"),
+		_last_chord_sig
+	)
+	_last_chord_sig = String(result.get("last_chord_sig", ""))
+	return Array(result.get("events", []))
 
 
 func _take_screenshot(num: int) -> void:
@@ -536,18 +500,12 @@ func _get_note_name(fret: int, string_idx: int) -> String:
 ## Compute a canonical signature string for a chord (sorted "fret:string,..." pairs).
 ## Two chords with the same signature are considered repeated (same fret/string set).
 func _chord_signature(notes: Array) -> String:
-	var parts : Array[String] = []
-	for n in notes:
-		parts.append("%d:%d" % [int(n.get("fret", 0)), int(n.get("string", 0))])
-	parts.sort()
-	return ",".join(parts)
+	return _note_detection.chord_signature(notes)
 
 
 ## Sort an array of note dictionaries by fret ascending (returns a sorted copy).
 func _sort_notes_by_fret(notes: Array) -> Array:
-	var sorted : Array = notes.duplicate()
-	sorted.sort_custom(func(a, b): return int(a.get("fret", -1)) < int(b.get("fret", -1)))
-	return sorted
+	return _note_detection.sort_notes_by_fret(notes)
 
 
 ## Build a compact debug string for a chord (group of notes at the same timestamp).
