@@ -23,6 +23,7 @@ Godot 4.4.1 (GDScript)
 - Use Rust for GDExtension (Godot Extension)
 - Use santzit/Rocksmith2014.rs Rust crates for PSARC + SNG parsing (NO .NET, NO CLR hosting)
 - No .NET bridge, no RocksmithBridge.dll, no CLR hosting required
+- Use project documentation on `/docs`, keep this docs updated when changing the code
 
 
 ## Directory Layout

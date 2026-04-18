@@ -6,9 +6,9 @@ const ChartCommon = preload("res://scripts/common.gd")
 ## can be shared with highway.gd, music_play.gd, and fretboard.gd.
 ##
 ## Coordinate mapping summary
-##   X = ChartCommon.fret_mid_world_x(fret)      — linear fret spacing (1 unit/fret)
+##   X = ChartCommon.fret_mid_world_x(fret)      — linear fret spacing (2 units/fret)
 ##   Y = ChartCommon.string_world_y(string_index) — string 0 = top, 5 = bottom
-##   Z = STRUM_Z − (time_offset − song_time) × TRAVEL_SPEED
+##   Z = ChartCommon.note_world_z(time_offset, song_time, STRUM_Z)
 ##       Notes spawn at Z = -20 and travel toward Z = 0.
 ##
 # ── Per-string note colors (string 0 top → string 5 bottom) ───────────────────
@@ -23,13 +23,14 @@ const STRING_COLORS: Array[Color] = [
 
 const START_Z       : float = -20.0
 const STRUM_Z       : float = 0.0
-const TRAVEL_SPEED  : float = 2.0
+const TRAVEL_SPEED  : float = ChartCommon.Z_UNITS_PER_SECOND
 ## Keep notes alive briefly after crossing STRUM_Z so game-side hit/miss checks
 ## in the same frame window can still observe the note before it is returned.
 const MISS_HOLD_SECS: float = 1.0
 
 ## Local transform aligns the imported note mesh in-lane.
-const NOTE_MARKER_LOCAL_OFFSET: Vector3 = Vector3(0.0, -0.01, 0.08)
+## Y = 0.0 keeps the marker centred on the string cylinder (radius 0.015).
+const NOTE_MARKER_LOCAL_OFFSET: Vector3 = Vector3(0.0, 0.0, 0.08)
 const NOTE_MARKER_LOCAL_ROTATION_DEGREES: Vector3 = Vector3(0.0, 90.0, 0.0)
 const NOTE_MARKER_NEON_GLOW_BASE: float = 1.8
 const NOTE_MARKER_NEON_GLOW_PULSE: float = 0.8
@@ -113,7 +114,7 @@ func tick(p_song_time: float) -> void:
 	if not is_active:
 		return
 
-	position.z = STRUM_Z - (time_offset - p_song_time) * TRAVEL_SPEED
+	position.z = ChartCommon.note_world_z(time_offset, p_song_time, STRUM_Z)
 	_update_marker_glow(p_song_time)
 
 	if _miss_until < 0.0 and p_song_time >= time_offset:

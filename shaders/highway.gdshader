@@ -18,9 +18,10 @@ uniform float lane_width       : hint_range(0.05, 0.95) = 0.65;
 uniform float lane_glow_power  : hint_range(0.1, 4.0) = 1.6;
 uniform float pulse_speed      : hint_range(0.0, 10.0) = 3.0;
 uniform float glow_strength    : hint_range(0.0, 3.0) = 1.2;
-// Width of each separator line, in UV space (0–1 across all 24 frets).
-// 0.003 ≈ 0.07 world-units per line — thin crisp line visible from the play camera.
-uniform float vertical_line_width : hint_range(0.001, 0.1) = 0.003;
+// Width of each separator line, in UV space (0–1 across the full highway).
+// half_width_world = vertical_line_width × highway_width × 0.5
+// 0.0015 × 48 × 0.5 = 0.036 world-unit half-width → ~0.07 world-unit full line.
+uniform float vertical_line_width : hint_range(0.0005, 0.1) = 0.0015;
 uniform float separator_base_intensity : hint_range(0.0, 4.0) = 2.0;
 uniform vec4  separator_line_color  : source_color = vec4(0.55, 0.85, 1.00, 1.0);
 
@@ -52,13 +53,56 @@ float separator_line_mask(vec2 uv) {
 }
 
 void fragment() {
-	float mask = separator_line_mask(UV);
+	float fc       = max(float(fret_count), 1.0);
+	float sc       = max(float(string_count), 1.0);
+	// fret_u: 0.0 at fret 0 (X=0), fc at fret 24 (X=48).
+	// Each unit of fret_u = FRET_SPACING (2 world-units) on the highway.
+	float fret_u   = UV.x * fc;
 
-	vec3 line_rgb = separator_line_color.rgb;
+	// ── Active fret-range highlight ───────────────────────────────────────────
+	// Smooth ramp in/out at range edges (±0.5 fret = ±1 world-unit fade).
+	float range_mask = 0.0;
+	if (active_fret_max >= active_fret_min && active_fret_min >= 0) {
+		float fmin = float(active_fret_min);
+		float fmax = float(active_fret_max);
+		range_mask = smoothstep(fmin - 0.5, fmin + 0.5, fret_u)
+		           * (1.0 - smoothstep(fmax - 0.5, fmax + 0.5, fret_u));
+	}
 
-	// Full-brightness ALBEDO on separator line pixels; base floor elsewhere.
-	ALBEDO   = mix(base_color.rgb, line_rgb, mask);
-	// EMISSION on line pixels — creates a constant glowing separator line.
-	EMISSION = line_rgb * mask * separator_base_intensity;
+	// ── Lane glow ─────────────────────────────────────────────────────────────
+	// The fretboard is divided into string_count (6) lanes, each spanning
+	// fret_count / string_count = 4 frets = 8 world-units (the 2 unit/m grid).
+	// lane_intensity(N) carries the per-lane brightness set by set_lane_intensities().
+	float frets_per_lane = max(fc / sc, 0.001);   // guard against degenerate fret_count/string_count
+	int   lane_idx  = clamp(int(fret_u / frets_per_lane), 0, int(sc) - 1);
+	float lint      = lane_intensity(lane_idx);
+
+	// Fractional position within the lane slot [0, 1].
+	float lane_u      = mod(fret_u, frets_per_lane) / frets_per_lane;
+	// Distance from the slot centre (0 = centre, 0.5 = edge).
+	float center_dist = abs(lane_u - 0.5);
+	float glow_half   = clamp(lane_width * 0.5, 0.01, 0.49);
+	float lane_mask   = lint * (1.0 - smoothstep(0.0, glow_half, center_dist));
+	// Apply glow power directly: higher values = sharper, more concentrated glow.
+	lane_mask = pow(clamp(lane_mask, 0.0, 1.0), max(lane_glow_power, 0.1));
+	// Subtle pulse animation.
+	float pulse = 0.5 + 0.5 * sin(TIME * pulse_speed);
+	lane_mask  *= (1.0 + pulse * 0.15);
+
+	// ── Fret separator lines ──────────────────────────────────────────────────
+	float sep_mask = separator_line_mask(UV);
+	vec3  line_rgb = separator_line_color.rgb;
+
+	// ── Compose final colour ──────────────────────────────────────────────────
+	float lane_contrib = clamp(lane_mask * glow_strength, 0.0, 1.0);
+	vec3  col = base_color.rgb;
+	col = mix(col, range_glow_color.rgb, range_mask * 0.15);
+	col = mix(col, lane_glow_color.rgb,  lane_contrib);
+	col = mix(col, line_rgb,             sep_mask);
+
+	ALBEDO   = col;
+	// EMISSION: separator lines glow at full intensity; lane glow adds softer fill.
+	EMISSION = line_rgb * sep_mask * separator_base_intensity
+	         + lane_glow_color.rgb * lane_contrib;
 	// ALPHA is implicitly 1.0 in the opaque render_mode (no blend_mix).
 }

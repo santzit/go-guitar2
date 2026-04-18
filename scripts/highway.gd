@@ -1,9 +1,10 @@
 extends Node3D
+const ChartCommon = preload("res://scripts/common.gd")
 ## highway.gd  –  runtime configuration for the Highway surface.
 ## The visual geometry and material are defined in highway.tscn / highway.gdshader.
 
 const LANE_COUNT : int = 6
-const TRAVEL_SPEED : float = 2.0
+const TRAVEL_SPEED : float = ChartCommon.Z_UNITS_PER_SECOND
 const HIGHWAY_Z_MIN : float = -20.0
 const HIGHWAY_Z_MAX : float = 0.0
 
@@ -66,4 +67,3 @@ func _zero_lanes() -> Array[float]:
 	for i in LANE_COUNT:
 		values[i] = 0.0
 	return values
-

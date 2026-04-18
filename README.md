@@ -52,9 +52,9 @@ Libraries / Projects used:
 
 | Axis | Meaning |
 |------|---------|
-| **X** | Linear fret spacing (`1.0` world unit per fret) |
-| **Y** | `(3 + string_index × 4)` scaled to scene units |
-| **Z** | Time — notes spawn at Z = 0 and travel toward Z = 20 (strum line) |
+| **X** | Linear fret spacing (`2.0` world units per fret separator) |
+| **Y** | String position from margins (`0.25 + string_number × 0.5`) |
+| **Z** | Time (`1.0` world unit = `1.0` second) |
 
 ## Quick start
 
