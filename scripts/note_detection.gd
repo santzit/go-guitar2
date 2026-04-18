@@ -1,6 +1,8 @@
 extends RefCounted
 class_name NoteDetection
 
+const _MAX_FRET_SENTINEL: int = 999
+
 
 func build_play_events(
 	src_notes: Array,
@@ -24,7 +26,7 @@ func build_play_events(
 
 		var valid_notes: Array = []
 		var max_duration: float = 0.0
-		var min_fret: int = 999
+		var min_fret: int = _MAX_FRET_SENTINEL
 		for gn in group:
 			var f: int = int(gn.get("fret", 0))
 			var s: int = int(gn.get("string", 0))
