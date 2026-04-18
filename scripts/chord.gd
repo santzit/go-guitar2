@@ -3,31 +3,20 @@ const ChartCommon = preload("res://scripts/common.gd")
 ## chord.gd — Unified play-event container for single notes and chords.
 ##
 ## Single-note events:
-##   - one note slot marker
+##   - one note slot marker (a real Note from ChordPool's NotePool)
 ##   - no chord label / no outline
 ## Chord events:
-##   - multiple note-slot markers
+##   - multiple note-slot markers (real Note instances from ChordPool's NotePool)
 ##   - optional chord label
 ##   - shader outline with glow only on the bottom corners
 ##
 ## Coordinate conventions (shared via ChartCommon):
 ##   X = fret position, Y = string height, Z = time (spawns at -20 → travels to 0)
 ##
-## The border always spans BORDER_FRET_SPAN (4) frets starting from min_fret.
-## The interior of the border box is fully transparent (non-edge pixels discarded).
-
-# ── Chord indicator visual: same mesh/color mapping as NoteMarker ────────────
-const NOTE_MESH: ArrayMesh = preload("res://assets/models/note.obj")
-const STRING_COLORS: Array[Color] = [
-	Color(0.98, 0.26, 0.22, 1.0), # red
-	Color(0.98, 0.78, 0.16, 1.0), # yellow
-	Color(0.20, 0.80, 0.95, 1.0), # cyan
-	Color(1.00, 0.55, 0.10, 1.0), # orange
-	Color(0.20, 0.88, 0.30, 1.0), # green
-	Color(0.72, 0.38, 0.98, 1.0), # purple
-]
-const NOTE_MARKER_LOCAL_OFFSET: Vector3 = Vector3(0.0, -0.01, 0.08)
-const NOTE_MARKER_LOCAL_ROTATION_DEGREES: Vector3 = Vector3(0.0, 90.0, 0.0)
+## Note markers are borrowed from ChordPool's NotePool (get_parent().spawn_note()).
+## They are returned to the pool when this chord container deactivates.
+## The chord container itself (border + label) still moves as a Node3D in Z;
+## the individual Note instances are parented to NotePool and manage their own Z.
 
 ## Project font — Inter 18pt Bold, used for the chord name Label3D.
 const _INTER_BOLD: FontFile = preload("res://assets/fonts/Inter_18pt-Bold.ttf")
@@ -72,15 +61,16 @@ var _miss_until    : float = -1.0
 ## Lazy-initialised persistent nodes (survive pool reuse).
 var _border_mesh   : MeshInstance3D = null
 var _chord_label   : Label3D        = null
-## Dynamic indicator nodes — freed on each deactivate and recreated in setup.
+## Borrowed Note instances from ChordPool's NotePool — returned on deactivate.
 var _indicators    : Array          = []
 
 
 ## Activate this chord container.
-## p_notes:        Array[Dictionary{fret,string}] — the chord's notes
+## p_notes:        Array[Dictionary{fret,string,duration}] — the event's notes
 ## p_time:         float  — timestamp (seconds)
 ## p_chord_name:   String — displayed only on first/changed occurrence
-## p_show_details: bool   — true = finger indicators + label; false = border only
+## p_show_details: bool   — true = label visible (chords only)
+## p_event_kind:   String — "single" or "chord"
 func setup(
 		p_notes: Array,
 		p_time: float,
@@ -107,7 +97,7 @@ func setup(
 	if min_fret == 999 or min_string == 999:
 		return
 
-	# ── Container world position ───────────────────────────────────────────────
+	# ── Container world position (for border / label anchor) ──────────────────
 	# Single-note events use exactly one fret slot; chord events use a 4-fret hand window.
 	var fret_span : int = 1 if is_single_event else BORDER_FRET_SPAN
 	var left_x   : float = ChartCommon.fret_separator_world_x(min_fret - 1)
@@ -130,12 +120,17 @@ func setup(
 	elif is_instance_valid(_border_mesh):
 		_border_mesh.visible = false
 
-	# ── Per-string finger indicators (always rendered for note slots) ──────────
+	# ── Note markers — borrowed from ChordPool's NotePool ─────────────────────
 	_clear_indicators()
-	for n in p_notes:
-		var f : int = int(n.get("fret", 0))
-		var s : int = clampi(int(n.get("string", 0)), 0, 5)
-		_add_indicator(f, s, center_x, center_y)
+	var chord_pool := get_parent()
+	if chord_pool and chord_pool.has_method("spawn_note"):
+		for n in p_notes:
+			var f   : int   = int(n.get("fret", 0))
+			var s   : int   = clampi(int(n.get("string", 0)), 0, 5)
+			var dur : float = float(n.get("duration", 0.25))
+			var note_node : Node3D = chord_pool.spawn_note(f, s, p_time, dur)
+			if note_node:
+				_indicators.append(note_node)
 
 	# ── Chord name label (top-left outside the container) ─────────────────────
 	_ensure_label()
@@ -190,46 +185,17 @@ func _ensure_label() -> void:
 		add_child(_chord_label)
 
 
-## Add a finger indicator MeshInstance3D child for one string-note.
-func _add_indicator(f: int, s: int, center_x: float, center_y: float) -> void:
-	var ind := MeshInstance3D.new()
-	ind.position = Vector3(
-		ChartCommon.fret_mid_world_x(f - 1) - center_x + NOTE_MARKER_LOCAL_OFFSET.x,
-		ChartCommon.string_world_y(s)        - center_y + NOTE_MARKER_LOCAL_OFFSET.y,
-		NOTE_MARKER_LOCAL_OFFSET.z
-	)
-	ind.rotation_degrees = NOTE_MARKER_LOCAL_ROTATION_DEGREES
-	ind.mesh = NOTE_MESH
-	var mat := StandardMaterial3D.new()
-	var color: Color = STRING_COLORS[s] if s < STRING_COLORS.size() else Color.WHITE
-	mat.albedo_color = color
-	mat.emission_enabled = true
-	mat.emission = color
-	mat.emission_energy_multiplier = 1.8
-	mat.metallic = 0.2
-	mat.roughness = 0.08
-	mat.clearcoat_enabled = true
-	mat.clearcoat = 1.0
-	mat.clearcoat_roughness = 0.0
-	mat.rim_enabled = true
-	mat.rim = 0.45
-	mat.rim_tint = 0.35
-	ind.set_surface_override_material(0, mat)
-	add_child(ind)
-	_indicators.append(ind)
-
-
-## Free all per-string indicator children.
+## Return all borrowed Note instances to ChordPool's NotePool.
 func _clear_indicators() -> void:
 	for ind in _indicators:
-		if is_instance_valid(ind):
-			remove_child(ind)
-			ind.queue_free()
+		if is_instance_valid(ind) and ind.has_method("deactivate"):
+			ind.deactivate()
 	_indicators.clear()
 
 
-## Update Z position every frame from the audio clock.
-## Called by ChordPool.tick() so all chords stay in sync with the audio stream.
+## Update Z position every frame from the audio clock (for border + label).
+## Note instances are ticked independently by ChordPool → NotePool.tick().
+## Called by ChordPool.tick() so border/label stay in sync with the audio stream.
 func tick(p_song_time: float) -> void:
 	if not is_active:
 		return

@@ -1,9 +1,8 @@
-[gd_scene load_steps=7 format=3 uid="uid://cmpscene0001"]
+[gd_scene load_steps=6 format=3 uid="uid://cmpscene0001"]
 
 [ext_resource type="PackedScene" uid="uid://chighway0001" path="res://scenes/highway.tscn"     id="1_highway"]
 [ext_resource type="PackedScene" uid="uid://cbkgnd00001" path="res://scenes/background.tscn"   id="2_bg"]
 [ext_resource type="Script"                              path="res://scripts/music_play.gd"    id="3_script"]
-[ext_resource type="PackedScene" uid="uid://cnotepool001" path="res://scenes/note_pool.tscn"   id="4_pool"]
 [ext_resource type="PackedScene" path="res://scenes/fretboard.tscn" id="5_fretboard"]
 [ext_resource type="PackedScene" uid="uid://cchordpool01" path="res://scenes/chord_pool.tscn"  id="6_chordpool"]
 
@@ -36,10 +35,7 @@ fov = 60.0
 
 [node name="Fretboard" parent="." instance=ExtResource("5_fretboard")]
 
-; ── NotePool (128 pooled note instances) ─────────────────────────────────────
-[node name="NotePool" parent="." instance=ExtResource("4_pool")]
-
-; ── ChordPool (64 pooled chord container instances) ──────────────────────────
+; ── ChordPool (64 pooled chord container instances, NotePool inside) ──────────
 [node name="ChordPool" parent="." instance=ExtResource("6_chordpool")]
 
 ; ── Audio playback ────────────────────────────────────────────────────────────

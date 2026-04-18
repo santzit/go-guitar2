@@ -124,6 +124,8 @@ func tick(p_song_time: float) -> void:
 
 
 func deactivate() -> void:
+	if not is_active:
+		return   # already deactivated — guard against double-deactivation from pool
 	is_active    = false
 	visible      = false
 	_miss_until  = -1.0
