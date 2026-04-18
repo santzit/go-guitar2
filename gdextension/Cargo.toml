@@ -29,3 +29,7 @@ rtrb             = "0.3"
 thread-priority  = "1.1"
 # CPAL audio I/O
 cpal             = "0.15"
+
+[build-dependencies]
+# Used to compile q_bridge.cpp when cycfi/q headers are present.
+cc               = "1"
