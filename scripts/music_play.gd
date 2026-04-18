@@ -372,7 +372,6 @@ func _process(delta: float) -> void:
 
 	# ── Update lane highlighting every frame based on next upcoming note ──────────────
 	_update_fret_range_visuals()
-	_update_fret_separator_glow()
 
 	# Update debug info overlay.
 	_update_debug_info()
@@ -501,19 +500,6 @@ func _update_fret_range_visuals() -> void:
 	for lane in LANE_COUNT:
 		_lane_glow[lane] = lerpf(_lane_glow[lane], targets[lane], 0.15)
 	_highway.call("set_lane_intensities", _lane_glow)
-
-
-func _update_fret_separator_glow() -> void:
-	if not is_instance_valid(_highway):
-		return
-	_highway.call(
-		"update_fret_glow_map",
-		_notes,
-		_song_time,
-		_glow_cursor,
-		_active_window_min_fret,
-		_active_window_max_fret
-	)
 
 
 func _zero_lane_array() -> Array[float]:
