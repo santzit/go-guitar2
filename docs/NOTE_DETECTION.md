@@ -6,12 +6,18 @@ using **cycfi/Q**, a C++20 header-only DSP library.
 > **Algorithm note:** The vendored Q headers (`gdextension/vendor/q_lib/`) are
 > from the **pre-v1.5** tree, which implements the *Binary Autocorrelation
 > Function* (BACF) pitch detector.  The Q project's `master` branch is
-> currently developing **v1.5**, which **retires BACF** and introduces a new
-> *Hz-based* pitch detection algorithm with integrated onset detection (see
-> the [Q v1.5 announcement](https://github.com/cycfi/Q#readme) and the
-> article series *"Pitch Perfect: Enhanced Pitch Detection Techniques"*).
-> When Q v1.5 is stable, the FFI wrapper (`q_pitch_ffi.cpp`) and vendored
-> headers should be updated to use the new Hz-based API.
+> actively developing **v1.5**, which **retires BACF** and introduces the
+> new **Hz Pitch Detection system** — a more accurate algorithm with
+> integrated onset detection.  Technical details are published in Joel de
+> Guzman's article series:
+>
+> - [Pitch Perfect: Enhanced Pitch Detection Techniques Part 1](https://www.cycfi.com/2024/09/pitch-perfect-enhanced-pitch-detection-techniques-part-1/) (Sept 2024)
+> - [Pitch Perfect: Enhanced Pitch Detection Techniques Part 2](https://www.cycfi.com/2024/10/pitch-perfect-enhanced-pitch-detection-techniques-part-2/) (Oct 2024)
+> - [Pitch Perfect: Audio to MIDI Part 3](https://www.cycfi.com/2024/10/pitch-perfect-audio-to-midi-part-3/) (Oct 2024)
+> - Related open-source project: [cycfi/hz_audio_to_midi](https://github.com/cycfi/hz_audio_to_midi)
+>
+> When Q v1.5 is stable, `q_pitch_ffi.cpp` and the vendored headers should
+> be upgraded to use the new **Hz Pitch Detection** API.
 
 ---
 
@@ -54,14 +60,17 @@ BACF is **monophonic** — it locks on to one fundamental at a time.
 When multiple strings sound simultaneously, each detector still returns one
 frequency for its band, but polyphonic content lowers detection confidence.
 
-### Upcoming: Q v1.5 Hz-based algorithm
+### Upcoming: Q v1.5 Hz Pitch Detection system
 
-The Q project is actively replacing BACF with a new **Hz-based** pitch
-detection algorithm (v1.5, currently in development on `master`).  The new
-approach integrates onset detection and is described in Joel de Guzman's
-article series *"Pitch Perfect: Enhanced Pitch Detection Techniques"*
-(cycfi.com, Sept 2024).  Once v1.5 is released, `q_pitch_ffi.cpp` and the
-vendored headers should be upgraded to use the new API.
+The Q project is actively replacing BACF with the new **Hz Pitch Detection
+system** (v1.5, currently in development).  The new approach integrates
+onset detection and is described in the "Pitch Perfect" article series
+linked in the note at the top of this document.  There is also a dedicated
+open-source multichannel audio-to-MIDI project built on the new algorithm:
+[cycfi/hz_audio_to_midi](https://github.com/cycfi/hz_audio_to_midi).
+
+Once Q v1.5 is released, `q_pitch_ffi.cpp` and the vendored headers should
+be upgraded to use the new Hz Pitch Detection API.
 
 ---
 
@@ -186,7 +195,7 @@ Test coverage:
 
 - **BACF is monophonic (pre-v1.5)**: with multiple simultaneous strings, some may not be
   detected. In real gameplay players typically pluck one string at a time, so
-  this is rarely an issue. The upcoming Q v1.5 Hz-based algorithm adds onset
+  this is rarely an issue. The upcoming Q v1.5 **Hz Pitch Detection system** adds onset
   detection, which will further improve multi-string accuracy.
 - **Pure sine subharmonics**: clean sine waves trigger subharmonic detection;
   the post-processing filter removes the false positives. Real guitar
