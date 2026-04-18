@@ -55,6 +55,33 @@ static float rms(const float* samples, int n)
     return (float)std::sqrt(sum / (double)n);
 }
 
+// ── Subharmonic filter ────────────────────────────────────────────────────────
+// When the same audio buffer is fed to all 6 detectors, a lower-band detector
+// can find a subharmonic (longer period) of a higher-band detection.
+// Example: a 659 Hz sine fed to string 6's detector (band 82-330 Hz) lets
+// Q find a period 8× longer → reports 659/8 = 82 Hz.
+//
+// Post-processing rule: if out[hi].hz / out[lo].hz ≈ 2^n (n ≥ 1, within
+// ±15% of a semitone), the lower result is a subharmonic artifact — discard it.
+static void remove_subharmonics(QStringResult out[6])
+{
+    for (int lo = 0; lo < 6; ++lo) {
+        if (out[lo].active == 0) continue;
+        for (int hi = lo + 1; hi < 6; ++hi) {
+            if (out[hi].active == 0) continue;
+            float ratio  = out[hi].hz / out[lo].hz;
+            float log2r  = std::log2(ratio);
+            float nearest = std::round(log2r);
+            // Tolerance: 0.15 semitones ≈ 1% frequency error
+            if (nearest >= 1.0f && std::abs(log2r - nearest) < 0.15f) {
+                out[lo].active = 0;
+                out[lo].hz     = 0.0f;
+                break;
+            }
+        }
+    }
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 extern "C"
@@ -99,4 +126,7 @@ void q_detect_strings(const float*  samples,
             out[d].hz     = hz;
         }
     }
+
+    // Remove subharmonic artifacts before returning.
+    remove_subharmonics(out);
 }
