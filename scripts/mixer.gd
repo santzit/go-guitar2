@@ -17,7 +17,6 @@ const GAIN_MAX_DB: float = 6.0
 ## Parallel arrays built in _ready(); index = bus index (0–8).
 var _sliders: Array[VSlider] = []
 var _mute_buttons: Array[Button] = []
-var _labels: Array[Label] = []
 
 ## Block re-entrant _on_slider_changed calls while loading saved state.
 var _loading: bool = false
@@ -38,10 +37,9 @@ func _ready() -> void:
 		mute_btn.button_pressed = _GameStateScript.bus_mutes[i]
 		mute_btn.pressed.connect(_on_mute_pressed.bind(i))
 
-		_set_slider_tooltip(i, slider)
+		_update_slider_tooltip(i, slider)
 
 		_strips_container.add_child(strip)
-		_labels.append(name_lbl)
 		_sliders.append(slider)
 		_mute_buttons.append(mute_btn)
 
@@ -55,7 +53,7 @@ func _on_slider_changed(value: float, bus_idx: int) -> void:
 
 	var gain_db: float = _slider_to_db(value)
 	_GameStateScript.bus_gains_db[bus_idx] = gain_db
-	_set_slider_tooltip(bus_idx, _sliders[bus_idx])
+	_update_slider_tooltip(bus_idx, _sliders[bus_idx])
 	_GameStateScript.save_mixer_settings()
 	_apply_to_outputs(bus_idx)
 
@@ -113,7 +111,7 @@ func _on_reset_button_pressed() -> void:
 		_GameStateScript.bus_gains_db[i] = 0.0
 		_GameStateScript.bus_mutes[i] = false
 		_sliders[i].value = _db_to_slider(0.0)
-		_set_slider_tooltip(i, _sliders[i])
+		_update_slider_tooltip(i, _sliders[i])
 		_mute_buttons[i].button_pressed = false
 	_loading = false
 
@@ -124,14 +122,12 @@ func _on_reset_button_pressed() -> void:
 
 
 func _slider_to_db(slider_value: float) -> float:
-	return lerpf(GAIN_MIN_DB, GAIN_MAX_DB, clampf(slider_value, 0.0, 1.0))
+	return lerpf(GAIN_MIN_DB, GAIN_MAX_DB, slider_value)
 
 
 func _db_to_slider(db_value: float) -> float:
-	if is_equal_approx(GAIN_MAX_DB, GAIN_MIN_DB):
-		return 0.0
 	return clampf((db_value - GAIN_MIN_DB) / (GAIN_MAX_DB - GAIN_MIN_DB), 0.0, 1.0)
 
 
-func _set_slider_tooltip(bus_idx: int, slider: VSlider) -> void:
+func _update_slider_tooltip(bus_idx: int, slider: VSlider) -> void:
 	slider.tooltip_text = "%s\n%.1f dB" % [_GameStateScript.BUS_NAMES[bus_idx], _GameStateScript.bus_gains_db[bus_idx]]
