@@ -17,6 +17,26 @@ fn main() {
     let target_os = std::env::var("CARGO_CFG_TARGET_OS")
         .unwrap_or_default();
 
+    // ── cycfi/Q pitch detection wrapper (C++20, header-only library) ──────────
+    // Compiles src/q_pitch_ffi.cpp against the vendored Q and infra headers.
+    let q_include     = format!("{manifest_dir}/vendor/q_lib/include");
+    let infra_include = format!("{manifest_dir}/vendor/infra-master/include");
+
+    cc::Build::new()
+        .cpp(true)
+        .std("c++20")
+        .include(&q_include)
+        .include(&infra_include)
+        .include(format!("{manifest_dir}/src"))
+        .warnings(false)   // Q headers produce pedantic warnings — suppress them
+        .file(format!("{manifest_dir}/src/q_pitch_ffi.cpp"))
+        .compile("q_pitch");
+
+    println!("cargo:rerun-if-changed=src/q_pitch_ffi.cpp");
+    println!("cargo:rerun-if-changed=src/q_pitch_ffi.h");
+    println!("cargo:rerun-if-changed=vendor/q_lib/include/q/pitch/pitch_detector.hpp");
+    println!("cargo:rerun-if-changed=vendor/q_lib/include/q/pitch/period_detector.hpp");
+
     match target_os.as_str() {
         "linux" => {
             let lib_dir = format!("{manifest_dir}/lib/linux");

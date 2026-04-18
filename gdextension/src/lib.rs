@@ -11,6 +11,7 @@ mod tone_engine;
 mod audio_engine;
 mod goguitar_bridge;
 mod rt_engine;
+mod q_pitch_detector;
 
 struct GoGuitar2Extension;
 
