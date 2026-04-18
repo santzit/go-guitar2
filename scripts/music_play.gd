@@ -461,10 +461,12 @@ func _update_fret_range_visuals() -> void:
 	if not is_instance_valid(_highway):
 		return
 
-	# Find the FIRST upcoming unified event (after current song time)
+	# Find the FIRST upcoming unified event (after current song time).
+	# Start from _debug_strum_event_idx (first event not yet at the strum line)
+	# so we scan the notes currently visible on-screen, not 10+ seconds ahead.
 	var range_min_fret: int = -1
 	var range_max_fret: int = -1
-	var i: int = _next_event_idx
+	var i: int = _debug_strum_event_idx
 	while i < _events.size():
 		var ev: Dictionary = _events[i]
 		var event_time: float = float(ev.get("time_start", -1.0))
