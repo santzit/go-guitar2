@@ -19,7 +19,7 @@ size_flags_vertical = 3
 min_value = 0.0
 max_value = 1.0
 step = 0.001
-value = 0.909
+value = 0.5
 
 [node name="MuteButton" type="Button" parent="."]
 layout_mode = 2
