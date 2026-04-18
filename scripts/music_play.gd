@@ -109,6 +109,8 @@ var _string_glow         : Array[float] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 ## Advances past notes that have fully passed the strum line.
 var _glow_cursor         : int      = 0
 var _lane_glow           : Array[float] = []
+var _active_window_min_fret : int = -1
+var _active_window_max_fret : int = -1
 
 ## Per-string fret-change tracker for smart label logic on single notes.
 ## -1 = no note has been spawned on this string yet.
@@ -396,9 +398,16 @@ func _update_string_glows() -> void:
 	if not is_instance_valid(_fretboard):
 		return
 
-	# Advance the glow cursor past notes that have already left the strum zone.
-	while _glow_cursor < _notes.size() \
-			and (_notes[_glow_cursor]["time"] as float) < _song_time - 0.20:
+	# Advance the glow cursor past notes that have fully left the strum zone,
+	# including any sustain. A note is fully gone when its sustain_end is also past.
+	while _glow_cursor < _notes.size():
+		var _nd: Dictionary = _notes[_glow_cursor]
+		var _nt: float = float(_nd.get("time", 0.0))
+		if _nt >= _song_time - 0.20:
+			break
+		var _dur: float = maxf(float(_nd.get("duration", 0.0)), 0.0)
+		if _nt + _dur >= _song_time - 0.05:
+			break
 		_glow_cursor += 1
 
 	# Compute target glow intensity per string: highest intensity wins when
@@ -477,11 +486,15 @@ func _update_fret_range_visuals() -> void:
 				targets[lane] = 1.0
 		
 		_highway.call("set_active_fret_range", range_min_fret, range_max_fret)
+		_active_window_min_fret = range_min_fret
+		_active_window_max_fret = range_max_fret
 	else:
 		# No upcoming notes - dim the highway
 		_highway.call("set_active_fret_range", 0, -1)
 		_camera_target_min_fret = FRET_COUNT / 2
 		_camera_target_max_fret = FRET_COUNT / 2
+		_active_window_min_fret = -1
+		_active_window_max_fret = -1
 
 	# Smooth transition of lane glow
 	for lane in LANE_COUNT:

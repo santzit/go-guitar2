@@ -82,7 +82,6 @@ func _ready() -> void:
 		_sustain_trail_mat.metallic = 0.2
 		_sustain_trail_mat.roughness = 0.08
 		_sustain_trail_mat.emission_energy_multiplier = NOTE_MARKER_NEON_GLOW_BASE
-		_sustain_trail.set_surface_override_material(0, _sustain_trail_mat)
 		_sustain_trail.visible = false
 		add_child(_sustain_trail)
 
@@ -164,6 +163,8 @@ func _update_sustain_trail() -> void:
 	if trail_mesh == null:
 		trail_mesh = BoxMesh.new()
 		_sustain_trail.mesh = trail_mesh
+		if _sustain_trail_mat != null:
+			_sustain_trail.set_surface_override_material(0, _sustain_trail_mat)
 	trail_mesh.size = Vector3(_get_sustain_trail_width(), SUSTAIN_TRAIL_HEIGHT, sustain_length)
 	_sustain_trail.position = Vector3(
 		NOTE_MARKER_LOCAL_OFFSET.x,

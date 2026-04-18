@@ -3,8 +3,13 @@ extends Node3D
 ## The visual geometry and material are defined in highway.tscn / highway.gdshader.
 
 const LANE_COUNT : int = 6
+const TRAVEL_SPEED : float = 2.0
+const HIGHWAY_Z_MIN : float = -20.0
+const HIGHWAY_Z_MAX : float = 0.0
 
 @onready var _surface: MeshInstance3D = $HighwaySurface
+
+var _fret_count: int = 24
 
 
 func _ready() -> void:
@@ -18,6 +23,7 @@ func configure(fret_count: int, string_count: int) -> void:
 		return
 	var mat := _surface.get_surface_override_material(0) as ShaderMaterial
 	if mat:
+		_fret_count = max(1, fret_count)
 		mat.set_shader_parameter("fret_count",   fret_count)
 		mat.set_shader_parameter("string_count", string_count)
 
@@ -60,3 +66,4 @@ func _zero_lanes() -> Array[float]:
 	for i in LANE_COUNT:
 		values[i] = 0.0
 	return values
+
