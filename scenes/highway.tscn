@@ -3,9 +3,9 @@
 [ext_resource type="Script" path="res://scripts/highway.gd" id="1_hwscript"]
 [ext_resource type="Shader" path="res://shaders/highway.gdshader" id="2_hwshader"]
 
-; ── Highway surface (PlaneMesh 24 × 20 in XZ, centred at origin → shifted to cover frets 0–24, depth 0–20) ──
+; ── Highway surface (PlaneMesh 48 × 20 in XZ, centred at origin → shifted to cover frets 0–48, depth 0–20) ──
 [sub_resource type="PlaneMesh" id="PlaneMesh_hw01"]
-size = Vector2(24.0, 20.0)
+size = Vector2(48.0, 20.0)
 subdivide_width = 0
 subdivide_depth = 0
 
@@ -31,7 +31,7 @@ shader_parameter/separator_line_color = Color(0.55, 0.85, 1.00, 1.0)
 
 ; ── Strum-line marker (thin bright box) ───────────────────────────────────────
 [sub_resource type="BoxMesh" id="BoxMesh_strum"]
-size = Vector3(24.0, 0.05, 0.10)
+size = Vector3(48.0, 0.05, 0.10)
 
 [sub_resource type="StandardMaterial3D" id="StrumMat"]
 albedo_color                = Color(0.0, 0.0, 0.0, 1)
@@ -57,15 +57,15 @@ transparency               = 1
 [node name="Highway" type="Node3D"]
 script = ExtResource("1_hwscript")
 
-; Surface centred at (12, 0, -10) so it covers X:[0,24], Z:[-20,0]
+; Surface centred at (24, 0, -10) so it covers X:[0,48], Z:[-20,0]
 [node name="HighwaySurface" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, -10)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24, 0, -10)
 mesh = SubResource("PlaneMesh_hw01")
 surface_material_override/0 = SubResource("ShaderMat_hw01")
 
-; Strum line at Y = 0, Z = 0 (note/chord hit line), centred at X = 12
+; Strum line at Y = 0, Z = 0 (note/chord hit line), centred at X = 24
 [node name="StrumLine" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24, 0, 0)
 mesh = SubResource("BoxMesh_strum")
 surface_material_override/0 = SubResource("StrumMat")
 
@@ -76,9 +76,9 @@ mesh = SubResource("BoxMesh_wallL")
 surface_material_override/0 = SubResource("WallMat")
 visible = false
 
-; Right wall at X = 24 (invisible – walls removed from player view)
+; Right wall at X = 48 (invisible – walls removed from player view)
 [node name="WallRight" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24, 1.5, 10)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 48, 1.5, 10)
 mesh = SubResource("BoxMesh_wallR")
 surface_material_override/0 = SubResource("WallMat")
 visible = false

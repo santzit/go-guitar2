@@ -50,7 +50,7 @@ void fragment() {
 ## Notes / chords spawn at Z = START_Z and travel toward STRUM_Z = 0.
 const START_Z          : float = -20.0
 const STRUM_Z          : float =  0.0
-const TRAVEL_SPEED     : float =  2.0   # must match note.gd and music_play.gd
+const TRAVEL_SPEED     : float =  ChartCommon.Z_UNITS_PER_SECOND   # must match note.gd and music_play.gd
 const MISS_HOLD        : float =  1.0   # seconds to keep visible after strum
 
 
@@ -208,7 +208,7 @@ func _clear_indicators() -> void:
 func tick(p_song_time: float) -> void:
 	if not is_active:
 		return
-	position.z = STRUM_Z - (time_offset - p_song_time) * TRAVEL_SPEED
+	position.z = ChartCommon.note_world_z(time_offset, p_song_time, STRUM_Z)
 	if _miss_until < 0.0 and p_song_time >= time_offset:
 		_miss_until = p_song_time + MISS_HOLD
 	elif _miss_until >= 0.0 and p_song_time >= _miss_until:

@@ -29,14 +29,17 @@ func _assert_near(actual: float, expected: float, description: String) -> void:
 func _run_all() -> void:
 	print("\n═══════ ChartCommon Fret Formula Tests ═══════")
 	_assert_near(ChartCommon.chart_fret_pos(0.0), 0.0, "chart_fret_pos(0) is 0")
-	_assert_near(ChartCommon.chart_fret_pos(12.0), 12.0, "chart_fret_pos(12) is 12")
+	_assert_near(ChartCommon.chart_fret_pos(12.0), 24.0, "chart_fret_pos(12) is 24")
 	_assert_near(ChartCommon.fret_separator_world_x(0), 0.0, "fret_separator_world_x(0) is 0")
-	_assert_near(ChartCommon.fret_separator_world_x(12), 12.0, "fret_separator_world_x(12) is 12")
-	_assert_near(ChartCommon.fret_separator_world_x(24), 24.0, "fret_separator_world_x(24) is 24")
-	_assert_near(ChartCommon.fret_mid_world_x(0), 0.5, "fret_mid_world_x(0) is 0.5")
-	_assert_near(ChartCommon.fret_mid_world_x(23), 23.5, "fret_mid_world_x(23) is 23.5")
-	_assert_near(ChartCommon.note_indicator_size(0).x, 1.0, "note indicator width at fret 0 is 1")
-	_assert_near(ChartCommon.note_indicator_size(20).x, 1.0, "note indicator width at fret 20 is 1")
+	_assert_near(ChartCommon.fret_separator_world_x(12), 24.0, "fret_separator_world_x(12) is 24")
+	_assert_near(ChartCommon.fret_separator_world_x(24), 48.0, "fret_separator_world_x(24) is 48")
+	_assert_near(ChartCommon.fret_mid_world_x(0), 1.0, "fret_mid_world_x(0) is 1.0")
+	_assert_near(ChartCommon.fret_mid_world_x(23), 47.0, "fret_mid_world_x(23) is 47.0")
+	_assert_near(ChartCommon.string_world_y(0), 2.75, "string_world_y(0) is 2.75")
+	_assert_near(ChartCommon.string_world_y(5), 0.25, "string_world_y(5) is 0.25")
+	_assert_near(ChartCommon.note_world_z(8.0, 5.0, 0.0), -3.0, "note_world_z uses 1 unit = 1 second")
+	_assert_near(ChartCommon.note_indicator_size(0).x, 2.0, "note indicator width at fret 0 is 2")
+	_assert_near(ChartCommon.note_indicator_size(20).x, 2.0, "note indicator width at fret 20 is 2")
 
 
 func _print_summary() -> void:

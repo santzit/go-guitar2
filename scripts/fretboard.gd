@@ -65,9 +65,9 @@ func _build_fret_lines() -> void:
 	mat.emission_energy_multiplier = 0.8
 
 	# Derive height and Y-centre from ChartCommon so fret lines always span
-	# exactly the string range defined in common.gd (STRING_0_Y … string 5 Y).
-	var top_sep    : float = ChartCommon.string_world_y(0) + ChartCommon.STRING_SLOT_HEIGHT * 0.1
-	var bot_sep    : float = ChartCommon.string_world_y(STRING_COUNT - 1) - ChartCommon.STRING_SLOT_HEIGHT * 0.1
+	# exactly the string range separators (top/bottom margins included).
+	var top_sep    : float = ChartCommon.string_top_separator_y(0)
+	var bot_sep    : float = ChartCommon.string_separator_y(STRING_COUNT - 1)
 	var line_height: float = top_sep - bot_sep
 	var line_y     : float = (top_sep + bot_sep) * 0.5
 

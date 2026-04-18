@@ -12,7 +12,7 @@ const BUS_MUSIC  : int = 1   # Music bus
 const BUS_MASTER : int = 6   # Master bus
 
 # -- Timing constants (must match note.gd) -----------------------------------
-const TRAVEL_SPEED : float = 2.0
+const TRAVEL_SPEED : float = ChartCommon.Z_UNITS_PER_SECOND
 ## Highway depth in world units (absolute distance). Notes travel 20 units (Z=-20 → Z=0).
 ## LEAD_TIME = HIGHWAY_DEPTH / TRAVEL_SPEED = how many seconds ahead notes spawn.
 const HIGHWAY_DEPTH : float = 20.0
@@ -42,7 +42,7 @@ const CAMERA_LOOK_AT_Z  : float = -7.0
 const CAMERA_LERP_SPEED : float = 1.0    # units/s for smooth pan
 ## Camera X clamp — keeps the camera from tracking to the highway edges.
 const CAMERA_X_MIN      : float = 1.75
-const CAMERA_X_MAX      : float = 24.0
+const CAMERA_X_MAX      : float = FRET_WORLD_WIDTH
 
 # -- Screenshot capture (for automated testing) ------------------------------
 const SCREENSHOT_TIMES : Array  = [5.0, 10.0, 15.0, 20.0, 25.0]
