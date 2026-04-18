@@ -1,9 +1,17 @@
-# Note Detection — cycfi/Q BACF Pitch Detector
+# Note Detection — cycfi/Q Pitch Detector
 
 GoGuitar2 detects which guitar string the player is playing in real time
-using **cycfi/Q** (`v1.5-dev`), a C++20 header-only DSP library that
-implements the *Binary Autocorrelation Function* (BACF) pitch-detection
-algorithm.
+using **cycfi/Q**, a C++20 header-only DSP library.
+
+> **Algorithm note:** The vendored Q headers (`gdextension/vendor/q_lib/`) are
+> from the **pre-v1.5** tree, which implements the *Binary Autocorrelation
+> Function* (BACF) pitch detector.  The Q project's `master` branch is
+> currently developing **v1.5**, which **retires BACF** and introduces a new
+> *Hz-based* pitch detection algorithm with integrated onset detection (see
+> the [Q v1.5 announcement](https://github.com/cycfi/Q#readme) and the
+> article series *"Pitch Perfect: Enhanced Pitch Detection Techniques"*).
+> When Q v1.5 is stable, the FFI wrapper (`q_pitch_ffi.cpp`) and vendored
+> headers should be updated to use the new Hz-based API.
 
 ---
 
@@ -28,9 +36,10 @@ C++20 FFI  q_detect_strings()   ← q_pitch_ffi.cpp
 
 ---
 
-## How BACF Pitch Detection Works
+## How the Pitch Detector Works (pre-v1.5 BACF)
 
-Q's `pitch_detector` is built on **Binary Autocorrelation**.  At a high level:
+The **pre-v1.5** Q `pitch_detector` (currently vendored) is built on the
+*Binary Autocorrelation Function* (BACF).  At a high level:
 
 1. Zero-crossings of the incoming signal are collected by a
    `zero_crossing_collector` which tags each edge with its time position.
@@ -44,6 +53,15 @@ Q's `pitch_detector` is built on **Binary Autocorrelation**.  At a high level:
 BACF is **monophonic** — it locks on to one fundamental at a time.
 When multiple strings sound simultaneously, each detector still returns one
 frequency for its band, but polyphonic content lowers detection confidence.
+
+### Upcoming: Q v1.5 Hz-based algorithm
+
+The Q project is actively replacing BACF with a new **Hz-based** pitch
+detection algorithm (v1.5, currently in development on `master`).  The new
+approach integrates onset detection and is described in Joel de Guzman's
+article series *"Pitch Perfect: Enhanced Pitch Detection Techniques"*
+(cycfi.com, Sept 2024).  Once v1.5 is released, `q_pitch_ffi.cpp` and the
+vendored headers should be upgraded to use the new API.
 
 ---
 
@@ -166,9 +184,10 @@ Test coverage:
 
 ## Known Limitations
 
-- **BACF is monophonic**: with multiple simultaneous strings, some may not be
+- **BACF is monophonic (pre-v1.5)**: with multiple simultaneous strings, some may not be
   detected. In real gameplay players typically pluck one string at a time, so
-  this is rarely an issue.
+  this is rarely an issue. The upcoming Q v1.5 Hz-based algorithm adds onset
+  detection, which will further improve multi-string accuracy.
 - **Pure sine subharmonics**: clean sine waves trigger subharmonic detection;
   the post-processing filter removes the false positives. Real guitar
   notes have complex overtones that make this far less common.
