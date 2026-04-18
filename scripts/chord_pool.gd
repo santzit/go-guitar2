@@ -1,7 +1,7 @@
 extends Node3D
 ## chord_pool.gd — manages a fixed pool of chord container instances.
 ##
-## Usage:  spawn_chord(notes, time, name, show_details) → Node3D
+## Usage:  spawn_event(notes, time, name, show_details, kind) → Node3D
 ##         tick(song_time)   — called every frame from music_play._process()
 ##         clear_chords()    — call on song stop / restart
 
@@ -24,20 +24,31 @@ func _make_chord() -> Node3D:
 	return chord
 
 
-## Activate a chord container from the pool.
+## Activate an event container from the pool.
 ## Returns the chord node, or null if the pool is exhausted.
+func spawn_event(
+		p_notes: Array,
+		p_time: float,
+		p_chord_name: String,
+		p_show_details: bool,
+		p_event_kind: String
+) -> Node3D:
+	if _pool.is_empty():
+		_pool.append(_make_chord())
+	var chord : Node3D = _pool.pop_back()
+	chord.setup(p_notes, p_time, p_chord_name, p_show_details, p_event_kind)
+	_active.append(chord)
+	return chord
+
+
+## Backward-compatible wrapper.
 func spawn_chord(
 		p_notes: Array,
 		p_time: float,
 		p_chord_name: String,
 		p_show_details: bool
 ) -> Node3D:
-	if _pool.is_empty():
-		_pool.append(_make_chord())
-	var chord : Node3D = _pool.pop_back()
-	chord.setup(p_notes, p_time, p_chord_name, p_show_details)
-	_active.append(chord)
-	return chord
+	return spawn_event(p_notes, p_time, p_chord_name, p_show_details, "chord")
 
 
 ## Called by a Chord when it passes the strum line and deactivates itself.

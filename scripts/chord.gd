@@ -1,9 +1,14 @@
 extends Node3D
-## chord.gd — Chord container: bordered box spanning 4 frets × all involved strings.
+const ChartCommon = preload("res://scripts/common.gd")
+## chord.gd — Unified play-event container for single notes and chords.
 ##
-## For the first occurrence (or chord change): renders per-string finger indicators
-## + chord name label to the top-left outside the container.
-## For repeated chords: renders only the border outline.
+## Single-note events:
+##   - one note slot marker
+##   - no chord label / no outline
+## Chord events:
+##   - multiple note-slot markers
+##   - optional chord label
+##   - shader outline with glow only on the bottom corners
 ##
 ## Coordinate conventions (shared via ChartCommon):
 ##   X = fret position, Y = string height, Z = time (spawns at -20 → travels to 0)
@@ -27,22 +32,28 @@ const NOTE_MARKER_LOCAL_ROTATION_DEGREES: Vector3 = Vector3(0.0, 90.0, 0.0)
 ## Project font — Inter 18pt Bold, used for the chord name Label3D.
 const _INTER_BOLD: FontFile = preload("res://assets/fonts/Inter_18pt-Bold.ttf")
 
-## Border shader — renders only the edge pixels of the PlaneMesh as a white
-## outline rectangle; the interior is discarded (fully transparent).
-## border_u / border_v are the UV-space fractions occupied by the border on
-## each axis and are computed per-chord so the physical thickness is ~3 cm.
+## Border shader — edge outline + bottom-corner glow.
+## The interior is discarded; only border pixels render.
 const _BORDER_SHADER_CODE: String = """
 shader_type spatial;
 render_mode blend_mix, unshaded, cull_disabled, depth_test_disabled;
 uniform float border_u : hint_range(0.01, 0.5) = 0.04;
 uniform float border_v : hint_range(0.01, 0.5) = 0.04;
-uniform vec4 border_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
+uniform float corner_u : hint_range(0.02, 0.5) = 0.18;
+uniform vec4 outline_color : source_color = vec4(0.55, 0.85, 1.0, 0.90);
+uniform vec4 corner_glow_color : source_color = vec4(0.70, 0.95, 1.0, 1.0);
+uniform float corner_glow_strength : hint_range(0.0, 8.0) = 3.0;
 void fragment() {
 	bool on_edge = UV.x < border_u || UV.x > 1.0 - border_u
 				|| UV.y < border_v || UV.y > 1.0 - border_v;
 	if (!on_edge) { discard; }
-	ALBEDO = border_color.rgb;
-	ALPHA  = border_color.a;
+	bool on_bottom = UV.y < border_v;
+	bool on_left_corner = UV.x < corner_u;
+	bool on_right_corner = UV.x > 1.0 - corner_u;
+	bool glow_corner = on_bottom && (on_left_corner || on_right_corner);
+	ALBEDO = outline_color.rgb;
+	ALPHA  = outline_color.a;
+	EMISSION = glow_corner ? corner_glow_color.rgb * corner_glow_strength : vec3(0.0);
 }
 """
 
@@ -51,7 +62,7 @@ const START_Z          : float = -20.0
 const STRUM_Z          : float =  0.0
 const TRAVEL_SPEED     : float =  2.0   # must match note.gd and music_play.gd
 const MISS_HOLD        : float =  1.0   # seconds to keep visible after strum
-## Border always spans exactly this many frets (first note fret + 3 more).
+## Chord events span this many frets (first note fret + 3 more).
 const BORDER_FRET_SPAN : int   = 4
 
 var time_offset    : float = 0.0
@@ -61,9 +72,6 @@ var _miss_until    : float = -1.0
 ## Lazy-initialised persistent nodes (survive pool reuse).
 var _border_mesh   : MeshInstance3D = null
 var _chord_label   : Label3D        = null
-## Fret cached to skip redundant border resizes.
-var _last_min_fret : int            = -1
-
 ## Dynamic indicator nodes — freed on each deactivate and recreated in setup.
 var _indicators    : Array          = []
 
@@ -77,12 +85,14 @@ func setup(
 		p_notes: Array,
 		p_time: float,
 		p_chord_name: String,
-		p_show_details: bool
+		p_show_details: bool,
+		p_event_kind: String
 ) -> void:
 	time_offset = p_time
 	is_active   = true
 	visible     = true
 	_miss_until = -1.0
+	var is_single_event : bool = (p_event_kind == "single") or (p_notes.size() <= 1)
 
 	# ── Determine extent of notes ──────────────────────────────────────────────
 	var min_fret   : int = 999
@@ -98,34 +108,39 @@ func setup(
 		return
 
 	# ── Container world position ───────────────────────────────────────────────
-	# X centre of the 4-fret window; Y centre between top and bottom strings.
-	# Match ChartPlayer: span from (min_fret - 1) to (min_fret + 3)
+	# Single-note events use exactly one fret slot; chord events use a 4-fret hand window.
+	var fret_span : int = 1 if is_single_event else BORDER_FRET_SPAN
 	var left_x   : float = ChartCommon.fret_separator_world_x(min_fret - 1)
-	var right_x  : float = ChartCommon.fret_separator_world_x(min_fret + BORDER_FRET_SPAN - 1)
-	# Always span from top string (0) to one slot below bottom string (5)
-	var top_y    : float = ChartCommon.string_world_y(0)
-	var bot_y    : float = ChartCommon.string_world_y(5) - ChartCommon.STRING_SLOT_HEIGHT
+	var right_x  : float = ChartCommon.fret_separator_world_x(min_fret - 1 + fret_span)
+	var top_y    : float = ChartCommon.string_world_y(min_string)
+	var bot_y    : float = ChartCommon.string_world_y(max_string) - ChartCommon.STRING_SLOT_HEIGHT
 	var center_x : float = (left_x + right_x) * 0.5
 	var center_y : float = (top_y + bot_y) * 0.5
 	position = Vector3(center_x, center_y, START_Z)
 
-	# ── Border box ─────────────────────────────────────────────────────────────
-	var w : float = right_x - left_x
-	var h : float = absf(top_y - bot_y) + ChartCommon.STRING_SLOT_HEIGHT
-	_ensure_border(min_fret, w, h)
+	var show_outline : bool = not is_single_event
+	var show_label   : bool = p_show_details and not is_single_event
 
-	# ── Per-string finger indicators (only on first / changed chord) ───────────
+	# ── Border box ─────────────────────────────────────────────────────────────
+	if show_outline:
+		var w : float = right_x - left_x
+		var h : float = absf(top_y - bot_y) + ChartCommon.STRING_SLOT_HEIGHT
+		_ensure_border(w, h)
+		_border_mesh.visible = true
+	elif is_instance_valid(_border_mesh):
+		_border_mesh.visible = false
+
+	# ── Per-string finger indicators (always rendered for note slots) ──────────
 	_clear_indicators()
-	if p_show_details:
-		for n in p_notes:
-			var f : int = int(n.get("fret", 0))
-			var s : int = clampi(int(n.get("string", 0)), 0, 5)
-			_add_indicator(f, s, center_x, center_y)
+	for n in p_notes:
+		var f : int = int(n.get("fret", 0))
+		var s : int = clampi(int(n.get("string", 0)), 0, 5)
+		_add_indicator(f, s, center_x, center_y)
 
 	# ── Chord name label (top-left outside the container) ─────────────────────
 	_ensure_label()
-	_chord_label.visible = p_show_details
-	if p_show_details:
+	_chord_label.visible = show_label
+	if show_label:
 		_chord_label.text = p_chord_name
 		_chord_label.position = Vector3(
 			left_x  - center_x - 0.25,
@@ -134,32 +149,31 @@ func setup(
 		)
 
 
-## Create (or reuse) the border MeshInstance3D; resize when the fret changes.
-func _ensure_border(min_fret: int, w: float, h: float) -> void:
+## Create (or reuse) the border MeshInstance3D; resize for current event extents.
+func _ensure_border(w: float, h: float) -> void:
 	if _border_mesh == null:
 		_border_mesh = MeshInstance3D.new()
 		_border_mesh.position = Vector3(0.0, 0.0, 0.05)
 		add_child(_border_mesh)
-
-	if min_fret != _last_min_fret:
-		_last_min_fret = min_fret
-		# Convert a target ~2.5 cm world-unit border thickness to UV-space fractions.
-		# uv_frac = desired_thickness_m / mesh_dimension_m.
-		# Clamped so the line is never invisible (< 1.5 %) or over-wide (> 12 % / 20 %).
-		var bu : float = clampf(0.025 / w, 0.015, 0.12)
-		var bv : float = clampf(0.025 / maxf(h, 0.001), 0.015, 0.20)
-		var shader := Shader.new()
-		shader.code = _BORDER_SHADER_CODE
-		var mat := ShaderMaterial.new()
-		mat.shader = shader
-		mat.set_shader_parameter("border_color", Color(1.0, 1.0, 1.0, 1.0))
-		mat.set_shader_parameter("border_u", bu)
-		mat.set_shader_parameter("border_v", bv)
-		var plane := PlaneMesh.new()
-		plane.size        = Vector2(w, h)
-		plane.orientation = PlaneMesh.FACE_Z
-		plane.material    = mat
-		_border_mesh.mesh = plane
+	# Convert a target ~2.5 cm world-unit border thickness to UV-space fractions.
+	# uv_frac = desired_thickness_m / mesh_dimension_m.
+	var bu : float = clampf(0.025 / maxf(w, 0.001), 0.015, 0.12)
+	var bv : float = clampf(0.025 / maxf(h, 0.001), 0.015, 0.20)
+	var shader := Shader.new()
+	shader.code = _BORDER_SHADER_CODE
+	var mat := ShaderMaterial.new()
+	mat.shader = shader
+	mat.set_shader_parameter("outline_color", Color(0.55, 0.85, 1.0, 0.9))
+	mat.set_shader_parameter("corner_glow_color", Color(0.70, 0.95, 1.0, 1.0))
+	mat.set_shader_parameter("corner_glow_strength", 3.0)
+	mat.set_shader_parameter("border_u", bu)
+	mat.set_shader_parameter("border_v", bv)
+	mat.set_shader_parameter("corner_u", 0.18)
+	var plane := PlaneMesh.new()
+	plane.size        = Vector2(w, h)
+	plane.orientation = PlaneMesh.FACE_Z
+	plane.material    = mat
+	_border_mesh.mesh = plane
 
 
 ## Create the chord-name Label3D on first use.

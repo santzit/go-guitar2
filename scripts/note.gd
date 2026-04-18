@@ -1,4 +1,5 @@
 extends Node3D
+const ChartCommon = preload("res://scripts/common.gd")
 ## note.gd  –  behaviour for a single pooled note with a static 3D NoteMarker mesh.
 ##
 ## All coordinate formulas live in scripts/common.gd (class ChartCommon) so they

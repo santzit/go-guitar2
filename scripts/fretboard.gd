@@ -1,4 +1,5 @@
 extends Node3D
+const ChartCommon = preload("res://scripts/common.gd")
 ## fretboard.gd  –  Drives per-string glow intensity via shader parameters,
 ## builds vertical fret-line markers at ChartPlayer fret positions, and
 ## places fret-number labels (1–24) below the lowest (purple) string.
