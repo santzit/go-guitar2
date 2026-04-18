@@ -1,0 +1,27 @@
+[gd_scene format=3]
+
+[node name="MixerStrip" type="VBoxContainer"]
+custom_minimum_size = Vector2(96, 0)
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 10
+
+[node name="BusName" type="Label" parent="."]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "BUS"
+horizontal_alignment = 1
+
+[node name="VolumeSlider" type="VSlider" parent="."]
+custom_minimum_size = Vector2(0, 280)
+layout_mode = 2
+size_flags_vertical = 3
+min_value = 0.0
+max_value = 1.0
+step = 0.001
+value = 0.909
+
+[node name="MuteButton" type="Button" parent="."]
+layout_mode = 2
+toggle_mode = true
+text = "M"

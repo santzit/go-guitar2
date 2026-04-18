@@ -6,67 +6,44 @@ extends Control
 ## applied live via set_bus_gain_db() / set_bus_mute().
 
 const _GameStateScript = preload("res://scripts/game_state.gd")
+const _MixerStripScene: PackedScene = preload("res://scenes/mixer_strip.tscn")
 
-## Minimum and maximum dB for the sliders.
-const GAIN_MIN_DB : float = -60.0
-const GAIN_MAX_DB : float =  6.0
+## Slider maps 0..1 to this dB range.
+const GAIN_MIN_DB: float = -60.0
+const GAIN_MAX_DB: float = 6.0
 
-@onready var _sliders_container : VBoxContainer = $MarginContainer/VBoxContainer/BusRows
+@onready var _strips_container: HBoxContainer = $Panel/MarginContainer/VBoxContainer/ScrollContainer/Strips
 
 ## Parallel arrays built in _ready(); index = bus index (0–8).
-var _sliders : Array[HSlider] = []
-var _mute_buttons : Array[Button] = []
-var _labels : Array[Label] = []
-var _value_labels : Array[Label] = []
+var _sliders: Array[VSlider] = []
+var _mute_buttons: Array[Button] = []
+var _labels: Array[Label] = []
 
 ## Block re-entrant _on_slider_changed calls while loading saved state.
-var _loading : bool = false
+var _loading: bool = false
 
 
 func _ready() -> void:
 	_GameStateScript.load_mixer_settings()
 
 	for i in _GameStateScript.BUS_COUNT:
-		var row := HBoxContainer.new()
-		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var strip := _MixerStripScene.instantiate() as VBoxContainer
+		var name_lbl := strip.get_node("BusName") as Label
+		var slider := strip.get_node("VolumeSlider") as VSlider
+		var mute_btn := strip.get_node("MuteButton") as Button
 
-		# Bus name label (fixed width)
-		var name_lbl := Label.new()
 		name_lbl.text = _GameStateScript.BUS_NAMES[i]
-		name_lbl.custom_minimum_size = Vector2(160, 0)
-		row.add_child(name_lbl)
-		_labels.append(name_lbl)
-
-		# Mute button
-		var mute_btn := Button.new()
-		mute_btn.text = "M"
-		mute_btn.toggle_mode = true
-		mute_btn.button_pressed = _GameStateScript.bus_mutes[i]
-		mute_btn.custom_minimum_size = Vector2(40, 0)
-		mute_btn.pressed.connect(_on_mute_pressed.bind(i))
-		row.add_child(mute_btn)
-		_mute_buttons.append(mute_btn)
-
-		# Gain slider
-		var slider := HSlider.new()
-		slider.min_value = GAIN_MIN_DB
-		slider.max_value = GAIN_MAX_DB
-		slider.step = 0.1
-		slider.value = _GameStateScript.bus_gains_db[i]
-		slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		slider.value = _db_to_slider(_GameStateScript.bus_gains_db[i])
 		slider.value_changed.connect(_on_slider_changed.bind(i))
-		row.add_child(slider)
+		mute_btn.button_pressed = _GameStateScript.bus_mutes[i]
+		mute_btn.pressed.connect(_on_mute_pressed.bind(i))
+
+		_set_slider_tooltip(i, slider)
+
+		_strips_container.add_child(strip)
+		_labels.append(name_lbl)
 		_sliders.append(slider)
-
-		# dB value label (shows current slider value)
-		var val_lbl := Label.new()
-		val_lbl.text = "%.1f dB" % _GameStateScript.bus_gains_db[i]
-		val_lbl.custom_minimum_size = Vector2(72, 0)
-		val_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		row.add_child(val_lbl)
-		_value_labels.append(val_lbl)
-
-		_sliders_container.add_child(row)
+		_mute_buttons.append(mute_btn)
 
 	# Reflect current mute visual state without emitting pressed (toggle already set above).
 	_refresh_mute_visuals()
@@ -75,33 +52,40 @@ func _ready() -> void:
 func _on_slider_changed(value: float, bus_idx: int) -> void:
 	if _loading:
 		return
-	_GameStateScript.bus_gains_db[bus_idx] = value
-	_value_labels[bus_idx].text = "%.1f dB" % value
+
+	var gain_db: float = _slider_to_db(value)
+	_GameStateScript.bus_gains_db[bus_idx] = gain_db
+	_set_slider_tooltip(bus_idx, _sliders[bus_idx])
 	_GameStateScript.save_mixer_settings()
-	# Apply live if an RtEngine is present.
-	_apply_to_rt(bus_idx)
+	_apply_to_outputs(bus_idx)
 
 
 func _on_mute_pressed(bus_idx: int) -> void:
-	var muted : bool = _mute_buttons[bus_idx].button_pressed
+	var muted: bool = _mute_buttons[bus_idx].button_pressed
 	_GameStateScript.bus_mutes[bus_idx] = muted
 	_refresh_mute_visuals()
 	_GameStateScript.save_mixer_settings()
-	_apply_to_rt(bus_idx)
+	_apply_to_outputs(bus_idx)
 
 
 func _refresh_mute_visuals() -> void:
 	for i in _GameStateScript.BUS_COUNT:
 		var btn := _mute_buttons[i]
 		if _GameStateScript.bus_mutes[i]:
-			btn.modulate = Color(1.0, 0.4, 0.4)  # red tint = muted
+			btn.modulate = Color(1.0, 0.5, 0.5)
 		else:
 			btn.modulate = Color(1.0, 1.0, 1.0)
 
 
-## Apply a single bus setting to the running RtEngine, if available.
-func _apply_to_rt(bus_idx: int) -> void:
-	var rt = _get_rt_engine()
+## Apply a single bus setting to Godot AudioServer and running RtEngine, if available.
+func _apply_to_outputs(bus_idx: int) -> void:
+	var bus_name := StringName(_GameStateScript.BUS_NAMES[bus_idx])
+	var godot_bus_idx: int = AudioServer.get_bus_index(bus_name)
+	if godot_bus_idx != -1:
+		AudioServer.set_bus_volume_db(godot_bus_idx, _GameStateScript.bus_gains_db[bus_idx])
+		AudioServer.set_bus_mute(godot_bus_idx, _GameStateScript.bus_mutes[bus_idx])
+
+	var rt := _get_rt_engine()
 	if rt == null:
 		return
 	rt.set_bus_gain_db(bus_idx, _GameStateScript.bus_gains_db[bus_idx])
@@ -127,14 +111,27 @@ func _on_reset_button_pressed() -> void:
 	_loading = true
 	for i in _GameStateScript.BUS_COUNT:
 		_GameStateScript.bus_gains_db[i] = 0.0
-		_GameStateScript.bus_mutes[i]    = false
-		_sliders[i].value = 0.0
-		_value_labels[i].text = "0.0 dB"
+		_GameStateScript.bus_mutes[i] = false
+		_sliders[i].value = _db_to_slider(0.0)
+		_set_slider_tooltip(i, _sliders[i])
 		_mute_buttons[i].button_pressed = false
 	_loading = false
+
 	_refresh_mute_visuals()
 	_GameStateScript.save_mixer_settings()
-	# Apply all buses to RT.
-	var rt := _get_rt_engine()
-	if rt != null:
-		_GameStateScript.apply_mixer_to_rt_engine(rt)
+	for i in _GameStateScript.BUS_COUNT:
+		_apply_to_outputs(i)
+
+
+func _slider_to_db(slider_value: float) -> float:
+	return lerpf(GAIN_MIN_DB, GAIN_MAX_DB, clampf(slider_value, 0.0, 1.0))
+
+
+func _db_to_slider(db_value: float) -> float:
+	if is_equal_approx(GAIN_MAX_DB, GAIN_MIN_DB):
+		return 0.0
+	return clampf((db_value - GAIN_MIN_DB) / (GAIN_MAX_DB - GAIN_MIN_DB), 0.0, 1.0)
+
+
+func _set_slider_tooltip(bus_idx: int, slider: VSlider) -> void:
+	slider.tooltip_text = "%s\n%.1f dB" % [_GameStateScript.BUS_NAMES[bus_idx], _GameStateScript.bus_gains_db[bus_idx]]
