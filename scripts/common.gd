@@ -9,6 +9,8 @@ extends RefCounted
 
 ## Total frets on the virtual guitar neck.
 const FRET_COUNT         : int   = 24
+## Total strings on the virtual guitar neck.
+const STRING_COUNT       : int   = 6
 ## Total world-unit width of the highway (fret 0 = X 0, fret 24 = X 24).
 ## Kept separate from FRET_COUNT so scene/layout code can read an explicit width.
 const FRET_WORLD_WIDTH   : float = 24.0
@@ -66,6 +68,13 @@ static func string_world_y(str_idx: int) -> float:
 ## Equivalent to string_world_y(str_idx) − STRING_SLOT_HEIGHT / 2.
 static func string_separator_y(str_idx: int) -> float:
 	return string_world_y(str_idx) - STRING_SLOT_HEIGHT * 0.5
+
+
+## World Y of the separator line *above* str_idx (between str_idx − 1 and str_idx).
+## Equivalent to string_world_y(str_idx) + STRING_SLOT_HEIGHT / 2.
+## Use this as the top edge when building a box that must contain str_idx's slot.
+static func string_top_separator_y(str_idx: int) -> float:
+	return string_world_y(str_idx) + STRING_SLOT_HEIGHT * 0.5
 
 
 # ── Note indicator geometry ───────────────────────────────────────────────────

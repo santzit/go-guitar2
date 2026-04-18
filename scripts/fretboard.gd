@@ -9,7 +9,8 @@ const ChartCommon = preload("res://scripts/common.gd")
 ## Call set_string_glow() each frame from music_play.gd to light up the
 ## strings that have notes arriving within the glow window.
 
-const STRING_COUNT : int = 6
+## Mirrors ChartCommon.STRING_COUNT — kept local for brevity in this file.
+const STRING_COUNT : int = ChartCommon.STRING_COUNT
 
 ## Width of each fret-line quad in world units.
 ## Slightly wider than the highway shader lines to be clearly visible.

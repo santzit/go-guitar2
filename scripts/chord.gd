@@ -103,8 +103,11 @@ func setup(
 	var fret_span : int = 1 if is_single_event else BORDER_FRET_SPAN
 	var left_x   : float = ChartCommon.fret_separator_world_x(min_fret - 1)
 	var right_x  : float = ChartCommon.fret_separator_world_x(min_fret - 1 + fret_span)
-	var top_y    : float = ChartCommon.string_world_y(min_string)
-	var bot_y    : float = ChartCommon.string_world_y(max_string)
+	# top_y = separator above the topmost string used.
+	# bot_y = separator below the last string (highway floor) — constant so every
+	# chord box bottom always touches the highway fret-separator lines.
+	var top_y    : float = ChartCommon.string_top_separator_y(min_string)
+	var bot_y    : float = ChartCommon.string_separator_y(ChartCommon.STRING_COUNT - 1)
 	var center_x : float = (left_x + right_x) * 0.5
 	var center_y : float = (top_y + bot_y) * 0.5
 	position = Vector3(center_x, center_y, START_Z)
@@ -115,7 +118,7 @@ func setup(
 	# ── Border box ─────────────────────────────────────────────────────────────
 	if show_outline:
 		var w : float = right_x - left_x
-		var h : float = absf(top_y - bot_y) + ChartCommon.STRING_SLOT_HEIGHT
+		var h : float = top_y - bot_y  # exact span from top separator to highway floor
 		_ensure_border(w, h)
 		_border_mesh.visible = true
 	elif is_instance_valid(_border_mesh):
