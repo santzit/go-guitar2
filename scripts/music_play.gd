@@ -5,6 +5,7 @@ extends Node3D
 
 const _GoGuitarBridgeScript = preload("res://scripts/goguitar_bridge.gd")
 const _GameStateScript = preload("res://scripts/game_state.gd")
+const ChartCommon = preload("res://scripts/common.gd")
 
 # -- Mixer bus indices (must match GameState.BUS_NAMES / gg-mixer BusId) ------
 const BUS_MUSIC  : int = 1   # Music bus
@@ -73,7 +74,6 @@ const DEBUG_CHORD_WINDOW : float = 0.25
 const CHORD_GROUP_THRESHOLD : float = 0.02
 
 # -- Scene references --------------------------------------------------------
-@onready var _pool        : Node3D            = $NotePool
 @onready var _chord_pool  : Node3D            = $ChordPool
 @onready var _highway     : Node3D            = $Highway
 @onready var _fretboard   : Node3D            = $Fretboard
@@ -84,8 +84,9 @@ const CHORD_GROUP_THRESHOLD : float = 0.02
 # -- State -------------------------------------------------------------------
 var _bridge              = null  # GoGuitarBridge instance (no static type — avoids parse errors when class is not yet registered)
 var _notes               : Array    = []
-var _next_idx            : int      = 0
-var _debug_strum_idx     : int      = 0   # pointer for strum-line debug printing
+var _events              : Array    = []
+var _next_event_idx      : int      = 0
+var _debug_strum_event_idx: int     = 0   # pointer for strum-line debug printing
 var _song_time           : float    = 0.0
 var _playing             : bool     = false
 var _shot_idx            : int      = 0
@@ -111,10 +112,6 @@ var _glow_cursor         : int      = 0
 var _lane_glow           : Array[float] = []
 var _active_window_min_fret : int = -1
 var _active_window_max_fret : int = -1
-
-## Per-string fret-change tracker for smart label logic on single notes.
-## -1 = no note has been spawned on this string yet.
-var _last_fret_per_string: Array[int] = [-1, -1, -1, -1, -1, -1]
 
 ## Chord repeat tracker: sorted "fret:string,..." signature of the last spawned chord.
 ## Empty string means no chord has been spawned yet.
@@ -142,7 +139,10 @@ func _ready() -> void:
 	print("MusicPlay: difficulty=%.0f%%" % difficulty_pct)
 	if _bridge.load_psarc_abs(selected_psarc_path):
 		_notes = _bridge.get_notes()
+		_last_chord_sig = ""
+		_events = _build_play_events(_notes)
 		print("MusicPlay: %d notes loaded, requesting audio stream..." % _notes.size())
+		print("MusicPlay: %d unified events built (single + chord)." % _events.size())
 		# -- Diagnostic: SNG info (difficulty level, start_time, capo, tuning).
 		var sng_info : Dictionary = _bridge.get_sng_info()
 		if not sng_info.is_empty():
@@ -272,78 +272,35 @@ func _process(delta: float) -> void:
 
 	# Push the authoritative audio time to all active notes/chords so their Z
 	# positions are computed directly from the audio clock (not accumulated delta).
-	_pool.tick(_song_time)
 	_chord_pool.tick(_song_time)
 
 	# ── Strum-line debug print ─────────────────────────────────────────────────
 	# Print each chord group the moment it crosses the strum line (song_time >= note.time).
-	while _debug_strum_idx < _notes.size():
-		var nd : Dictionary = _notes[_debug_strum_idx]
-		var dt : float      = float(nd.get("time", 0.0))
+	while _debug_strum_event_idx < _events.size():
+		var ev : Dictionary = _events[_debug_strum_event_idx]
+		var dt : float      = float(ev.get("time_start", 0.0))
 		if _song_time >= dt:
-			# Collect all notes sharing this timestamp.
-			var chord_notes : Array = [nd]
-			var nj : int = _debug_strum_idx + 1
-			while nj < _notes.size() \
-					and absf(float(_notes[nj].get("time", 0.0)) - dt) < CHORD_GROUP_THRESHOLD:
-				chord_notes.append(_notes[nj])
-				nj += 1
-			print("STRUM %dms | %s" % [int(_song_time * 1000), _chord_debug_str(chord_notes)])
-			_debug_strum_idx = nj
+			var event_notes : Array = ev.get("notes", [])
+			print("STRUM %dms | %s" % [int(_song_time * 1000), _chord_debug_str(event_notes)])
+			_debug_strum_event_idx += 1
 		else:
 			break
 
-	# ── Note / chord spawning ─────────────────────────────────────────────────
-	# Notes at the same timestamp (within CHORD_GROUP_THRESHOLD) are treated as
-	# a chord and routed to ChordPool; single notes go to NotePool.
-	while _next_idx < _notes.size():
-		var nd : Dictionary = _notes[_next_idx]
-		if float(nd["time"]) - _song_time > LEAD_TIME:
+	# ── Unified event spawning (single-note + chord container path) ───────────
+	while _next_event_idx < _events.size():
+		var ev : Dictionary = _events[_next_event_idx]
+		var t0 : float = float(ev.get("time_start", 0.0))
+		if t0 - _song_time > LEAD_TIME:
 			break
 
-		# Collect all notes at this timestamp.
-		var t0    : float = float(nd.get("time", 0.0))
-		var group : Array = [nd]
-		var nj    : int   = _next_idx + 1
-		while nj < _notes.size() \
-				and absf(float(_notes[nj].get("time", 0.0)) - t0) < CHORD_GROUP_THRESHOLD:
-			group.append(_notes[nj])
-			nj += 1
-
-		# Filter to valid frets (1–24); open strings and out-of-range are skipped.
-		var valid_notes : Array = []
-		for gn in group:
-			var f : int = int(gn.get("fret", 0))
-			var s : int = int(gn.get("string", 0))
-			if f >= 1 and f <= 24:
-				valid_notes.append({"fret": f, "string": s,
-					"duration": float(gn.get("duration", 0.25))})
-
-		if valid_notes.size() >= 2:
-			# ── Chord path ────────────────────────────────────────────────────
-			var sig          := _chord_signature(valid_notes)
-			var show_details : bool   = (sig != _last_chord_sig)
-			_last_chord_sig           = sig
-			# Chord name from the first note in the group.
-			var root_f : int    = int(valid_notes[0].get("fret", 0))
-			var root_s : int    = int(valid_notes[0].get("string", 0))
-			var chord_name : String = _get_note_name(root_f, root_s)
-			var dur : float = float(valid_notes[0].get("duration", 0.25))
-			_chord_pool.spawn_chord(valid_notes, t0, chord_name, show_details)
-
-		elif valid_notes.size() == 1:
-			# ── Single note path ──────────────────────────────────────────────
-			var vn   : Dictionary = valid_notes[0]
-			var f    : int   = int(vn.get("fret", 0))
-			var s    : int   = int(vn.get("string", 0))
-			var dur  : float = float(vn.get("duration", 0.25))
-			# Smart label: show fret number only when fret changes on this string.
-			var show_label : bool = (f != _last_fret_per_string[s])
-			if show_label:
-				_last_fret_per_string[s] = f
-			_pool.spawn_note(f, s, t0, dur, show_label)
-
-		_next_idx = nj
+		_chord_pool.spawn_event(
+			ev.get("notes", []),
+			t0,
+			String(ev.get("chord_name", "")),
+			bool(ev.get("show_details", false)),
+			String(ev.get("kind", "chord"))
+		)
+		_next_event_idx += 1
 
 	# Camera follows the center of the active fret range.
 	if _camera:
@@ -378,6 +335,67 @@ func _process(delta: float) -> void:
 
 
 # -- Helpers -----------------------------------------------------------------
+
+## Build unified play events from raw note dictionaries.
+## Each event contains:
+##  - time_start / time_end
+##  - hand_fret_start / hand_fret_end
+##  - notes[] (size 1 for single-note events, >1 for chords)
+##  - kind ("single" or "chord")
+func _build_play_events(src_notes: Array) -> Array:
+	var events: Array = []
+	var i: int = 0
+	while i < src_notes.size():
+		var nd : Dictionary = src_notes[i]
+		var t0 : float = float(nd.get("time", 0.0))
+		var group: Array = [nd]
+		var j: int = i + 1
+		while j < src_notes.size() \
+				and absf(float(src_notes[j].get("time", 0.0)) - t0) < CHORD_GROUP_THRESHOLD:
+			group.append(src_notes[j])
+			j += 1
+
+		var valid_notes: Array = []
+		var max_duration: float = 0.0
+		var min_fret: int = 999
+		for gn in group:
+			var f: int = int(gn.get("fret", 0))
+			var s: int = int(gn.get("string", 0))
+			if f < 1 or f > FRET_COUNT or s < 0 or s > 5:
+				continue
+			var dur: float = maxf(float(gn.get("duration", 0.25)), 0.0)
+			valid_notes.append({"fret": f, "string": s, "duration": dur})
+			max_duration = maxf(max_duration, dur)
+			min_fret = mini(min_fret, f)
+
+		if not valid_notes.is_empty():
+			var event_kind: String = "single" if valid_notes.size() == 1 else "chord"
+			var hand_start: int = maxi(min_fret - 1, 1)
+			var hand_end: int = mini(hand_start + 3, FRET_COUNT)
+			var chord_name: String = ""
+			var show_details: bool = false
+			if event_kind == "chord":
+				var sig := _chord_signature(valid_notes)
+				show_details = (sig != _last_chord_sig)
+				_last_chord_sig = sig
+				var root_f: int = int(valid_notes[0].get("fret", 0))
+				var root_s: int = int(valid_notes[0].get("string", 0))
+				chord_name = _get_note_name(root_f, root_s)
+
+			events.append({
+				"time_start": t0,
+				"time_end": t0 + max_duration,
+				"hand_fret_start": hand_start,
+				"hand_fret_end": hand_end,
+				"notes": valid_notes,
+				"kind": event_kind,
+				"chord_name": chord_name,
+				"show_details": show_details
+			})
+
+		i = j
+	return events
+
 
 func _take_screenshot(num: int) -> void:
 	await RenderingServer.frame_post_draw
@@ -443,40 +461,30 @@ func _update_fret_range_visuals() -> void:
 	if not is_instance_valid(_highway):
 		return
 
-	# Find the FIRST upcoming note (after current song time)
-	var first_note_fret: int = -1
-	var first_note_time: float = -1.0
-	var i: int = _glow_cursor
-	while i < _notes.size():
-		var nd: Dictionary = _notes[i]
-		var note_time: float = float(nd.get("time", -1.0))
-		if note_time > _song_time + FRET_RANGE_WINDOW:
-			break
-		if note_time > _song_time:
-			var f: int = int(nd.get("fret", 0))
-			if f >= 1 and f <= FRET_COUNT:
-				first_note_fret = f
-				first_note_time = note_time
-				break
-		i += 1
-
-	# Calculate 4-fret range: from (note_fret - 1) to (note_fret + 3)
-	# This matches ChartPlayer's hand position highlighting
+	# Find the FIRST upcoming unified event (after current song time).
+	# Start from _debug_strum_event_idx (first event not yet at the strum line)
+	# so we scan the notes currently visible on-screen, not 10+ seconds ahead.
 	var range_min_fret: int = -1
 	var range_max_fret: int = -1
-	
+	var i: int = _debug_strum_event_idx
+	while i < _events.size():
+		var ev: Dictionary = _events[i]
+		var event_time: float = float(ev.get("time_start", -1.0))
+		if event_time > _song_time + FRET_RANGE_WINDOW:
+			break
+		if event_time > _song_time:
+			range_min_fret = int(ev.get("hand_fret_start", -1))
+			range_max_fret = int(ev.get("hand_fret_end", -1))
+			break
+		i += 1
+
 	var targets: Array[float] = _zero_lane_array()
-	
-	if first_note_fret >= 1:
-		# Hand position: highlight 4 frets starting from (note_fret - 1)
-		# e.g., note at fret 5 → highlight frets 4, 5, 6, 7
-		range_min_fret = maxi(first_note_fret - 1, 1)
-		range_max_fret = mini(first_note_fret + 3, FRET_COUNT)
-		
-		# Set camera target to the note's fret
-		_camera_target_min_fret = first_note_fret
-		_camera_target_max_fret = first_note_fret
-		
+
+	if range_min_fret >= 1 and range_max_fret >= range_min_fret:
+		# Set camera target to the centre of the active hand range.
+		_camera_target_min_fret = range_min_fret
+		_camera_target_max_fret = range_max_fret
+
 		# Highlight lanes that overlap with the 4-fret range
 		for lane in LANE_COUNT:
 			var lane_min: int = 1 + lane * FRETS_PER_LANE

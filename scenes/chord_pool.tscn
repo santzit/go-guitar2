@@ -1,7 +1,11 @@
-[gd_scene load_steps=2 format=3 uid="uid://cchordpool01"]
+[gd_scene load_steps=3 format=3 uid="uid://cchordpool01"]
 
 [ext_resource type="Script" path="res://scripts/chord_pool.gd" id="1_poolscript"]
+[ext_resource type="PackedScene" uid="uid://cnotepool001" path="res://scenes/note_pool.tscn" id="2_notepool"]
 
 ; Pool of 64 chord container instances managed by chord_pool.gd.
+; NotePool is a child here so all note instances are owned by the chord system.
 [node name="ChordPool" type="Node3D"]
 script = ExtResource("1_poolscript")
+
+[node name="NotePool" parent="." instance=ExtResource("2_notepool")]

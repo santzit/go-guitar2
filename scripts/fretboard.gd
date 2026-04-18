@@ -1,4 +1,5 @@
 extends Node3D
+const ChartCommon = preload("res://scripts/common.gd")
 ## fretboard.gd  –  Drives per-string glow intensity via shader parameters,
 ## builds vertical fret-line markers at ChartPlayer fret positions, and
 ## places fret-number labels (1–24) below the lowest (purple) string.
@@ -8,21 +9,16 @@ extends Node3D
 ## Call set_string_glow() each frame from music_play.gd to light up the
 ## strings that have notes arriving within the glow window.
 
-const STRING_COUNT : int = 6
+## Mirrors ChartCommon.STRING_COUNT — kept local for brevity in this file.
+const STRING_COUNT : int = ChartCommon.STRING_COUNT
 
 ## Width of each fret-line quad in world units.
 ## Slightly wider than the highway shader lines to be clearly visible.
 const FRET_LINE_WIDTH  : float = 0.035
-## Y span of the fretboard: just above string 0 (Y≈2.75) to just below string 5 (Y≈0.15).
-const FRET_LINE_HEIGHT : float = 2.6
-## Y centre of the string span  = (2.7 + 0.2) / 2.
-const FRET_LINE_Y      : float = 1.45
 ## Z offset so fret lines sit just in front of the string cylinders (Z=0).
 const FRET_LINE_Z      : float = 0.03
 
-## Y position of string 5 (purple / high-e) in world units.
-const STRING5_Y        : float = 0.2
-## How far below string 5 the fret number labels are placed.
+## How far below the lowest string the fret-number labels are placed.
 const FRET_NUM_Y_OFFSET: float = 0.22
 ## Pixel size for the fret-number Label3D nodes (world units per pixel).
 const FRET_NUM_PIXEL_SIZE: float = 0.005
@@ -68,25 +64,32 @@ func _build_fret_lines() -> void:
 	mat.emission              = Color(0.9, 0.9, 1.0, 1.0)
 	mat.emission_energy_multiplier = 0.8
 
+	# Derive height and Y-centre from ChartCommon so fret lines always span
+	# exactly the string range defined in common.gd (STRING_0_Y … string 5 Y).
+	var top_sep    : float = ChartCommon.string_world_y(0) + ChartCommon.STRING_SLOT_HEIGHT * 0.1
+	var bot_sep    : float = ChartCommon.string_world_y(STRING_COUNT - 1) - ChartCommon.STRING_SLOT_HEIGHT * 0.1
+	var line_height: float = top_sep - bot_sep
+	var line_y     : float = (top_sep + bot_sep) * 0.5
+
 	# Fret lines for separators 1 … FRET_COUNT (omitting 0 which is the nut/edge).
 	for i in range(1, ChartCommon.FRET_COUNT + 1):
 		var x := ChartCommon.fret_separator_world_x(i)
 		var plane := PlaneMesh.new()
-		plane.size        = Vector2(FRET_LINE_WIDTH, FRET_LINE_HEIGHT)
+		plane.size        = Vector2(FRET_LINE_WIDTH, line_height)
 		plane.orientation = PlaneMesh.FACE_Z
 		var mi := MeshInstance3D.new()
 		mi.name     = "FretLine%d" % i
 		mi.mesh     = plane
 		mi.set_surface_override_material(0, mat)
-		mi.position = Vector3(x, FRET_LINE_Y, FRET_LINE_Z)
+		mi.position = Vector3(x, line_y, FRET_LINE_Z)
 		add_child(mi)
 
 
-## Place a Label3D with the fret number (1–24) below the purple string,
+## Place a Label3D with the fret number (1–24) below the lowest string,
 ## centred horizontally in each fret slot using ChartPlayer fret-mid positions.
 func _build_fret_numbers() -> void:
 	var font := load("res://assets/fonts/Inter_18pt-Bold.ttf") as FontFile
-	var label_y := STRING5_Y - FRET_NUM_Y_OFFSET
+	var label_y := ChartCommon.string_world_y(STRING_COUNT - 1) - FRET_NUM_Y_OFFSET
 
 	for fret in range(1, ChartCommon.FRET_COUNT + 1):
 		# fret_mid_world_x(n) returns center between fret n and n+1

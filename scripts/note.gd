@@ -1,4 +1,5 @@
 extends Node3D
+const ChartCommon = preload("res://scripts/common.gd")
 ## note.gd  –  behaviour for a single pooled note with a static 3D NoteMarker mesh.
 ##
 ## All coordinate formulas live in scripts/common.gd (class ChartCommon) so they
@@ -123,6 +124,8 @@ func tick(p_song_time: float) -> void:
 
 
 func deactivate() -> void:
+	if not is_active:
+		return   # already deactivated — guard against double-deactivation from pool
 	is_active    = false
 	visible      = false
 	_miss_until  = -1.0
