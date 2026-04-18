@@ -85,3 +85,10 @@ jobs:
             echo "PATH symlink version mismatch: $GODOT_PATH_VERSION"
             exit 1
           fi
+
+      - name: Import Godot project (generate .godot/extension_list.cfg and imported assets)
+        run: |
+          Xvfb :99 -screen 0 1280x720x24 &
+          sleep 2
+          DISPLAY=:99 godot --path "$GITHUB_WORKSPACE" --import --headless
+          echo "Godot import complete"

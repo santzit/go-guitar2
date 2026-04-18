@@ -1,5 +1,8 @@
-# Godot 4+ specific ignores
+# Godot 4+ specific ignores — keep extension_list.cfg committed so GDExtension
+# classes (RocksmithBridge, AudioEngine) register in headless/CI runs without
+# requiring a full editor import first.
 .godot/
+!.godot/extension_list.cfg
 .nomedia
 *.uid
 
