@@ -59,9 +59,12 @@ layout_mode = 2
 size_flags_vertical = 3
 horizontal_scroll_mode = 2
 
-[node name="Strips" type="HBoxContainer" parent="Panel/MarginContainer/VBoxContainer/ScrollContainer"]
+[node name="Centerer" type="CenterContainer" parent="Panel/MarginContainer/VBoxContainer/ScrollContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
+
+[node name="Strips" type="HBoxContainer" parent="Panel/MarginContainer/VBoxContainer/ScrollContainer/Centerer"]
+layout_mode = 2
 theme_override_constants/separation = 12
 
 [node name="ButtonRow" type="HBoxContainer" parent="Panel/MarginContainer/VBoxContainer"]

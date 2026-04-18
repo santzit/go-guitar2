@@ -12,7 +12,7 @@ const _MixerStripScene: PackedScene = preload("res://scenes/mixer_strip.tscn")
 const GAIN_MIN_DB: float = -60.0
 const GAIN_MAX_DB: float = 6.0
 
-@onready var _strips_container: HBoxContainer = $Panel/MarginContainer/VBoxContainer/ScrollContainer/Strips
+@onready var _strips_container: HBoxContainer = $Panel/MarginContainer/VBoxContainer/ScrollContainer/Centerer/Strips
 
 ## Parallel arrays built in _ready(); index = bus index (0–8).
 var _sliders: Array[VSlider] = []
@@ -28,7 +28,7 @@ func _ready() -> void:
 	for i in _GameStateScript.BUS_COUNT:
 		var strip := _MixerStripScene.instantiate() as VBoxContainer
 		var name_lbl := strip.get_node("BusName") as Label
-		var slider := strip.get_node("VolumeSlider") as VSlider
+		var slider := strip.get_node("SliderRow/VolumeSlider") as VSlider
 		var mute_btn := strip.get_node("MuteButton") as Button
 
 		name_lbl.text = _GameStateScript.BUS_NAMES[i]

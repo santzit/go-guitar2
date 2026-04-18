@@ -12,7 +12,69 @@ theme_override_font_sizes/font_size = 14
 text = "BUS"
 horizontal_alignment = 1
 
-[node name="VolumeSlider" type="VSlider" parent="."]
+[node name="SliderRow" type="HBoxContainer" parent="."]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 3
+theme_override_constants/separation = 6
+
+[node name="Scale" type="VBoxContainer" parent="SliderRow"]
+custom_minimum_size = Vector2(32, 0)
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 0
+
+[node name="ScaleTopSpacer" type="Control" parent="SliderRow/Scale"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Db6" type="Label" parent="SliderRow/Scale"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "+6"
+horizontal_alignment = 2
+
+[node name="Db0" type="Label" parent="SliderRow/Scale"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "0"
+horizontal_alignment = 2
+
+[node name="DbM12" type="Label" parent="SliderRow/Scale"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "-12"
+horizontal_alignment = 2
+
+[node name="DbM24" type="Label" parent="SliderRow/Scale"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "-24"
+horizontal_alignment = 2
+
+[node name="DbM36" type="Label" parent="SliderRow/Scale"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "-36"
+horizontal_alignment = 2
+
+[node name="DbM48" type="Label" parent="SliderRow/Scale"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "-48"
+horizontal_alignment = 2
+
+[node name="DbM60" type="Label" parent="SliderRow/Scale"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+text = "-60"
+horizontal_alignment = 2
+
+[node name="ScaleBottomSpacer" type="Control" parent="SliderRow/Scale"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="VolumeSlider" type="VSlider" parent="SliderRow"]
 custom_minimum_size = Vector2(0, 280)
 layout_mode = 2
 size_flags_vertical = 3
