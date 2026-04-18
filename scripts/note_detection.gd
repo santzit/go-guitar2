@@ -10,17 +10,17 @@ func build_play_events(
 	last_chord_sig: String
 ) -> Dictionary:
 	var events: Array = []
-	var i: int = 0
+	var note_index: int = 0
 	var next_chord_sig: String = last_chord_sig
-	while i < src_notes.size():
-		var nd : Dictionary = src_notes[i]
+	while note_index < src_notes.size():
+		var nd : Dictionary = src_notes[note_index]
 		var t0 : float = float(nd.get("time", 0.0))
 		var group: Array = [nd]
-		var j: int = i + 1
-		while j < src_notes.size() \
-				and absf(float(src_notes[j].get("time", 0.0)) - t0) < chord_group_threshold:
-			group.append(src_notes[j])
-			j += 1
+		var group_end_index: int = note_index + 1
+		while group_end_index < src_notes.size() \
+				and absf(float(src_notes[group_end_index].get("time", 0.0)) - t0) < chord_group_threshold:
+			group.append(src_notes[group_end_index])
+			group_end_index += 1
 
 		var valid_notes: Array = []
 		var max_duration: float = 0.0
@@ -60,7 +60,7 @@ func build_play_events(
 				"show_details": show_details
 			})
 
-		i = j
+		note_index = group_end_index
 
 	return {
 		"events": events,

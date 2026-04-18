@@ -28,6 +28,7 @@ Exit code `0` = all tests passed.  Exit code `1` = one or more failures.
 | File | What it tests |
 |---|---|
 | `tests/test_gdextension.gd` | GDExtension class registration, PSARC parsing, note field validation, AudioEngine WEM decode |
+| `tests/test_note_detection_score.gd` | NoteDetection event grouping/chord handling and Score ratio math |
 
 ## DLC files
 
