@@ -74,9 +74,49 @@ func detect_strings(
 	if global_max <= 0.0:
 		return _silent_result()
 
+	var bin_hz := float(sr) / float(n)
 	var result: Array[Dictionary] = []
 	for s in 6:
-		result.append(_detect_one_string(mags, s, min_bin, sr, n, global_max))
+		# Map this string's Hz range to indices within the `mags` array.
+		var lo_idx := maxi(0,             int(floor(OPEN_STRING_HZ[s]  / bin_hz)) - min_bin)
+		var hi_idx := mini(mags.size()-1, int(ceil( STRING_FREQ_MAX[s] / bin_hz)) - min_bin)
+		if lo_idx >= hi_idx:
+			result.append({"string_idx": s, "active": false, "hz": 0.0, "midi": 0, "note": "", "fret": -1})
+			continue
+
+		# Find the strongest spectral bin in this string's band.
+		var best_mag := 0.0
+		var best_idx := lo_idx
+		for b in range(lo_idx, hi_idx + 1):
+			if mags[b] > best_mag:
+				best_mag = mags[b]
+				best_idx = b
+
+		if best_mag < global_max * STRING_ACTIVE_THRESHOLD:
+			result.append({"string_idx": s, "active": false, "hz": 0.0, "midi": 0, "note": "", "fret": -1})
+			continue
+
+		# Parabolic interpolation around the peak bin for sub-bin accuracy.
+		var precise_idx := float(best_idx)
+		if best_idx > 0 and best_idx < mags.size() - 1:
+			var alpha := mags[best_idx - 1]
+			var beta  := mags[best_idx]
+			var gamma := mags[best_idx + 1]
+			var denom := alpha - 2.0 * beta + gamma
+			if abs(denom) > 1e-12:
+				precise_idx += 0.5 * (alpha - gamma) / denom
+
+		var hz   := (precise_idx + float(min_bin)) * bin_hz
+		var midi := roundi(69.0 + 12.0 * log(hz / 440.0) / log(2.0))
+		var fret := clampi(midi - OPEN_STRING_MIDI[s], 0, MAX_FRET)
+		result.append({
+			"string_idx": s,
+			"active":     true,
+			"hz":         hz,
+			"midi":       midi,
+			"note":       _midi_note_name(midi),
+			"fret":       fret,
+		})
 	return result
 
 
@@ -84,62 +124,8 @@ func detect_strings(
 func _silent_result() -> Array[Dictionary]:
 	var r: Array[Dictionary] = []
 	for s in 6:
-		r.append({
-			"string_idx": s, "active": false,
-			"hz": 0.0, "midi": 0, "note": "", "fret": -1,
-		})
+		r.append({"string_idx": s, "active": false, "hz": 0.0, "midi": 0, "note": "", "fret": -1})
 	return r
-
-
-## Detect the dominant pitch for string `s` within its frequency band.
-## Uses parabolic interpolation for sub-bin frequency accuracy.
-func _detect_one_string(
-		mags:       Array[float],
-		s:          int,
-		min_bin:    int,
-		sr:         int,
-		n:          int,
-		global_max: float) -> Dictionary:
-	var silent := {"string_idx": s, "active": false, "hz": 0.0, "midi": 0, "note": "", "fret": -1}
-	var bin_hz  := float(sr) / float(n)
-	# Map this string's Hz range to indices within the `mags` array.
-	var lo_idx  := maxi(0,             int(floor(OPEN_STRING_HZ[s]   / bin_hz)) - min_bin)
-	var hi_idx  := mini(mags.size()-1, int(ceil( STRING_FREQ_MAX[s]  / bin_hz)) - min_bin)
-	if lo_idx >= hi_idx:
-		return silent
-
-	# Find the strongest spectral bin in this string's band.
-	var best_mag := 0.0
-	var best_idx := lo_idx
-	for b in range(lo_idx, hi_idx + 1):
-		if mags[b] > best_mag:
-			best_mag = mags[b]
-			best_idx = b
-
-	if best_mag < global_max * STRING_ACTIVE_THRESHOLD:
-		return silent
-
-	# Parabolic interpolation around the peak bin for sub-bin accuracy.
-	var precise_idx := float(best_idx)
-	if best_idx > 0 and best_idx < mags.size() - 1:
-		var alpha := mags[best_idx - 1]
-		var beta  := mags[best_idx]
-		var gamma := mags[best_idx + 1]
-		var denom := alpha - 2.0 * beta + gamma
-		if abs(denom) > 1e-12:
-			precise_idx += 0.5 * (alpha - gamma) / denom
-
-	var hz   := (precise_idx + float(min_bin)) * bin_hz
-	var midi := roundi(69.0 + 12.0 * log(hz / 440.0) / log(2.0))
-	var fret := clampi(midi - OPEN_STRING_MIDI[s], 0, MAX_FRET)
-	return {
-		"string_idx": s,
-		"active":     true,
-		"hz":         hz,
-		"midi":       midi,
-		"note":       _midi_note_name(midi),
-		"fret":       fret,
-	}
 
 
 ## Root-mean-square amplitude over `n` samples starting at `offset`.
