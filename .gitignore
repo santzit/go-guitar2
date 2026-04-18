@@ -1,8 +1,12 @@
-# Godot 4+ specific ignores — keep extension_list.cfg committed so GDExtension
-# classes (RocksmithBridge, AudioEngine) register in headless/CI runs without
-# requiring a full editor import first.
-.godot/
-!.godot/extension_list.cfg
+# Godot 4+ — commit extension_list.cfg and imported/ so a fresh clone works
+# without running "godot --import" first.  Without imported/ the font preload
+# in chord.gd fails at parse time and all texture/mesh assets are unavailable.
+# Exclude only machine-local editor caches that should never be committed.
+.godot/editor/
+.godot/global_script_class_cache.cfg
+.godot/scene_groups_cache.cfg
+.godot/uid_cache.bin
+.godot/.gdignore
 .nomedia
 *.uid
 
