@@ -52,8 +52,7 @@ const START_Z          : float = -20.0
 const STRUM_Z          : float =  0.0
 const TRAVEL_SPEED     : float =  2.0   # must match note.gd and music_play.gd
 const MISS_HOLD        : float =  1.0   # seconds to keep visible after strum
-## Chord events span this many frets (first note fret + 3 more).
-const BORDER_FRET_SPAN : int   = 4
+
 
 var time_offset    : float = 0.0
 var is_active      : bool  = false
@@ -101,11 +100,13 @@ func setup(
 		return
 
 	# ── Container world position (for border / label anchor) ──────────────────
-	# Use the actual fret spread of the notes so the box is always centered on
-	# the chord shape (notes use fret-1 convention, so box edges follow the same).
-	var fret_span : int = 1 if is_single_event else maxi(max_fret - min_fret + 1, 1)
+	# Both edges are computed directly from fret_separator_world_x so they land
+	# on exactly the same separator line positions drawn by fretboard.gd and
+	# the highway shader.
+	# left_x  = separator to the LEFT of the leftmost note's slot  (wire min_fret-1)
+	# right_x = separator to the RIGHT of the rightmost note's slot (wire max_fret)
 	var left_x   : float = ChartCommon.fret_separator_world_x(min_fret - 1)
-	var right_x  : float = ChartCommon.fret_separator_world_x(min_fret - 1 + fret_span)
+	var right_x  : float = ChartCommon.fret_separator_world_x(max_fret)
 	# top_y = separator above the topmost string used.
 	# bot_y = separator below the last string (highway floor) — constant so every
 	# chord box bottom always touches the highway fret-separator lines.
