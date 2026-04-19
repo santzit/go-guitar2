@@ -14,7 +14,7 @@ version = "0.1.0"
 edition = "2021"
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 # Godot integration
@@ -29,3 +29,7 @@ rtrb             = "0.3"
 thread-priority  = "1.1"
 # CPAL audio I/O
 cpal             = "0.15"
+
+[build-dependencies]
+# Used to compile q_bridge.cpp when cycfi/q headers are present.
+cc               = "1"
