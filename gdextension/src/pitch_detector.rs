@@ -52,11 +52,85 @@ const MIN_PERIODICITY: f32 = 0.6;
 /// Q hysteresis threshold in dB (negative → silence gating).
 const HYSTERESIS_DB: f32 = -40.0;
 
+// ── Biquad bandpass filter ────────────────────────────────────────────────────
+
+/// Second-order IIR bandpass filter (Audio EQ Cookbook — constant 0 dB peak gain).
+///
+/// Designed with:
+///   center_hz = geometric mean of the string's min/max frequency
+///   bw_hz     = max_hz − min_hz  (so Q = center / bandwidth ≈ 0.58 per string)
+///
+/// Direct Form I:
+///   y[n] = B0·x[n] + B2·x[n-2] − A1·y[n-1] − A2·y[n-2]
+///   (B1 = 0 for this topology)
+struct BiquadBandpass {
+    b0: f32,
+    b2: f32,   // b1 is always 0 for this bandpass topology
+    a1: f32,
+    a2: f32,
+    x1: f32,
+    x2: f32,
+    y1: f32,
+    y2: f32,
+}
+
+impl BiquadBandpass {
+    /// Design a bandpass biquad with centre `center_hz` and bandwidth `bw_hz`.
+    ///
+    /// From the Audio EQ Cookbook (R. Bristow-Johnson):
+    ///   w0    = 2π · center_hz / fs
+    ///   alpha = sin(w0) / (2Q)        where Q = center / bw
+    ///   b0    =  sin(w0)/2,  b1 = 0,  b2 = −sin(w0)/2
+    ///   a0    =  1 + alpha,  a1 = −2·cos(w0),  a2 = 1 − alpha
+    fn new(center_hz: f32, bw_hz: f32, sample_rate: u32) -> Self {
+        use std::f32::consts::PI;
+        let fs    = sample_rate as f32;
+        let w0    = 2.0 * PI * center_hz / fs;
+        let q     = (center_hz / bw_hz).max(0.1);  // guard against zero bandwidth
+        let alpha = w0.sin() / (2.0 * q);
+
+        let b0_raw =  w0.sin() * 0.5;
+        let b2_raw = -w0.sin() * 0.5;
+        let a0_raw =  1.0 + alpha;
+        let a1_raw = -2.0 * w0.cos();
+        let a2_raw =  1.0 - alpha;
+
+        Self {
+            b0: b0_raw / a0_raw,
+            b2: b2_raw / a0_raw,
+            a1: a1_raw / a0_raw,
+            a2: a2_raw / a0_raw,
+            x1: 0.0, x2: 0.0,
+            y1: 0.0, y2: 0.0,
+        }
+    }
+
+    /// Process one sample through the filter.
+    #[inline]
+    fn process(&mut self, x: f32) -> f32 {
+        let y = self.b0 * x
+              + self.b2 * self.x2
+              - self.a1 * self.y1
+              - self.a2 * self.y2;
+        self.x2 = self.x1;
+        self.x1 = x;
+        self.y2 = self.y1;
+        self.y1 = y;
+        y
+    }
+}
+
 // ── Per-string detector ───────────────────────────────────────────────────────
 
-/// Owns one `QPitchDetector` C++ handle (non-null invariant after construction).
+/// Owns one `QPitchDetector` C++ handle and a matched bandpass pre-filter.
+///
+/// Each incoming sample is first passed through `bandpass` (which rejects
+/// frequencies outside the string's range) before being forwarded to the Q
+/// pitch detector.  This reduces cross-string false detections significantly
+/// when multiple strings sound simultaneously.
 struct StringDetector {
-    raw: *mut q_ffi::QPitchDetector,
+    raw:      *mut q_ffi::QPitchDetector,
+    bandpass: BiquadBandpass,
 }
 
 // SAFETY: `QPitchDetector` is accessed only from one thread at a time.
@@ -71,14 +145,21 @@ impl StringDetector {
         if raw.is_null() {
             None
         } else {
-            Some(Self { raw })
+            let center = (min_hz * max_hz).sqrt();
+            let bw     = max_hz - min_hz;
+            Some(Self {
+                raw,
+                bandpass: BiquadBandpass::new(center, bw, sample_rate),
+            })
         }
     }
 
-    /// Feed one sample; returns `true` when a new pitch estimate is ready.
+    /// Bandpass-filter the sample, then feed to the Q pitch detector.
+    /// Returns `true` when a new pitch estimate is ready.
     #[inline]
-    fn process(&self, sample: f32) -> bool {
-        unsafe { q_ffi::q_pd_process(self.raw, sample) }
+    fn process(&mut self, sample: f32) -> bool {
+        let filtered = self.bandpass.process(sample);
+        unsafe { q_ffi::q_pd_process(self.raw, filtered) }
     }
 
     /// Most recent detected frequency in Hz (also refreshes cached periodicity).
@@ -157,7 +238,7 @@ impl GuitarPitchDetector {
     pub fn process(&mut self, sample: f32) -> Option<DetectionResult> {
         let mut best: Option<DetectionResult> = None;
 
-        for (idx, det) in self.detectors.iter().enumerate() {
+        for (idx, det) in self.detectors.iter_mut().enumerate() {
             if det.process(sample) {
                 let freq = det.frequency();
                 let peri = det.periodicity();
