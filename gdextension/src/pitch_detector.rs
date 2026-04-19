@@ -191,6 +191,12 @@ impl GuitarPitchDetector {
     }
 }
 
+/// Convert 0-based internal string index (0 = low E) to 1-based guitar string number (6 = low E).
+#[inline]
+fn to_string_number(idx: usize) -> i64 {
+    (6 - idx) as i64
+}
+
 // ── Godot GDExtension class ───────────────────────────────────────────────────
 
 /// **PitchDetector** — Godot class for 6-string guitar pitch detection.
@@ -235,7 +241,7 @@ impl PitchDetector {
     /// Returns `true` on success.  Safe to call multiple times (restarts detector).
     #[func]
     pub fn start(&mut self, sample_rate: i32) -> bool {
-        let sr = (sample_rate.max(8_000)) as u32;
+        let sr = sample_rate.clamp(8_000, 192_000) as u32;
         match GuitarPitchDetector::new(sr) {
             Some(d) => {
                 self.detector = Some(d);
@@ -287,9 +293,7 @@ impl PitchDetector {
             let s = i16::from_le_bytes([chunk[0], chunk[1]]) as f32 / 32_768.0;
             if let Some(r) = det.process(s) {
                 let mut d = Dictionary::new();
-                // Expose 1-based string number: string 6 (low E) is idx 0 → string 6,
-                // string 1 (high e) is idx 5 → string 1.
-                d.set("string",      (6 - r.string_index) as i64);
+                d.set("string",      to_string_number(r.string_index));
                 d.set("frequency",   r.frequency);
                 d.set("periodicity", r.periodicity);
                 events.push(&d);
@@ -317,7 +321,7 @@ impl PitchDetector {
             }
         };
         d.set("detected",    r.detected);
-        d.set("string",      (6 - r.string_index) as i64);
+        d.set("string",      to_string_number(r.string_index));
         d.set("frequency",   r.frequency);
         d.set("periodicity", r.periodicity);
         d
@@ -333,7 +337,7 @@ impl PitchDetector {
         let mut out = Array::new();
         for (idx, ((min, max), name)) in STRING_RANGES.iter().zip(STRING_NAMES.iter()).enumerate() {
             let mut d = Dictionary::new();
-            d.set("string",  (6 - idx) as i64);
+            d.set("string",  to_string_number(idx));
             d.set("name",    GString::from(*name));
             d.set("min_hz",  *min);
             d.set("max_hz",  *max);

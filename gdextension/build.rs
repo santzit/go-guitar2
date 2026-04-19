@@ -83,9 +83,8 @@ fn main() {
         println!("cargo:rerun-if-changed=extern/q/include");
         println!("cargo:rerun-if-changed=extern/infra/include");
     } else {
-        println!("cargo:warning=cycfi/q submodules not found — \
-                  pitch detection disabled.  Run: \
-                  git submodule update --init --recursive");
+        println!("cargo:warning=cycfi/q submodules not found — pitch detection disabled. \
+                  Run: git submodule update --init --recursive");
     }
 
     // Re-run if libraries change.
