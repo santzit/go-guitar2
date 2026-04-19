@@ -1,0 +1,118 @@
+name: Build GDExtension (Linux + Windows)
+
+# Build the Rust GDExtension for Linux and Windows, then commit
+# both binaries back to gdextension/bin/ on the same branch.
+# Both targets are always built together in a single job so the
+# committed binaries are always in sync.
+
+on:
+  push:
+    branches:
+      - main
+      - 'copilot/**'
+      - 'feature/**'
+    paths:
+      - 'gdextension/**'
+      - '.github/workflows/build-gdextension.yml'
+  pull_request:
+    paths:
+      - 'gdextension/**'
+      - '.github/workflows/build-gdextension.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed to push the built binaries back
+
+jobs:
+  build:
+    name: Build Linux .so + Windows .dll
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── Checkout ────────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Full history so we can commit back cleanly.
+          fetch-depth: 0
+          # Use the default GITHUB_TOKEN — write permission is granted above.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── Rust toolchain ───────────────────────────────────────────────────────
+      - name: Set up Rust (stable + Windows GNU target)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-gnu
+
+      # ── Cache Cargo registry / build artefacts ───────────────────────────────
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-registry-${{ hashFiles('gdextension/Cargo.lock') }}
+          restore-keys: cargo-registry-
+
+      - name: Cache Cargo build (Linux)
+        uses: actions/cache@v4
+        with:
+          path: gdextension/target/release
+          key: cargo-build-linux-${{ hashFiles('gdextension/Cargo.lock', 'gdextension/src/**') }}
+          restore-keys: cargo-build-linux-
+
+      - name: Cache Cargo build (Windows)
+        uses: actions/cache@v4
+        with:
+          path: gdextension/target/x86_64-pc-windows-gnu/release
+          key: cargo-build-windows-${{ hashFiles('gdextension/Cargo.lock', 'gdextension/src/**') }}
+          restore-keys: cargo-build-windows-
+
+      # ── System dependencies ──────────────────────────────────────────────────
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            libasound2-dev \
+            libvorbis-dev \
+            libogg-dev \
+            g++-mingw-w64-x86-64 \
+            mingw-w64-tools
+
+      # ── Build: Linux ─────────────────────────────────────────────────────────
+      - name: Build Linux (.so)
+        working-directory: gdextension
+        run: cargo build --release
+
+      # ── Build: Windows (cross-compile) ────────────────────────────────────────
+      - name: Build Windows (.dll)
+        working-directory: gdextension
+        env:
+          # MinGW linker is pre-configured in .cargo/config.toml;
+          # set CC/CXX explicitly so the `cc` crate picks up the right toolchain.
+          CC_x86_64_pc_windows_gnu: x86_64-w64-mingw32-gcc
+          CXX_x86_64_pc_windows_gnu: x86_64-w64-mingw32-g++
+          AR_x86_64_pc_windows_gnu: x86_64-w64-mingw32-ar
+        run: cargo build --release --target x86_64-pc-windows-gnu
+
+      # ── Collect binaries ─────────────────────────────────────────────────────
+      - name: Copy binaries to gdextension/bin/
+        run: |
+          cp gdextension/target/release/libgodot_goguitar_rs.so \
+             gdextension/bin/libgodot_goguitar_rs.so
+          cp gdextension/target/x86_64-pc-windows-gnu/release/godot_goguitar_rs.dll \
+             gdextension/bin/godot_goguitar_rs.dll
+
+      # ── Commit & push ────────────────────────────────────────────────────────
+      - name: Commit built binaries
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add gdextension/bin/libgodot_goguitar_rs.so \
+                  gdextension/bin/godot_goguitar_rs.dll
+          if git diff --cached --quiet; then
+            echo "Binaries unchanged — nothing to commit."
+          else
+            git commit -m "chore: update pre-built GDExtension binaries (Linux + Windows) [skip ci]"
+            git push
+          fi
