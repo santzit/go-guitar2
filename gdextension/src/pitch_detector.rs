@@ -30,95 +30,16 @@
 
 use godot::prelude::*;
 use crate::q_ffi;
+use crate::bandpass::{BiquadBandpass, STRING_RANGES, STRING_NAMES};
 
 // ── String frequency ranges (Standard E, frets 0–24) ─────────────────────────
-
-/// `(min_hz, max_hz)` per string.  Index 0 = String 6 (low E2), index 5 = String 1 (high e4).
-pub const STRING_RANGES: [(f32, f32); 6] = [
-    ( 73.4,  350.0),  // String 6 — E2  (low E)  : 82.4 Hz open, safety margin below + above
-    ( 98.0,  470.0),  // String 5 — A2            : 110.0 Hz open
-    (130.8,  620.0),  // String 4 — D3            : 146.8 Hz open
-    (174.6,  830.0),  // String 3 — G3            : 196.0 Hz open
-    (220.0, 1050.0),  // String 2 — B3            : 246.9 Hz open
-    (293.7, 1400.0),  // String 1 — E4  (high e)  : 329.6 Hz open
-];
-
-/// Standard open-string names, index 0 = String 6.
-pub const STRING_NAMES: [&str; 6] = ["E2 (Low E)", "A2", "D3", "G3", "B3", "E4 (High e)"];
+// (defined in crate::bandpass — imported above)
 
 /// Minimum periodicity (confidence) required to report a detection.
 const MIN_PERIODICITY: f32 = 0.6;
 
 /// Q hysteresis threshold in dB (negative → silence gating).
 const HYSTERESIS_DB: f32 = -40.0;
-
-// ── Biquad bandpass filter ────────────────────────────────────────────────────
-
-/// Second-order IIR bandpass filter (Audio EQ Cookbook — constant 0 dB peak gain).
-///
-/// Designed with:
-///   center_hz = geometric mean of the string's min/max frequency
-///   bw_hz     = max_hz − min_hz  (so Q = center / bandwidth ≈ 0.58 per string)
-///
-/// Direct Form I:
-///   y[n] = B0·x[n] + B2·x[n-2] − A1·y[n-1] − A2·y[n-2]
-///   (B1 = 0 for this topology)
-struct BiquadBandpass {
-    b0: f32,
-    b2: f32,   // b1 is always 0 for this bandpass topology
-    a1: f32,
-    a2: f32,
-    x1: f32,
-    x2: f32,
-    y1: f32,
-    y2: f32,
-}
-
-impl BiquadBandpass {
-    /// Design a bandpass biquad with centre `center_hz` and bandwidth `bw_hz`.
-    ///
-    /// From the Audio EQ Cookbook (R. Bristow-Johnson):
-    ///   w0    = 2π · center_hz / fs
-    ///   alpha = sin(w0) / (2Q)        where Q = center / bw
-    ///   b0    =  sin(w0)/2,  b1 = 0,  b2 = −sin(w0)/2
-    ///   a0    =  1 + alpha,  a1 = −2·cos(w0),  a2 = 1 − alpha
-    fn new(center_hz: f32, bw_hz: f32, sample_rate: u32) -> Self {
-        use std::f32::consts::PI;
-        let fs    = sample_rate as f32;
-        let w0    = 2.0 * PI * center_hz / fs;
-        let q     = (center_hz / bw_hz).max(0.1);  // guard against zero bandwidth
-        let alpha = w0.sin() / (2.0 * q);
-
-        let b0_raw =  w0.sin() * 0.5;
-        let b2_raw = -w0.sin() * 0.5;
-        let a0_raw =  1.0 + alpha;
-        let a1_raw = -2.0 * w0.cos();
-        let a2_raw =  1.0 - alpha;
-
-        Self {
-            b0: b0_raw / a0_raw,
-            b2: b2_raw / a0_raw,
-            a1: a1_raw / a0_raw,
-            a2: a2_raw / a0_raw,
-            x1: 0.0, x2: 0.0,
-            y1: 0.0, y2: 0.0,
-        }
-    }
-
-    /// Process one sample through the filter.
-    #[inline]
-    fn process(&mut self, x: f32) -> f32 {
-        let y = self.b0 * x
-              + self.b2 * self.x2
-              - self.a1 * self.y1
-              - self.a2 * self.y2;
-        self.x2 = self.x1;
-        self.x1 = x;
-        self.y2 = self.y1;
-        self.y1 = y;
-        y
-    }
-}
 
 // ── Per-string detector ───────────────────────────────────────────────────────
 
@@ -145,11 +66,9 @@ impl StringDetector {
         if raw.is_null() {
             None
         } else {
-            let center = (min_hz * max_hz).sqrt();
-            let bw     = max_hz - min_hz;
             Some(Self {
                 raw,
-                bandpass: BiquadBandpass::new(center, bw, sample_rate),
+                bandpass: BiquadBandpass::for_string(min_hz, max_hz, sample_rate),
             })
         }
     }
@@ -362,8 +281,8 @@ impl PitchDetector {
     ///   "periodicity": float # confidence [0.0, 1.0] }
     /// ```
     #[func]
-    pub fn process_samples(&mut self, data: PackedByteArray) -> Array<Dictionary> {
-        let mut events = Array::new();
+    pub fn process_samples(&mut self, data: PackedByteArray) -> Array<Variant> {
+        let mut events: Array<Variant> = Array::new();
         let det = match self.detector.as_mut() {
             Some(d) => d,
             None    => return events,
@@ -373,11 +292,11 @@ impl PitchDetector {
         for chunk in raw.chunks_exact(2) {
             let s = i16::from_le_bytes([chunk[0], chunk[1]]) as f32 / 32_768.0;
             if let Some(r) = det.process(s) {
-                let mut d = Dictionary::new();
-                d.set("string",      to_string_number(r.string_index));
-                d.set("frequency",   r.frequency);
-                d.set("periodicity", r.periodicity);
-                events.push(&d);
+                let mut d: Dictionary<GString, Variant> = Dictionary::new();
+                d.set(&GString::from("string"),      to_string_number(r.string_index));
+                d.set(&GString::from("frequency"),   r.frequency);
+                d.set(&GString::from("periodicity"), r.periodicity);
+                events.push(&d.to_variant());
             }
         }
         events
@@ -389,22 +308,22 @@ impl PitchDetector {
     /// Keys: `"detected"` (bool), `"string"` (int 1–6), `"frequency"` (float),
     ///       `"periodicity"` (float).
     #[func]
-    pub fn get_last_result(&self) -> Dictionary {
-        let mut d = Dictionary::new();
+    pub fn get_last_result(&self) -> Dictionary<GString, Variant> {
+        let mut d: Dictionary<GString, Variant> = Dictionary::new();
         let r = match self.detector.as_ref() {
             Some(det) => det.last_result(),
             None => {
-                d.set("detected",    false);
-                d.set("string",      0i64);
-                d.set("frequency",   0.0f32);
-                d.set("periodicity", 0.0f32);
+                d.set(&GString::from("detected"),    false);
+                d.set(&GString::from("string"),      0i64);
+                d.set(&GString::from("frequency"),   0.0f32);
+                d.set(&GString::from("periodicity"), 0.0f32);
                 return d;
             }
         };
-        d.set("detected",    r.detected);
-        d.set("string",      to_string_number(r.string_index));
-        d.set("frequency",   r.frequency);
-        d.set("periodicity", r.periodicity);
+        d.set(&GString::from("detected"),    r.detected);
+        d.set(&GString::from("string"),      to_string_number(r.string_index));
+        d.set(&GString::from("frequency"),   r.frequency);
+        d.set(&GString::from("periodicity"), r.periodicity);
         d
     }
 
@@ -414,15 +333,15 @@ impl PitchDetector {
     ///
     /// Each entry: `{ "string": int (1-6), "name": String, "min_hz": float, "max_hz": float }`.
     #[func]
-    pub fn get_string_ranges() -> Array<Dictionary> {
-        let mut out = Array::new();
+    pub fn get_string_ranges() -> Array<Variant> {
+        let mut out: Array<Variant> = Array::new();
         for (idx, ((min, max), name)) in STRING_RANGES.iter().zip(STRING_NAMES.iter()).enumerate() {
-            let mut d = Dictionary::new();
-            d.set("string",  to_string_number(idx));
-            d.set("name",    GString::from(*name));
-            d.set("min_hz",  *min);
-            d.set("max_hz",  *max);
-            out.push(&d);
+            let mut d: Dictionary<GString, Variant> = Dictionary::new();
+            d.set(&GString::from("string"),  to_string_number(idx));
+            d.set(&GString::from("name"),    &GString::from(*name));
+            d.set(&GString::from("min_hz"),  *min);
+            d.set(&GString::from("max_hz"),  *max);
+            out.push(&d.to_variant());
         }
         out
     }

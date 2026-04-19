@@ -26,6 +26,9 @@ fn main() {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
         .expect("CARGO_MANIFEST_DIR not set");
 
+    // Declare the custom cfg key so Rust doesn't emit an unexpected-cfg warning.
+    println!("cargo::rustc-check-cfg=cfg(q_available)");
+
     let target_os = std::env::var("CARGO_CFG_TARGET_OS")
         .unwrap_or_default();
 
@@ -62,8 +65,18 @@ fn main() {
 
     // ── cycfi/q pitch-detection bridge ────────────────────────────────────────
     // Only compiled when both header trees are present (submodules initialised).
-    let q_include    = format!("{manifest_dir}/extern/q/include");
+    // The cycfi/q repo layout changed: headers moved from `extern/q/include/`
+    // to `extern/q/q_lib/include/` in recent versions.  Try both locations so
+    // the build works whether the submodule tracks old or new layout.
+    let q_include_new = format!("{manifest_dir}/extern/q/q_lib/include");
+    let q_include_old = format!("{manifest_dir}/extern/q/include");
     let infra_include = format!("{manifest_dir}/extern/infra/include");
+
+    let q_include = if std::path::Path::new(&q_include_new).exists() {
+        q_include_new.clone()
+    } else {
+        q_include_old.clone()
+    };
 
     if std::path::Path::new(&q_include).exists()
         && std::path::Path::new(&infra_include).exists()
@@ -72,7 +85,7 @@ fn main() {
 
         cc::Build::new()
             .cpp(true)
-            .std("c++17")
+            .std("c++20")
             .include(&q_include)
             .include(&infra_include)
             .file(format!("{manifest_dir}/q_bridge/q_bridge.cpp"))
@@ -80,6 +93,7 @@ fn main() {
 
         println!("cargo:rerun-if-changed=q_bridge/q_bridge.cpp");
         println!("cargo:rerun-if-changed=q_bridge/q_bridge.h");
+        println!("cargo:rerun-if-changed=extern/q/q_lib/include");
         println!("cargo:rerun-if-changed=extern/q/include");
         println!("cargo:rerun-if-changed=extern/infra/include");
     } else {
