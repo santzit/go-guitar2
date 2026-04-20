@@ -117,6 +117,12 @@ var _active_window_max_fret : int = -1
 ## Empty string means no chord has been spawned yet.
 var _last_chord_sig: String = ""
 
+## ── Scoring (NoteScorer + optional PitchDetector) ────────────────────────────
+## NoteScorer evaluates live pitch detections against expected note events.
+## PitchDetector is the cycfi/q GDExtension; initialised when the class exists.
+var _scorer          : NoteScorer = null
+var _pitch_detector               = null  # PitchDetector GDExtension (optional)
+
 
 func _ready() -> void:
 	_bridge = _GoGuitarBridgeScript.new()
@@ -143,6 +149,12 @@ func _ready() -> void:
 		_events = _build_play_events(_notes)
 		print("MusicPlay: %d notes loaded, requesting audio stream..." % _notes.size())
 		print("MusicPlay: %d unified events built (single + chord)." % _events.size())
+		# ── Initialise the scorer from the event list ──────────────────────────
+		_scorer = NoteScorer.new()
+		_scorer.setup(_events)
+		_scorer.note_scored.connect(_on_note_scored)
+		print("MusicPlay: NoteScorer ready — %d note events, %d chord events." % [
+			_scorer._note_events.size(), _scorer._chord_events.size()])
 		# -- Diagnostic: SNG info (difficulty level, start_time, capo, tuning).
 		var sng_info : Dictionary = _bridge.get_sng_info()
 		if not sng_info.is_empty():
@@ -204,6 +216,20 @@ func _ready() -> void:
 	DirAccess.make_dir_recursive_absolute(
 		ProjectSettings.globalize_path(SCREENSHOT_DIR)
 	)
+
+	# ── Optional: initialise cycfi/q PitchDetector for live DI input ─────────
+	# When the GDExtension is present, start the detector at the AudioServer
+	# sample rate so it is ready to receive DI samples each frame.
+	if ClassDB.class_exists("PitchDetector"):
+		_pitch_detector = ClassDB.instantiate("PitchDetector")
+		var sr : int = AudioServer.get_mix_rate()
+		if _pitch_detector.start(sr):
+			print("MusicPlay: PitchDetector started — %d Hz" % sr)
+		else:
+			push_warning("MusicPlay: PitchDetector.start() failed — cycfi/q may not be linked.")
+			_pitch_detector = null
+	else:
+		print("MusicPlay: PitchDetector GDExtension not found — scoring runs in passive mode.")
 
 	# Snap camera to the centre of the highway on startup; enable zoom FOV.
 	_lane_glow = _zero_lane_array()
@@ -273,6 +299,27 @@ func _process(delta: float) -> void:
 	# Push the authoritative audio time to all active notes/chords so their Z
 	# positions are computed directly from the audio clock (not accumulated delta).
 	_chord_pool.tick(_song_time)
+
+	# ── Pitch detection + scoring ─────────────────────────────────────────────
+	# If a PitchDetector is active (cycfi/q linked), drain any pending DI
+	# detections and pass them to the scorer so they are included in the
+	# detection history for the active time window.
+	# When no DI input is available the scorer runs in "passive" mode: all events
+	# score as MISS until a real guitar signal is provided.
+	if _pitch_detector != null and _scorer != null:
+		# process_samples() returns all detections fired since the last call.
+		# TODO: replace PackedByteArray() with actual DI audio bytes from AudioIO
+		# once live guitar input is wired to this scene.
+		var detections : Array = _pitch_detector.process_samples(PackedByteArray())
+		for det in detections:
+			_scorer.add_detection(
+				_song_time,
+				int(det.get("string",      1)),
+				float(det.get("frequency",  0.0)),
+				float(det.get("periodicity", 0.0))
+			)
+	if _scorer != null:
+		_scorer.tick(_song_time)
 
 	# ── Strum-line debug print ─────────────────────────────────────────────────
 	# Print each chord group the moment it crosses the strum line (song_time >= note.time).
@@ -609,7 +656,24 @@ func _update_debug_info() -> void:
 		var root_name : String = _get_note_name(root_f, root_s)
 		chord_str = " - Note %s - %s" % [root_name, _chord_debug_str(best_chord)]
 
-	_debug_label.text = "%dms%s" % [time_ms, chord_str]
+	# ── Live score ───────────────────────────────────────────────────────────
+	var score_str : String = ""
+	if _scorer != null:
+		var sc := _scorer.get_score()
+		if sc.total > 0:
+			score_str = "\n%d/%d (%.0f%%)" % [sc.hits, sc.total, sc.pct]
+
+	_debug_label.text = "%dms%s%s" % [time_ms, chord_str, score_str]
+
+
+## Called by NoteScorer whenever a note or chord is evaluated.
+## Logs the result; the score counters are updated inside NoteScorer itself.
+func _on_note_scored(ev: Dictionary, result: String) -> void:
+	var t0   : float  = float(ev.get("time_start", 0.0))
+	var kind : String = ev.get("kind", "single")
+	var sc   := _scorer.get_score()
+	print("SCORE %s | %s @%.3fs | %d/%d (%.0f%%)" % [
+		result, kind, t0, sc.hits, sc.total, sc.pct])
 
 
 func push_print(msg: String) -> void:
