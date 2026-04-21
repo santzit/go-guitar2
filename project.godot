@@ -12,7 +12,7 @@ config_version=5
 
 config/name="GoGuitar2"
 config/description="Rocksmith 2014 like Guitar 3D Game"
-run/main_scene="res://scenes/game_menu.tscn"
+run/main_scene="res://scenes/boot.tscn"
 config/features=PackedStringArray("4.4", "Mobile")
 
 [gui]
