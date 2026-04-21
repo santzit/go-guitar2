@@ -19,6 +19,10 @@ config/features=PackedStringArray("4.4", "Mobile")
 
 theme/custom="res://assets/fonts/project_theme.tres"
 
+[audio]
+
+driver/enable_input=true
+
 [autoload]
 
 AudioInput="*res://scripts/audio_input.gd"
