@@ -124,12 +124,12 @@ var _scorer          : NoteScorer          = null
 var _pitch_detector                        = null   # PitchDetector GDExtension (optional)
 
 ## ── Guitar / microphone input capture ────────────────────────────────────────
-## A dedicated audio bus is created at runtime and fitted with an
-## AudioEffectCapture so that AudioStreamMicrophone frames can be drained
-## every _process() tick and forwarded to the Rust PitchDetector FFI.
-var _capture_effect  : AudioEffectCapture  = null   # drains guitar/mic frames
-var _mic_player      : AudioStreamPlayer   = null   # sources AudioStreamMicrophone
-var _guitar_bus_idx  : int                 = -1     # runtime bus index (cleaned up on exit)
+## The AudioInput autoload singleton owns the capture bus for the whole game.
+## music_play connects to AudioInput.samples_available when PitchDetector is
+## active; no local bus management or cleanup is needed here.
+
+## Detections produced by the PitchDetector signal handler; consumed in _process().
+var _pending_detections : Array = []
 
 
 func _ready() -> void:
@@ -225,35 +225,19 @@ func _ready() -> void:
 		ProjectSettings.globalize_path(SCREENSHOT_DIR)
 	)
 
-	# ── Optional: initialise cycfi/q PitchDetector + AudioEffectCapture ──────
-	# When the GDExtension is present:
-	#   1. Start the Rust PitchDetector at the AudioServer sample rate.
-	#   2. Create a dedicated "GuitarInput" audio bus (muted — no feedback).
-	#   3. Attach AudioEffectCapture so every mic frame is available to drain.
-	#   4. Play an AudioStreamMicrophone on that bus to push frames into it.
-	# The bus is removed when the scene exits (_exit_tree).
+	# ── Optional: initialise cycfi/q PitchDetector ───────────────────────────
+	# The AudioInput autoload singleton already owns the capture bus and keeps
+	# it open for the whole game.  music_play only needs to start the Rust
+	# PitchDetector and connect to AudioInput.samples_available.
 	if ClassDB.class_exists("PitchDetector"):
 		_pitch_detector = ClassDB.instantiate("PitchDetector")
 		var sr : int = AudioServer.get_mix_rate()
 		if _pitch_detector.start(sr):
 			print("MusicPlay: PitchDetector started — %d Hz" % sr)
-			# Create runtime audio bus for guitar/microphone capture.
-			_guitar_bus_idx = AudioServer.bus_count
-			AudioServer.add_bus()
-			AudioServer.set_bus_name(_guitar_bus_idx, "GuitarInput")
-			# Mute the bus so the raw mic signal is not routed to speakers.
-			AudioServer.set_bus_mute(_guitar_bus_idx, true)
-			# Attach the capture effect so frames accumulate in its ring buffer.
-			_capture_effect = AudioEffectCapture.new()
-			AudioServer.add_bus_effect(_guitar_bus_idx, _capture_effect)
-			# AudioStreamMicrophone feeds live audio into the capture bus.
-			_mic_player = AudioStreamPlayer.new()
-			_mic_player.stream = AudioStreamMicrophone.new()
-			_mic_player.bus    = "GuitarInput"
-			add_child(_mic_player)
-			_mic_player.play()
-			print("MusicPlay: guitar capture bus '%s' ready — mic streaming." % \
-				AudioServer.get_bus_name(_guitar_bus_idx))
+			# Connect to the global AudioInput singleton so we receive PCM
+			# bytes as soon as they are captured each frame.
+			AudioInput.samples_available.connect(_on_guitar_samples)
+			print("MusicPlay: connected to AudioInput.samples_available")
 		else:
 			push_warning("MusicPlay: PitchDetector.start() failed — cycfi/q may not be linked.")
 			_pitch_detector = null
@@ -330,31 +314,19 @@ func _process(delta: float) -> void:
 	_chord_pool.tick(_song_time)
 
 	# ── Pitch detection + scoring ─────────────────────────────────────────────
-	# Drain frames from the AudioEffectCapture ring buffer (guitar/mic input),
-	# convert to PCM-16 LE mono, then forward to the Rust PitchDetector FFI.
-	# When no capture is available the scorer runs in passive mode (all MISS).
+	# PCM samples arrive via _on_guitar_samples() (connected to
+	# AudioInput.samples_available in _ready).  Detections are accumulated in
+	# _pending_detections and consumed below to keep scoring in sync with the
+	# audio clock updated above.
 	if _pitch_detector != null and _scorer != null:
-		var detections : Array = []
-		if _capture_effect != null:
-			var frames : int = _capture_effect.get_frames_available()
-			if frames > 0:
-				var stereo_buf : PackedVector2Array = _capture_effect.get_buffer(frames)
-				var pcm_bytes  : PackedByteArray    = PackedByteArray()
-				pcm_bytes.resize(stereo_buf.size() * 2)   # 2 bytes per 16-bit mono sample
-				for fi in stereo_buf.size():
-					# Average L+R channels to mono; clamp before 16-bit quantisation.
-					var s   : float = clampf(
-						(stereo_buf[fi].x + stereo_buf[fi].y) * 0.5, -1.0, 1.0)
-					var s16 : int   = clampi(int(s * 32768.0), -32768, 32767)
-					pcm_bytes.encode_s16(fi * 2, s16)
-				detections = _pitch_detector.process_samples(pcm_bytes)
-		for det in detections:
+		for det in _pending_detections:
 			_scorer.add_detection(
 				_song_time,
 				int(det.get("string",      1)),
 				float(det.get("frequency",  0.0)),
 				float(det.get("periodicity", 0.0))
 			)
+	_pending_detections.clear()
 	if _scorer != null:
 		_scorer.tick(_song_time)
 
@@ -713,11 +685,23 @@ func _on_note_scored(ev: Dictionary, result: String) -> void:
 		result, kind, t0, sc.hits, sc.total, sc.pct])
 
 
+## Called by AudioInput.samples_available (connected in _ready when PitchDetector
+## is active).  Runs PitchDetector.process_samples and queues results for
+## _process() to consume with the current audio clock.
+func _on_guitar_samples(pcm_bytes: PackedByteArray) -> void:
+	if _pitch_detector == null:
+		return
+	var detections : Array = _pitch_detector.process_samples(pcm_bytes)
+	for det in detections:
+		_pending_detections.append(det)
+
+
 func _exit_tree() -> void:
-	# Remove the runtime guitar-input bus so it does not leak into other scenes.
-	if _guitar_bus_idx >= 0 and _guitar_bus_idx < AudioServer.bus_count:
-		AudioServer.remove_bus(_guitar_bus_idx)
-		_guitar_bus_idx = -1
+	# Disconnect from the global AudioInput signal so stale callbacks are not
+	# called after this scene is freed.  The bus itself stays alive (owned by
+	# the AudioInput autoload singleton) so other scenes can reuse it.
+	if AudioInput.samples_available.is_connected(_on_guitar_samples):
+		AudioInput.samples_available.disconnect(_on_guitar_samples)
 
 
 func push_print(msg: String) -> void:
