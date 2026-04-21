@@ -120,8 +120,16 @@ var _last_chord_sig: String = ""
 ## ── Scoring (NoteScorer + optional PitchDetector) ────────────────────────────
 ## NoteScorer evaluates live pitch detections against expected note events.
 ## PitchDetector is the cycfi/q GDExtension; initialised when the class exists.
-var _scorer          : NoteScorer = null
-var _pitch_detector               = null  # PitchDetector GDExtension (optional)
+var _scorer          : NoteScorer          = null
+var _pitch_detector                        = null   # PitchDetector GDExtension (optional)
+
+## ── Guitar / microphone input capture ────────────────────────────────────────
+## A dedicated audio bus is created at runtime and fitted with an
+## AudioEffectCapture so that AudioStreamMicrophone frames can be drained
+## every _process() tick and forwarded to the Rust PitchDetector FFI.
+var _capture_effect  : AudioEffectCapture  = null   # drains guitar/mic frames
+var _mic_player      : AudioStreamPlayer   = null   # sources AudioStreamMicrophone
+var _guitar_bus_idx  : int                 = -1     # runtime bus index (cleaned up on exit)
 
 
 func _ready() -> void:
@@ -217,14 +225,35 @@ func _ready() -> void:
 		ProjectSettings.globalize_path(SCREENSHOT_DIR)
 	)
 
-	# ── Optional: initialise cycfi/q PitchDetector for live DI input ─────────
-	# When the GDExtension is present, start the detector at the AudioServer
-	# sample rate so it is ready to receive DI samples each frame.
+	# ── Optional: initialise cycfi/q PitchDetector + AudioEffectCapture ──────
+	# When the GDExtension is present:
+	#   1. Start the Rust PitchDetector at the AudioServer sample rate.
+	#   2. Create a dedicated "GuitarInput" audio bus (muted — no feedback).
+	#   3. Attach AudioEffectCapture so every mic frame is available to drain.
+	#   4. Play an AudioStreamMicrophone on that bus to push frames into it.
+	# The bus is removed when the scene exits (_exit_tree).
 	if ClassDB.class_exists("PitchDetector"):
 		_pitch_detector = ClassDB.instantiate("PitchDetector")
 		var sr : int = AudioServer.get_mix_rate()
 		if _pitch_detector.start(sr):
 			print("MusicPlay: PitchDetector started — %d Hz" % sr)
+			# Create runtime audio bus for guitar/microphone capture.
+			_guitar_bus_idx = AudioServer.bus_count
+			AudioServer.add_bus()
+			AudioServer.set_bus_name(_guitar_bus_idx, "GuitarInput")
+			# Mute the bus so the raw mic signal is not routed to speakers.
+			AudioServer.set_bus_mute(_guitar_bus_idx, true)
+			# Attach the capture effect so frames accumulate in its ring buffer.
+			_capture_effect = AudioEffectCapture.new()
+			AudioServer.add_bus_effect(_guitar_bus_idx, _capture_effect)
+			# AudioStreamMicrophone feeds live audio into the capture bus.
+			_mic_player = AudioStreamPlayer.new()
+			_mic_player.stream = AudioStreamMicrophone.new()
+			_mic_player.bus    = "GuitarInput"
+			add_child(_mic_player)
+			_mic_player.play()
+			print("MusicPlay: guitar capture bus '%s' ready — mic streaming." % \
+				AudioServer.get_bus_name(_guitar_bus_idx))
 		else:
 			push_warning("MusicPlay: PitchDetector.start() failed — cycfi/q may not be linked.")
 			_pitch_detector = null
@@ -301,16 +330,24 @@ func _process(delta: float) -> void:
 	_chord_pool.tick(_song_time)
 
 	# ── Pitch detection + scoring ─────────────────────────────────────────────
-	# If a PitchDetector is active (cycfi/q linked), drain any pending DI
-	# detections and pass them to the scorer so they are included in the
-	# detection history for the active time window.
-	# When no DI input is available the scorer runs in "passive" mode: all events
-	# score as MISS until a real guitar signal is provided.
+	# Drain frames from the AudioEffectCapture ring buffer (guitar/mic input),
+	# convert to PCM-16 LE mono, then forward to the Rust PitchDetector FFI.
+	# When no capture is available the scorer runs in passive mode (all MISS).
 	if _pitch_detector != null and _scorer != null:
-		# process_samples() returns all detections fired since the last call.
-		# TODO: replace PackedByteArray() with actual DI audio bytes from AudioIO
-		# once live guitar input is wired to this scene.
-		var detections : Array = _pitch_detector.process_samples(PackedByteArray())
+		var detections : Array = []
+		if _capture_effect != null:
+			var frames : int = _capture_effect.get_frames_available()
+			if frames > 0:
+				var stereo_buf : PackedVector2Array = _capture_effect.get_buffer(frames)
+				var pcm_bytes  : PackedByteArray    = PackedByteArray()
+				pcm_bytes.resize(stereo_buf.size() * 2)   # 2 bytes per 16-bit mono sample
+				for fi in stereo_buf.size():
+					# Average L+R channels to mono; clamp before 16-bit quantisation.
+					var s   : float = clampf(
+						(stereo_buf[fi].x + stereo_buf[fi].y) * 0.5, -1.0, 1.0)
+					var s16 : int   = clampi(int(s * 32768.0), -32768, 32767)
+					pcm_bytes.encode_s16(fi * 2, s16)
+				detections = _pitch_detector.process_samples(pcm_bytes)
 		for det in detections:
 			_scorer.add_detection(
 				_song_time,
@@ -674,6 +711,13 @@ func _on_note_scored(ev: Dictionary, result: String) -> void:
 	var sc   := _scorer.get_score()
 	print("SCORE %s | %s @%.3fs | %d/%d (%.0f%%)" % [
 		result, kind, t0, sc.hits, sc.total, sc.pct])
+
+
+func _exit_tree() -> void:
+	# Remove the runtime guitar-input bus so it does not leak into other scenes.
+	if _guitar_bus_idx >= 0 and _guitar_bus_idx < AudioServer.bus_count:
+		AudioServer.remove_bus(_guitar_bus_idx)
+		_guitar_bus_idx = -1
 
 
 func push_print(msg: String) -> void:
