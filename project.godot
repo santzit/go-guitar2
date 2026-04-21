@@ -26,6 +26,8 @@ driver/enable_input=true
 [autoload]
 
 AudioInput="*res://scripts/audio_input.gd"
+PlayerManager="*res://scripts/player_manager.gd"
+InputAudioManager="*res://scripts/input_audio_manager.gd"
 
 [rendering]
 

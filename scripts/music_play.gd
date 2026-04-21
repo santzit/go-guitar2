@@ -124,9 +124,9 @@ var _scorer          : NoteScorer          = null
 var _pitch_detector                        = null   # PitchDetector GDExtension (optional)
 
 ## ── Guitar / microphone input capture ────────────────────────────────────────
-## The AudioInput autoload singleton owns the capture bus for the whole game.
-## music_play connects to AudioInput.samples_available when PitchDetector is
-## active; no local bus management or cleanup is needed here.
+## InputAudioManager (autoload) owns one capture bus per player profile.
+## music_play connects to InputAudioManager.samples_ready(player_id, pcm_bytes)
+## when PitchDetector is active; no local bus management or cleanup is needed.
 
 ## Detections produced by the PitchDetector signal handler; consumed in _process().
 var _pending_detections : Array = []
@@ -226,18 +226,16 @@ func _ready() -> void:
 	)
 
 	# ── Optional: initialise cycfi/q PitchDetector ───────────────────────────
-	# The AudioInput autoload singleton already owns the capture bus and keeps
-	# it open for the whole game.  music_play only needs to start the Rust
-	# PitchDetector and connect to AudioInput.samples_available.
+	# InputAudioManager owns all capture buses (one per player profile).
+	# music_play only starts the Rust PitchDetector and connects to the
+	# InputAudioManager.samples_ready signal for Player 1.
 	if ClassDB.class_exists("PitchDetector"):
 		_pitch_detector = ClassDB.instantiate("PitchDetector")
 		var sr : int = AudioServer.get_mix_rate()
 		if _pitch_detector.start(sr):
 			print("MusicPlay: PitchDetector started — %d Hz" % sr)
-			# Connect to the global AudioInput singleton so we receive PCM
-			# bytes as soon as they are captured each frame.
-			AudioInput.samples_available.connect(_on_guitar_samples)
-			print("MusicPlay: connected to AudioInput.samples_available")
+			InputAudioManager.samples_ready.connect(_on_guitar_samples)
+			print("MusicPlay: connected to InputAudioManager.samples_ready")
 		else:
 			push_warning("MusicPlay: PitchDetector.start() failed — cycfi/q may not be linked.")
 			_pitch_detector = null
@@ -685,10 +683,13 @@ func _on_note_scored(ev: Dictionary, result: String) -> void:
 		result, kind, t0, sc.hits, sc.total, sc.pct])
 
 
-## Called by AudioInput.samples_available (connected in _ready when PitchDetector
-## is active).  Runs PitchDetector.process_samples and queues results for
+## Called by InputAudioManager.samples_ready (connected in _ready when PitchDetector
+## is active).  Receives only Player 1 samples; player_id arg is used to filter.
+## Runs PitchDetector.process_samples and queues results for
 ## _process() to consume with the current audio clock.
-func _on_guitar_samples(pcm_bytes: PackedByteArray) -> void:
+func _on_guitar_samples(player_id: int, pcm_bytes: PackedByteArray) -> void:
+	if player_id != 1:
+		return   # music_play uses Player 1 only; ignore other players.
 	if _pitch_detector == null:
 		return
 	var detections : Array = _pitch_detector.process_samples(pcm_bytes)
@@ -697,11 +698,10 @@ func _on_guitar_samples(pcm_bytes: PackedByteArray) -> void:
 
 
 func _exit_tree() -> void:
-	# Disconnect from the global AudioInput signal so stale callbacks are not
-	# called after this scene is freed.  The bus itself stays alive (owned by
-	# the AudioInput autoload singleton) so other scenes can reuse it.
-	if AudioInput.samples_available.is_connected(_on_guitar_samples):
-		AudioInput.samples_available.disconnect(_on_guitar_samples)
+	# Disconnect from InputAudioManager so stale callbacks are not called after
+	# this scene is freed.  Capture buses stay alive (owned by InputAudioManager).
+	if InputAudioManager.samples_ready.is_connected(_on_guitar_samples):
+		InputAudioManager.samples_ready.disconnect(_on_guitar_samples)
 
 
 func push_print(msg: String) -> void:
