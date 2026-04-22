@@ -41,8 +41,7 @@ jobs:
             mesa-vulkan-drivers \
             libgl1-mesa-dri \
             libgles2 \
-            unzip \
-            g++-mingw-w64-x86-64
+            unzip
 
       - name: Download and install Godot
         run: |
