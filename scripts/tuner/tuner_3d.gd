@@ -125,6 +125,8 @@ func _build_3d_environment() -> void:
 	_camera.current = true
 	_camera.fov = CAMERA_FOV_DEGREES
 	add_child(_camera)
+	_camera.position = CAMERA_POSITION
+	_camera.look_at(CAMERA_LOOK_AT, Vector3.UP)
 
 	# Soft key light
 	var key_light := DirectionalLight3D.new()
@@ -144,19 +146,18 @@ func _build_3d_environment() -> void:
 	mat.billboard_mode            = BaseMaterial3D.BILLBOARD_DISABLED
 	_gauge_plane.material_override = mat
 
-
 func _apply_3d_layout() -> void:
+	if _fretboard_rig == null or _fretboard_3d == null or _gauge_plane == null:
+		return
+
 	# Center the real fretboard scene on the rig before applying the requested
 	# angled presentation, so the 48-unit neck rotates around its midpoint.
 	_fretboard_rig.position = FRETBOARD_RIG_POSITION
 	_fretboard_rig.rotation_degrees = FRETBOARD_RIG_ROTATION
 	_fretboard_3d.position = FRETBOARD_OFFSET
-	_fretboard_3d.scale = Vector3.ONE
 
 	_gauge_plane.position = GAUGE_PLANE_POSITION
 	_gauge_plane.scale = GAUGE_PLANE_SCALE
-	_camera.position = CAMERA_POSITION
-	_camera.look_at(CAMERA_LOOK_AT, Vector3.UP)
 
 
 # ── Game loop ─────────────────────────────────────────────────────────────────
