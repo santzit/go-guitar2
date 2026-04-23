@@ -297,7 +297,7 @@ InputAudioManager="*res://scripts/input_audio_manager.gd"
 |---|---|---|
 | No samples emitted | `audio/driver/enable_input` not set | Add `audio/driver/enable_input=true` to `project.godot` |
 | All samples are zero | Noise gate threshold too high | Lower `PlayerProfile.noise_gate_threshold` (default 0.02) |
-| No `PitchDetector` class | GDExtension not built or cycfi/q submodules missing | Run `git submodule update --init --recursive` then rebuild |
+| No `PitchDetector` class | GDExtension not built, `libq_bridge.a` missing, or cycfi/q headers unavailable | Add `gdextension/lib/<platform>/libq_bridge.a`, or run `git submodule update --init --recursive`, then rebuild |
 | High false-positive rate | Bandpass filter not aligned to tuning | Verify string tuning is standard E; check `STRING_RANGES` in `src/bandpass.rs` |
 | Detection lags behind video | `input_latency_ms` not calibrated | Set `PlayerProfile.input_latency_ms` from the in-game calibration screen |
 

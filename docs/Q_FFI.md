@@ -4,6 +4,8 @@
 
 The `cycfi/q` library is a header-only C++ DSP library providing high-quality
 monophonic pitch detection using zero-crossing analysis and autocorrelation.
+In this repository, Rust talks to Q through a small C bridge archive
+(`libq_bridge.a`) stored under `gdextension/lib/<platform>/`.
 
 This integration exposes Q's `pitch_detector` to Godot via a three-layer stack:
 
@@ -43,7 +45,18 @@ are discarded.
 
 ## Setup
 
-### 1. Initialise Git Submodules
+### 1. Prebuilt Q Bridge Library
+
+The preferred setup is to keep the Q bridge as a separate archive in
+`gdextension/lib` so `cargo build` does not need to rebuild it every time:
+
+- `gdextension/lib/linux/libq_bridge.a`
+- `gdextension/lib/windows/libq_bridge.a`
+
+When that archive exists, `build.rs` links it directly and enables
+`q_available`.
+
+### 2. Initialise Git Submodules
 
 The Q and infra header trees are tracked as Git submodules.  After cloning the
 repository run:
@@ -56,7 +69,7 @@ This populates:
 - `gdextension/extern/q/`     — https://github.com/cycfi/q
 - `gdextension/extern/infra/` — https://github.com/cycfi/infra (Q dependency)
 
-### 2. Build the GDExtension
+### 3. Build the GDExtension
 
 ```bash
 cd gdextension
@@ -64,13 +77,17 @@ cargo build --release
 cp target/release/libgodot_goguitar_rs.so bin/
 ```
 
-When the submodules are present `build.rs` automatically compiles
-`q_bridge/q_bridge.cpp` (C++17) via the `cc` crate and emits
-`cargo:rustc-cfg=q_available`, which enables the `q_ffi` and `pitch_detector`
-modules.
+When `lib/<platform>/libq_bridge.a` is present, `build.rs` links that archive
+and emits `cargo:rustc-cfg=q_available`, which enables the `q_ffi` and
+`pitch_detector` modules.
 
-> **Note:** Without the submodules the build succeeds but the `PitchDetector`
-> Godot class will not be registered.  The build log will print a warning.
+If the archive is missing but the submodules / vendored headers are present,
+`build.rs` falls back to compiling `q_bridge/q_bridge.cpp` (C++20) via the
+`cc` crate.
+
+> **Note:** Without the prebuilt bridge archive and without the headers, the
+> build succeeds but the `PitchDetector` Godot class will not be registered.
+> The build log will print a warning.
 
 ---
 

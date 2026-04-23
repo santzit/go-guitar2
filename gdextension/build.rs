@@ -1,5 +1,6 @@
 // build.rs — links libvgmstream.a (WEM audio decoding) for Linux and Windows,
-//            and conditionally compiles q_bridge.cpp (cycfi/q pitch detection).
+//            and links a prebuilt q_bridge archive when available for
+//            cycfi/q pitch detection.
 //
 // PSARC/SNG parsing is handled by pure-Rust crates (rocksmith2014-psarc,
 // rocksmith2014-sng) — no .NET runtime, no librocksmith_shim.so needed.
@@ -12,14 +13,17 @@
 //   lib/windows/libogg.a              — cross-compiled libogg
 //
 // cycfi/q pitch detection:
-//   Prefer vendored headers in:
+//   Prefer a prebuilt q_bridge archive in:
+//     lib/linux/libq_bridge.a
+//     lib/windows/libq_bridge.a
+//   and fall back to compiling q_bridge.cpp when the required headers are
+//   present:
 //     include/q            — Q headers committed into this repository
-//   and fall back to the Q/infra submodules when present:
 //     extern/q/include     — https://github.com/cycfi/q
 //     extern/infra/include — https://github.com/cycfi/infra  (Q dependency)
-//   When the required include directories are present, q_bridge.cpp is
-//   compiled with the `cc` crate and the `q_available` cfg flag is emitted
-//   so that `src/q_ffi.rs` and `src/pitch_detector.rs` are compiled in.
+//   When either the prebuilt archive or buildable headers are present, the
+//   `q_available` cfg flag is emitted so that `src/q_ffi.rs` and
+//   `src/pitch_detector.rs` are compiled in.
 //
 //   To initialise the submodules after cloning:
 //     git submodule update --init --recursive
@@ -55,18 +59,30 @@ fn main() {
         "windows" => {
             let lib_dir = format!("{manifest_dir}/lib/windows");
             println!("cargo:rustc-link-search=native={lib_dir}");
+            println!("cargo:rustc-link-search=native=/usr/lib/gcc/x86_64-w64-mingw32/13-win32");
             // Windows: vgmstream WEM decoder (cross-compiled via MinGW, USE_VORBIS=ON).
             println!("cargo:rustc-link-lib=static=vgmstream");
             println!("cargo:rustc-link-lib=static=vorbisfile");
             println!("cargo:rustc-link-lib=static=vorbis");
             println!("cargo:rustc-link-lib=static=ogg");
-            println!("cargo:rustc-link-lib=static=stdc++");
         }
         _ => {}
     }
 
     // ── cycfi/q pitch-detection bridge ────────────────────────────────────────
-    // Only compiled when both header trees are present (submodules initialised).
+    let q_lib_dir = match target_os.as_str() {
+        "linux" => format!("{manifest_dir}/lib/linux"),
+        "windows" => format!("{manifest_dir}/lib/windows"),
+        _ => String::new(),
+    };
+    let q_lib_path = if q_lib_dir.is_empty() {
+        String::new()
+    } else {
+        format!("{q_lib_dir}/libq_bridge.a")
+    };
+    let has_prebuilt_q = !q_lib_path.is_empty()
+        && std::path::Path::new(&q_lib_path).exists();
+
     // The cycfi/q repo layout changed: headers moved from `extern/q/include/`
     // to `extern/q/q_lib/include/` in recent versions.  Try both locations so
     // the build works whether the submodule tracks old or new layout.
@@ -83,18 +99,24 @@ fn main() {
         q_include_old.clone()
     };
 
-    if std::path::Path::new(&q_include).exists()
-        && std::path::Path::new(&infra_include).exists()
-    {
+    let has_q_headers = std::path::Path::new(&q_include).exists()
+        && std::path::Path::new(&infra_include).exists();
+
+    if has_prebuilt_q || has_q_headers {
         println!("cargo:rustc-cfg=q_available");
 
-        cc::Build::new()
-            .cpp(true)
-            .std("c++20")
-            .include(&q_include)
-            .include(&infra_include)
-            .file(format!("{manifest_dir}/q_bridge/q_bridge.cpp"))
-            .compile("q_bridge");
+        if has_prebuilt_q {
+            println!("cargo:rustc-link-search=native={q_lib_dir}");
+            println!("cargo:rustc-link-lib=static=q_bridge");
+        } else {
+            cc::Build::new()
+                .cpp(true)
+                .std("c++20")
+                .include(&q_include)
+                .include(&infra_include)
+                .file(format!("{manifest_dir}/q_bridge/q_bridge.cpp"))
+                .compile("q_bridge");
+        }
 
         println!("cargo:rerun-if-changed=q_bridge/q_bridge.cpp");
         println!("cargo:rerun-if-changed=q_bridge/q_bridge.h");
@@ -102,9 +124,16 @@ fn main() {
         println!("cargo:rerun-if-changed=extern/q/q_lib/include");
         println!("cargo:rerun-if-changed=extern/q/include");
         println!("cargo:rerun-if-changed=extern/infra/include");
+        println!("cargo:rerun-if-changed=lib/linux/libq_bridge.a");
+        println!("cargo:rerun-if-changed=lib/windows/libq_bridge.a");
     } else {
-        println!("cargo:warning=cycfi/q submodules not found — pitch detection disabled. \
-                  Run: git submodule update --init --recursive");
+        println!("cargo:warning=cycfi/q bridge library not found and headers are unavailable — \
+                  pitch detection disabled. Add lib/<platform>/libq_bridge.a or run: \
+                  git submodule update --init --recursive");
+    }
+
+    if target_os == "windows" {
+        println!("cargo:rustc-link-lib=static=stdc++");
     }
 
     // Re-run if libraries change.
