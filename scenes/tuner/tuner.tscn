@@ -1,6 +1,7 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/tuner/tuner.gd" id="1_tuner_script"]
+[ext_resource type="Script" path="res://scripts/tuner/pitch_gauge.gd" id="2_pitch_gauge"]
 
 [sub_resource type="Gradient" id="Gradient_bg"]
 offsets = PackedFloat32Array(0, 1)
@@ -111,10 +112,10 @@ theme_override_font_sizes/font_size = 28
 text = "Pitch Meter"
 horizontal_alignment = 1
 
-[node name="CentsBar" type="ProgressBar" parent="Panel/MarginContainer/VBoxRoot/MainArea/CenterStack"]
-custom_minimum_size = Vector2(0, 28)
+[node name="GaugeMeter" type="Control" parent="Panel/MarginContainer/VBoxRoot/MainArea/CenterStack"]
+custom_minimum_size = Vector2(0, 220)
 layout_mode = 2
-show_percentage = false
+script = ExtResource("2_pitch_gauge")
 
 [node name="NoteRow" type="HBoxContainer" parent="Panel/MarginContainer/VBoxRoot/MainArea/CenterStack"]
 layout_mode = 2

@@ -1,6 +1,7 @@
 extends Control
 
 const _GameStateScript = preload("res://scripts/game_state.gd")
+const _PitchGaugeScript = preload("res://scripts/tuner/pitch_gauge.gd")
 
 const DEFAULT_TUNING_NAME: String = "E Standard"
 const DEFAULT_TUNING_NOTES: Array[String] = ["E2", "A2", "D3", "G3", "B3", "E4"]
@@ -23,7 +24,7 @@ const NOTE_NAMES: PackedStringArray = [
 @onready var _frequency_label: Label = $Panel/MarginContainer/VBoxRoot/MainArea/CenterStack/NoteRow/NoteCircle/DetectedFrequencyLabel
 @onready var _cents_label: Label = $Panel/MarginContainer/VBoxRoot/BottomControls/BottomRow/CentsChip/CentsLabel
 @onready var _guidance_label: Label = $Panel/MarginContainer/VBoxRoot/MainArea/CenterStack/GuidanceLabel
-@onready var _cents_bar: ProgressBar = $Panel/MarginContainer/VBoxRoot/MainArea/CenterStack/CentsBar
+@onready var _gauge_meter: _PitchGaugeScript = $Panel/MarginContainer/VBoxRoot/MainArea/CenterStack/GaugeMeter
 @onready var _string_buttons: HBoxContainer = $Panel/MarginContainer/VBoxRoot/BottomControls/StringButtons
 @onready var _left_note_label: Label = $Panel/MarginContainer/VBoxRoot/MainArea/CenterStack/NoteRow/LeftNoteLabel
 @onready var _right_note_label: Label = $Panel/MarginContainer/VBoxRoot/MainArea/CenterStack/NoteRow/RightNoteLabel
@@ -55,9 +56,7 @@ func _ready() -> void:
 	_build_string_buttons()
 	_update_selected_string_label()
 
-	_cents_bar.min_value = -50.0
-	_cents_bar.max_value = 50.0
-	_cents_bar.value = 0.0
+	_gauge_meter.set_meter_value(0.0, false, false)
 	_set_waiting_ui()
 
 	if ClassDB.class_exists("PitchDetector"):
@@ -176,13 +175,14 @@ func _apply_live_ui(target_idx: int) -> void:
 		return
 	var target_hz: float = _target_freqs[target_idx]
 	var note_name: String = _freq_to_note_name(_smoothed_freq_hz)
+	var is_in_tune: bool = absf(_smoothed_cents) <= IN_TUNE_TOLERANCE_CENTS
 	_detected_note_label.text = note_name
 	_frequency_label.text = "%.2f Hz" % _smoothed_freq_hz
 	_cents_label.text = "Offset: %+0.1f cents vs %s (%.2f Hz)" % [_smoothed_cents, _target_notes[target_idx], target_hz]
-	_cents_bar.value = clampf(_smoothed_cents, -50.0, 50.0)
+	_gauge_meter.set_meter_value(_smoothed_cents, true, is_in_tune)
 	_update_side_note_labels(note_name)
 
-	if absf(_smoothed_cents) <= IN_TUNE_TOLERANCE_CENTS:
+	if is_in_tune:
 		_guidance_label.text = "IN TUNE ✓"
 		_guidance_label.modulate = Color(0.4, 1.0, 0.5)
 	elif _smoothed_cents < 0.0:
@@ -202,7 +202,7 @@ func _set_waiting_ui() -> void:
 	_right_note_label.text = "--"
 	_guidance_label.text = "Waiting for signal…"
 	_guidance_label.modulate = Color(1.0, 1.0, 1.0)
-	_cents_bar.value = 0.0
+	_gauge_meter.set_meter_value(0.0, false, false)
 
 
 func _build_target_freqs(notes: Array[String]) -> Array[float]:
