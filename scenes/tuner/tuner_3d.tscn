@@ -45,11 +45,11 @@ grow_vertical = 2
 script = ExtResource("2")
 
 [node name="GaugePlane" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.38, 0)
 mesh = SubResource("QuadMesh_gauge")
 
-[node name="Fretboard" parent="." instance=ExtResource("3_fretboard")]
-transform = Transform3D(0.06, 0, 0, 0, 0.06, 0, 0, 0, 0.06, -1.44, -0.64, -0.1)
+[node name="FretboardRig" type="Node3D" parent="."]
+
+[node name="Fretboard" parent="FretboardRig" instance=ExtResource("3_fretboard")]
 
 [node name="UIOverlay" type="CanvasLayer" parent="."]
 layer = 1

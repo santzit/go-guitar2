@@ -18,6 +18,9 @@ const STALE_TIMEOUT_MS: int = 700
 const A4_FREQUENCY_HZ: float = 440.0
 const A4_MIDI_NOTE: int = 69
 const SEMITONES_PER_OCTAVE: float = 12.0
+const CAMERA_POSITION: Vector3 = Vector3(0.0, 7.5, 42.0)
+const CAMERA_LOOK_AT: Vector3 = Vector3(0.0, -2.0, -8.0)
+const CAMERA_FOV_DEGREES: float = 32.0
 
 const NOTE_NAMES: PackedStringArray = [
 	"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"
@@ -27,7 +30,8 @@ const NOTE_NAMES: PackedStringArray = [
 @onready var _gauge_viewport: SubViewport    = $GaugeViewport
 @onready var _gauge_plane: MeshInstance3D    = $GaugePlane
 @onready var _gauge_meter: _PitchGaugeScript = $GaugeViewport/GaugeMeter
-@onready var _fretboard_3d                   = $Fretboard
+@onready var _fretboard_rig: Node3D          = $FretboardRig
+@onready var _fretboard_3d                   = $FretboardRig/Fretboard
 
 # ── CanvasLayer text nodes ─────────────────────────────────────────────────────
 @onready var _tuning_name_label: Label     = $UIOverlay/MarginContainer/VBoxRoot/TopMeta/TuningNameLabel
@@ -45,6 +49,7 @@ var _pitch_detector      = null
 var _input_audio_manager = null
 var _target_notes: Array[String] = []
 var _target_freqs: Array[float]  = []
+var _camera: Camera3D = null
 
 var _smoothed_freq_hz: float = 0.0
 var _smoothed_cents:   float = 0.0
@@ -55,6 +60,7 @@ var _last_detection_ms: int  = 0
 func _ready() -> void:
 	# Build 3D atmosphere (Camera, WorldEnvironment, light) and wire gauge texture.
 	_build_3d_environment()
+	_apply_3d_layout()
 
 	_target_notes = _GameStateScript.selected_tuning_notes.duplicate()
 	_input_audio_manager = get_node_or_null("/root/InputAudioManager")
@@ -108,13 +114,12 @@ func _build_3d_environment() -> void:
 	env_node.environment = environment
 	add_child(env_node)
 
-	# Orthographic camera — keeps the gauge quad and fretboard pixel-accurate
-	var camera := Camera3D.new()
-	camera.position   = Vector3(0.0, 0.0, 4.0)
-	camera.current    = true
-	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-	camera.size       = 2.2
-	add_child(camera)
+	# Perspective framing keeps the full-scale fretboard readable after the
+	# requested rotation and preserves depth between the gauge plane and strings.
+	_camera = Camera3D.new()
+	_camera.current = true
+	_camera.fov = CAMERA_FOV_DEGREES
+	add_child(_camera)
 
 	# Soft key light
 	var key_light := DirectionalLight3D.new()
@@ -133,6 +138,20 @@ func _build_3d_environment() -> void:
 	mat.cull_mode                 = BaseMaterial3D.CULL_DISABLED
 	mat.billboard_mode            = BaseMaterial3D.BILLBOARD_DISABLED
 	_gauge_plane.material_override = mat
+
+
+func _apply_3d_layout() -> void:
+	_fretboard_rig.position = Vector3(0.0, -8.8, -12.0)
+	_fretboard_rig.rotation_degrees = Vector3(0.0, -45.0, -15.0)
+	_fretboard_3d.position = Vector3(-24.0, -1.5, 0.0)
+	_fretboard_3d.scale = Vector3.ONE
+
+	_gauge_plane.position = Vector3(0.0, 10.0, -4.0)
+	_gauge_plane.scale = Vector3(7.2, 7.2, 1.0)
+
+	if _camera != null:
+		_camera.position = CAMERA_POSITION
+		_camera.look_at(CAMERA_LOOK_AT, Vector3.UP)
 
 
 # ── Game loop ─────────────────────────────────────────────────────────────────
