@@ -452,6 +452,7 @@ dependencies = [
 name = "godot_goguitar_rs"
 version = "0.1.0"
 dependencies = [
+ "cc",
  "cpal",
  "gg-mixer",
  "godot",

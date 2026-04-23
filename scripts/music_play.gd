@@ -117,6 +117,20 @@ var _active_window_max_fret : int = -1
 ## Empty string means no chord has been spawned yet.
 var _last_chord_sig: String = ""
 
+## ── Scoring (NoteScorer + optional PitchDetector) ────────────────────────────
+## NoteScorer evaluates live pitch detections against expected note events.
+## PitchDetector is the cycfi/q GDExtension; initialised when the class exists.
+var _scorer          : NoteScorer          = null
+var _pitch_detector                        = null   # PitchDetector GDExtension (optional)
+
+## ── Guitar / microphone input capture ────────────────────────────────────────
+## InputAudioManager (autoload) owns one capture bus per player profile.
+## music_play connects to InputAudioManager.samples_ready(player_id, pcm_bytes)
+## when PitchDetector is active; no local bus management or cleanup is needed.
+
+## Detections produced by the PitchDetector signal handler; consumed in _process().
+var _pending_detections : Array = []
+
 
 func _ready() -> void:
 	_bridge = _GoGuitarBridgeScript.new()
@@ -143,6 +157,12 @@ func _ready() -> void:
 		_events = _build_play_events(_notes)
 		print("MusicPlay: %d notes loaded, requesting audio stream..." % _notes.size())
 		print("MusicPlay: %d unified events built (single + chord)." % _events.size())
+		# ── Initialise the scorer from the event list ──────────────────────────
+		_scorer = NoteScorer.new()
+		_scorer.setup(_events)
+		_scorer.note_scored.connect(_on_note_scored)
+		print("MusicPlay: NoteScorer ready — %d note events, %d chord events." % [
+			_scorer._note_events.size(), _scorer._chord_events.size()])
 		# -- Diagnostic: SNG info (difficulty level, start_time, capo, tuning).
 		var sng_info : Dictionary = _bridge.get_sng_info()
 		if not sng_info.is_empty():
@@ -204,6 +224,23 @@ func _ready() -> void:
 	DirAccess.make_dir_recursive_absolute(
 		ProjectSettings.globalize_path(SCREENSHOT_DIR)
 	)
+
+	# ── Optional: initialise cycfi/q PitchDetector ───────────────────────────
+	# InputAudioManager owns all capture buses (one per player profile).
+	# music_play only starts the Rust PitchDetector and connects to the
+	# InputAudioManager.samples_ready signal for Player 1.
+	if ClassDB.class_exists("PitchDetector"):
+		_pitch_detector = ClassDB.instantiate("PitchDetector")
+		var sr : int = AudioServer.get_mix_rate()
+		if _pitch_detector.start(sr):
+			print("MusicPlay: PitchDetector started — %d Hz" % sr)
+			InputAudioManager.samples_ready.connect(_on_guitar_samples)
+			print("MusicPlay: connected to InputAudioManager.samples_ready")
+		else:
+			push_warning("MusicPlay: PitchDetector.start() failed — cycfi/q may not be linked.")
+			_pitch_detector = null
+	else:
+		print("MusicPlay: PitchDetector GDExtension not found — scoring runs in passive mode.")
 
 	# Snap camera to the centre of the highway on startup; enable zoom FOV.
 	_lane_glow = _zero_lane_array()
@@ -273,6 +310,23 @@ func _process(delta: float) -> void:
 	# Push the authoritative audio time to all active notes/chords so their Z
 	# positions are computed directly from the audio clock (not accumulated delta).
 	_chord_pool.tick(_song_time)
+
+	# ── Pitch detection + scoring ─────────────────────────────────────────────
+	# PCM samples arrive via _on_guitar_samples() (connected to
+	# AudioInput.samples_available in _ready).  Detections are accumulated in
+	# _pending_detections and consumed below to keep scoring in sync with the
+	# audio clock updated above.
+	if _pitch_detector != null and _scorer != null:
+		for det in _pending_detections:
+			_scorer.add_detection(
+				_song_time,
+				int(det.get("string",      1)),
+				float(det.get("frequency",  0.0)),
+				float(det.get("periodicity", 0.0))
+			)
+	_pending_detections.clear()
+	if _scorer != null:
+		_scorer.tick(_song_time)
 
 	# ── Strum-line debug print ─────────────────────────────────────────────────
 	# Print each chord group the moment it crosses the strum line (song_time >= note.time).
@@ -609,7 +663,45 @@ func _update_debug_info() -> void:
 		var root_name : String = _get_note_name(root_f, root_s)
 		chord_str = " - Note %s - %s" % [root_name, _chord_debug_str(best_chord)]
 
-	_debug_label.text = "%dms%s" % [time_ms, chord_str]
+	# ── Live score ───────────────────────────────────────────────────────────
+	var score_str : String = ""
+	if _scorer != null:
+		var sc := _scorer.get_score()
+		if sc.total > 0:
+			score_str = "\n%d/%d (%.0f%%)" % [sc.hits, sc.total, sc.pct]
+
+	_debug_label.text = "%dms%s%s" % [time_ms, chord_str, score_str]
+
+
+## Called by NoteScorer whenever a note or chord is evaluated.
+## Logs the result; the score counters are updated inside NoteScorer itself.
+func _on_note_scored(ev: Dictionary, result: String) -> void:
+	var t0   : float  = float(ev.get("time_start", 0.0))
+	var kind : String = ev.get("kind", "single")
+	var sc   := _scorer.get_score()
+	print("SCORE %s | %s @%.3fs | %d/%d (%.0f%%)" % [
+		result, kind, t0, sc.hits, sc.total, sc.pct])
+
+
+## Called by InputAudioManager.samples_ready (connected in _ready when PitchDetector
+## is active).  Receives only Player 1 samples; player_id arg is used to filter.
+## Runs PitchDetector.process_samples and queues results for
+## _process() to consume with the current audio clock.
+func _on_guitar_samples(player_id: int, pcm_bytes: PackedByteArray) -> void:
+	if player_id != 1:
+		return   # music_play uses Player 1 only; ignore other players.
+	if _pitch_detector == null:
+		return
+	var detections : Array = _pitch_detector.process_samples(pcm_bytes)
+	for det in detections:
+		_pending_detections.append(det)
+
+
+func _exit_tree() -> void:
+	# Disconnect from InputAudioManager so stale callbacks are not called after
+	# this scene is freed.  Capture buses stay alive (owned by InputAudioManager).
+	if InputAudioManager.samples_ready.is_connected(_on_guitar_samples):
+		InputAudioManager.samples_ready.disconnect(_on_guitar_samples)
 
 
 func push_print(msg: String) -> void:

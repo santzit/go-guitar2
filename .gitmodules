@@ -1,0 +1,9 @@
+[submodule "gdextension/extern/q"]
+	path = gdextension/extern/q
+	url = https://github.com/cycfi/q.git
+	branch = master
+
+[submodule "gdextension/extern/infra"]
+	path = gdextension/extern/infra
+	url = https://github.com/cycfi/infra.git
+	branch = master

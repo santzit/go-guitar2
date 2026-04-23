@@ -19,6 +19,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Init submodules
+        run: git submodule update --init --recursive
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -36,8 +41,7 @@ jobs:
             mesa-vulkan-drivers \
             libgl1-mesa-dri \
             libgles2 \
-            unzip \
-            g++-mingw-w64-x86-64
+            unzip
 
       - name: Download and install Godot
         run: |
