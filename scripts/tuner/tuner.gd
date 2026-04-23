@@ -25,7 +25,7 @@ const NOTE_NAMES: PackedStringArray = [
 @onready var _cents_label: Label = $Panel/MarginContainer/VBoxRoot/BottomControls/BottomRow/CentsChip/CentsLabel
 @onready var _guidance_label: Label = $Panel/MarginContainer/VBoxRoot/MainArea/CenterStack/GuidanceLabel
 @onready var _gauge_meter: _PitchGaugeScript = $Panel/MarginContainer/VBoxRoot/MainArea/CenterStack/GaugeMeter
-@onready var _string_buttons: HBoxContainer = $Panel/MarginContainer/VBoxRoot/BottomControls/StringButtons
+@onready var _fretboard = $Panel/MarginContainer/VBoxRoot/BottomControls/FretboardView
 @onready var _left_note_label: Label = $Panel/MarginContainer/VBoxRoot/MainArea/CenterStack/NoteRow/LeftNoteLabel
 @onready var _right_note_label: Label = $Panel/MarginContainer/VBoxRoot/MainArea/CenterStack/NoteRow/RightNoteLabel
 
@@ -53,7 +53,10 @@ func _ready() -> void:
 	_tuning_name_label.text = "Preset: %s" % _GameStateScript.selected_tuning_name
 	_target_notes_label.text = "Target notes: %s" % " ".join(PackedStringArray(_target_notes))
 	_target_freqs = _build_target_freqs(_target_notes)
-	_build_string_buttons()
+	# Set up fretboard with note names for the active tuning
+	_fretboard.set_string_names(PackedStringArray(_target_notes))
+	_fretboard.set_selected_string(_selected_string_idx)
+	_fretboard.string_pressed.connect(_on_string_button_pressed)
 	_update_selected_string_label()
 
 	_gauge_meter.set_meter_value(0.0, false, false)
@@ -139,28 +142,10 @@ func _on_string_button_pressed(string_idx: int) -> void:
 		_selected_string_idx = -1
 	else:
 		_selected_string_idx = string_idx
-	_update_string_button_states()
+	_fretboard.set_selected_string(_selected_string_idx)
 	_update_selected_string_label()
 	if _has_detection:
 		_apply_live_ui(_get_target_string_index(_smoothed_freq_hz))
-
-
-func _build_string_buttons() -> void:
-	for child in _string_buttons.get_children():
-		child.queue_free()
-	for i in range(_target_notes.size()):
-		var btn := Button.new()
-		btn.text = _target_notes[i]
-		btn.toggle_mode = true
-		btn.pressed.connect(_on_string_button_pressed.bind(i))
-		_string_buttons.add_child(btn)
-	_update_string_button_states()
-
-
-func _update_string_button_states() -> void:
-	for i in range(_string_buttons.get_child_count()):
-		var btn := _string_buttons.get_child(i) as Button
-		btn.button_pressed = i == _selected_string_idx
 
 
 func _update_selected_string_label() -> void:
@@ -182,15 +167,23 @@ func _apply_live_ui(target_idx: int) -> void:
 	_gauge_meter.set_meter_value(_smoothed_cents, true, is_in_tune)
 	_update_side_note_labels(note_name)
 
+	# Fretboard: highlight active string with tuning-status colour
+	var vib_col: Color
 	if is_in_tune:
+		vib_col = Color(0.4, 1.0, 0.5)
 		_guidance_label.text = "IN TUNE ✓"
 		_guidance_label.modulate = Color(0.4, 1.0, 0.5)
 	elif _smoothed_cents < 0.0:
+		vib_col = Color(0.45, 0.75, 1.0)
 		_guidance_label.text = "FLAT — tune up"
 		_guidance_label.modulate = Color(1.0, 0.8, 0.4)
 	else:
+		vib_col = Color(1.0, 0.52, 0.35)
 		_guidance_label.text = "SHARP — tune down"
 		_guidance_label.modulate = Color(1.0, 0.7, 0.4)
+
+	_fretboard.set_active_string(target_idx)
+	_fretboard.set_vibration_color(vib_col)
 
 
 func _set_waiting_ui() -> void:
@@ -203,6 +196,7 @@ func _set_waiting_ui() -> void:
 	_guidance_label.text = "Waiting for signal…"
 	_guidance_label.modulate = Color(1.0, 1.0, 1.0)
 	_gauge_meter.set_meter_value(0.0, false, false)
+	_fretboard.set_active_string(-1)
 
 
 func _build_target_freqs(notes: Array[String]) -> Array[float]:

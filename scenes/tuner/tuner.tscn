@@ -67,33 +67,34 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/margin_left = 28
-theme_override_constants/margin_top = 18
-theme_override_constants/margin_right = 28
-theme_override_constants/margin_bottom = 24
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 12
 
 [node name="VBoxRoot" type="VBoxContainer" parent="Panel/MarginContainer"]
 layout_mode = 2
-theme_override_constants/separation = 16
+theme_override_constants/separation = 6
 
 [node name="TopMeta" type="VBoxContainer" parent="Panel/MarginContainer/VBoxRoot"]
 layout_mode = 2
-theme_override_constants/separation = 6
+theme_override_constants/separation = 2
 
 [node name="TuningNameLabel" type="Label" parent="Panel/MarginContainer/VBoxRoot/TopMeta"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 34
+theme_override_font_sizes/font_size = 24
 text = "E Standard"
 horizontal_alignment = 1
 
 [node name="TargetNotesLabel" type="Label" parent="Panel/MarginContainer/VBoxRoot/TopMeta"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 16
 text = "E A D G B E"
 horizontal_alignment = 1
 
 [node name="SelectedStringLabel" type="Label" parent="Panel/MarginContainer/VBoxRoot/TopMeta"]
 layout_mode = 2
+theme_override_font_sizes/font_size = 14
 theme_override_colors/font_color = Color(0.83, 0.83, 0.83, 1)
 text = "Selected string: Auto"
 horizontal_alignment = 1
@@ -105,34 +106,28 @@ size_flags_vertical = 3
 [node name="CenterStack" type="VBoxContainer" parent="Panel/MarginContainer/VBoxRoot/MainArea"]
 layout_mode = 2
 size_flags_vertical = 4
-theme_override_constants/separation = 10
-
-[node name="ArcLabel" type="Label" parent="Panel/MarginContainer/VBoxRoot/MainArea/CenterStack"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 28
-text = "Pitch Meter"
-horizontal_alignment = 1
+theme_override_constants/separation = 6
 
 [node name="GaugeMeter" type="Control" parent="Panel/MarginContainer/VBoxRoot/MainArea/CenterStack"]
-custom_minimum_size = Vector2(0, 220)
+custom_minimum_size = Vector2(0, 170)
 layout_mode = 2
 script = ExtResource("2_pitch_gauge")
 
 [node name="NoteRow" type="HBoxContainer" parent="Panel/MarginContainer/VBoxRoot/MainArea/CenterStack"]
 layout_mode = 2
 alignment = 1
-theme_override_constants/separation = 24
+theme_override_constants/separation = 16
 
 [node name="LeftNoteLabel" type="Label" parent="Panel/MarginContainer/VBoxRoot/MainArea/CenterStack/NoteRow"]
 custom_minimum_size = Vector2(72, 0)
 layout_mode = 2
-theme_override_font_sizes/font_size = 56
+theme_override_font_sizes/font_size = 36
 text = "--"
 horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="NoteCircle" type="Panel" parent="Panel/MarginContainer/VBoxRoot/MainArea/CenterStack/NoteRow"]
-custom_minimum_size = Vector2(340, 340)
+custom_minimum_size = Vector2(180, 180)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_circle")
 
@@ -143,13 +138,13 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -81.5
-offset_top = -93.0
-offset_right = 81.5
-offset_bottom = 10.0
+offset_left = -65.0
+offset_top = -73.0
+offset_right = 65.0
+offset_bottom = 0.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_font_sizes/font_size = 120
+theme_override_font_sizes/font_size = 72
 text = "--"
 horizontal_alignment = 1
 
@@ -160,44 +155,45 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -110.0
-offset_top = 60.0
-offset_right = 110.0
-offset_bottom = 104.0
+offset_left = -80.0
+offset_top = 22.0
+offset_right = 80.0
+offset_bottom = 48.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_font_sizes/font_size = 32
+theme_override_font_sizes/font_size = 22
 text = "-- Hz"
 horizontal_alignment = 1
 
 [node name="RightNoteLabel" type="Label" parent="Panel/MarginContainer/VBoxRoot/MainArea/CenterStack/NoteRow"]
 custom_minimum_size = Vector2(72, 0)
 layout_mode = 2
-theme_override_font_sizes/font_size = 56
+theme_override_font_sizes/font_size = 36
 text = "--"
 horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="GuidanceLabel" type="Label" parent="Panel/MarginContainer/VBoxRoot/MainArea/CenterStack"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 34
+theme_override_font_sizes/font_size = 24
 text = "Waiting for signal…"
 horizontal_alignment = 1
 
 [node name="BottomControls" type="VBoxContainer" parent="Panel/MarginContainer/VBoxRoot"]
 layout_mode = 2
-theme_override_constants/separation = 10
-
-[node name="StringButtons" type="HBoxContainer" parent="Panel/MarginContainer/VBoxRoot/BottomControls"]
-layout_mode = 2
-alignment = 1
 theme_override_constants/separation = 6
+
+[node name="FretboardView" type="Control" parent="Panel/MarginContainer/VBoxRoot/BottomControls"]
+custom_minimum_size = Vector2(0, 140)
+layout_mode = 2
+size_flags_horizontal = 3
+script = ExtResource("3_fretboard")
 
 [node name="BottomRow" type="HBoxContainer" parent="Panel/MarginContainer/VBoxRoot/BottomControls"]
 layout_mode = 2
 
 [node name="CentsChip" type="Panel" parent="Panel/MarginContainer/VBoxRoot/BottomControls/BottomRow"]
-custom_minimum_size = Vector2(300, 78)
+custom_minimum_size = Vector2(250, 50)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_chip")
 
@@ -208,7 +204,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_font_sizes/font_size = 28
+theme_override_font_sizes/font_size = 22
 text = "Offset: -- cents"
 horizontal_alignment = 1
 vertical_alignment = 1
@@ -218,9 +214,9 @@ layout_mode = 2
 size_flags_horizontal = 3
 
 [node name="BackButton" type="Button" parent="Panel/MarginContainer/VBoxRoot/BottomControls/BottomRow"]
-custom_minimum_size = Vector2(240, 78)
+custom_minimum_size = Vector2(200, 50)
 layout_mode = 2
-theme_override_font_sizes/font_size = 30
+theme_override_font_sizes/font_size = 24
 theme_override_styles/normal = SubResource("StyleBoxFlat_button")
 theme_override_styles/hover = SubResource("StyleBoxFlat_button")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_button")
