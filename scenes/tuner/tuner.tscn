@@ -1,7 +1,8 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scripts/tuner/tuner.gd" id="1_tuner_script"]
 [ext_resource type="Script" path="res://scripts/tuner/pitch_gauge.gd" id="2_pitch_gauge"]
+[ext_resource type="Script" path="res://scripts/tuner/fretboard_view.gd" id="3_fretboard"]
 
 [sub_resource type="Gradient" id="Gradient_bg"]
 offsets = PackedFloat32Array(0, 1)
