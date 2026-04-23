@@ -10,6 +10,7 @@
 
 #include "q_bridge.h"
 
+#include <q/fx/lowpass.hpp>
 #include <q/pitch/pitch_detector.hpp>
 #include <q/support/literals.hpp>
 
@@ -26,12 +27,18 @@ static inline q::decibel make_decibel(float db_val)
 // Internal struct wrapping the Q pitch_detector.
 struct QPitchDetector {
     q::pitch_detector pd;
+    q::dynamic_smoother output_smoother;
+    float raw_frequency = 0.0f;
+    float smoothed_frequency = 0.0f;
+    bool has_frequency = false;
 
     QPitchDetector(float min_hz, float max_hz,
                    uint32_t sps, float hysteresis_db)
         : pd(q::frequency(min_hz), q::frequency(max_hz),
-             static_cast<float>(sps),
-             make_decibel(hysteresis_db))
+              static_cast<float>(sps),
+              make_decibel(hysteresis_db))
+        , output_smoother(q::frequency(min_hz + ((max_hz - min_hz) * 0.5f)),
+                          static_cast<float>(sps))
     {}
 };
 
@@ -55,13 +62,32 @@ void q_pd_destroy(QPitchDetector* pd)
 bool q_pd_process(QPitchDetector* pd, float sample)
 {
     if (!pd) return false;
-    return pd->pd(sample);
+    bool detected = pd->pd(sample);
+    if (detected) {
+        pd->raw_frequency = pd->pd.get_frequency();
+        if (pd->raw_frequency > 0.0f) {
+            if (!pd->has_frequency) {
+                // Q's dynamic_smoother exposes operator=(float) specifically to
+                // seed/reset its internal state to a known output value before
+                // regular smoothing begins.
+                pd->output_smoother = pd->raw_frequency;
+                pd->smoothed_frequency = pd->raw_frequency;
+                pd->has_frequency = true;
+            }
+        }
+    }
+    if (pd->has_frequency) {
+        pd->smoothed_frequency = pd->output_smoother(pd->raw_frequency);
+    }
+    return detected;
 }
 
 float q_pd_get_frequency(QPitchDetector* pd)
 {
     if (!pd) return 0.0f;
-    return pd->pd.get_frequency();
+    if (!pd->has_frequency)
+        return 0.0f;
+    return pd->smoothed_frequency;
 }
 
 float q_pd_get_periodicity(QPitchDetector* pd)
