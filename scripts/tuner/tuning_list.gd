@@ -33,7 +33,8 @@ func _on_preset_list_item_activated(index: int) -> void:
 
 
 func _on_start_button_pressed() -> void:
-	var idx: int = _preset_list.get_selected_items()[0] if _preset_list.get_selected_items().size() > 0 else 0
+	var selected: PackedInt32Array = _preset_list.get_selected_items()
+	var idx: int = selected[0] if selected.size() > 0 else 0
 	_start_tuner(idx)
 
 
