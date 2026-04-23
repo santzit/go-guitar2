@@ -12,12 +12,14 @@
 //   lib/windows/libogg.a              — cross-compiled libogg
 //
 // cycfi/q pitch detection:
-//   Requires the Q and infra header-only libraries as git submodules:
+//   Prefer vendored headers in:
+//     include/q            — Q headers committed into this repository
+//   and fall back to the Q/infra submodules when present:
 //     extern/q/include     — https://github.com/cycfi/q
 //     extern/infra/include — https://github.com/cycfi/infra  (Q dependency)
-//   When both include directories are present, q_bridge.cpp is compiled with
-//   the `cc` crate and the `q_available` cfg flag is emitted so that
-//   `src/q_ffi.rs` and `src/pitch_detector.rs` are compiled in.
+//   When the required include directories are present, q_bridge.cpp is
+//   compiled with the `cc` crate and the `q_available` cfg flag is emitted
+//   so that `src/q_ffi.rs` and `src/pitch_detector.rs` are compiled in.
 //
 //   To initialise the submodules after cloning:
 //     git submodule update --init --recursive
@@ -68,11 +70,14 @@ fn main() {
     // The cycfi/q repo layout changed: headers moved from `extern/q/include/`
     // to `extern/q/q_lib/include/` in recent versions.  Try both locations so
     // the build works whether the submodule tracks old or new layout.
+    let q_include_repo = format!("{manifest_dir}/include");
     let q_include_new = format!("{manifest_dir}/extern/q/q_lib/include");
     let q_include_old = format!("{manifest_dir}/extern/q/include");
     let infra_include = format!("{manifest_dir}/extern/infra/include");
 
-    let q_include = if std::path::Path::new(&q_include_new).exists() {
+    let q_include = if std::path::Path::new(&format!("{q_include_repo}/q")).exists() {
+        q_include_repo.clone()
+    } else if std::path::Path::new(&q_include_new).exists() {
         q_include_new.clone()
     } else {
         q_include_old.clone()
@@ -93,6 +98,7 @@ fn main() {
 
         println!("cargo:rerun-if-changed=q_bridge/q_bridge.cpp");
         println!("cargo:rerun-if-changed=q_bridge/q_bridge.h");
+        println!("cargo:rerun-if-changed=include/q");
         println!("cargo:rerun-if-changed=extern/q/q_lib/include");
         println!("cargo:rerun-if-changed=extern/q/include");
         println!("cargo:rerun-if-changed=extern/infra/include");

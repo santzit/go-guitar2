@@ -1,7 +1,8 @@
 /// q_ffi.rs — Raw unsafe Rust bindings to the C bridge over cycfi/q.
 ///
-/// Only available when the Q headers are present (`extern/q/include` exists)
-/// and the `q_bridge` static library was compiled by build.rs.
+/// Only available when the vendored Q headers (`include/q`) or fallback
+/// submodule headers (`extern/q/include`) are present and the `q_bridge`
+/// static library was compiled by build.rs.
 ///
 /// Do **not** use these symbols directly — prefer the safe wrapper in
 /// `pitch_detector.rs`.
