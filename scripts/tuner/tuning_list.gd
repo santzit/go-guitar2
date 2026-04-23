@@ -52,7 +52,7 @@ func _start_tuner(index: int) -> void:
 		notes_typed.append(String(n))
 	_GameStateScript.selected_tuning_name = String(preset.get("name", "E Standard"))
 	_GameStateScript.selected_tuning_notes = notes_typed
-	get_tree().change_scene_to_file("res://scenes/tuner/tuner.tscn")
+	get_tree().change_scene_to_file("res://scenes/tuner/tuner_3d.tscn")
 
 
 func _update_notes_preview(index: int) -> void:

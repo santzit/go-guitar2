@@ -23,13 +23,17 @@ const FRET_COUNT: int = 5
 
 # Per-string display data (index 0 = E2 low, index 5 = E4 high)
 const _STRING_DEFAULT_NAMES: PackedStringArray = ["E2", "A2", "D3", "G3", "B3", "E4"]
+# Rainbow palette chosen to give each string a distinct, vivid identity that
+# glows clearly against the dark 3D atmospheric background of tuner_3d.tscn.
+# Order follows low-to-high pitch: red (E2) → orange (A2) → yellow (D3) →
+# green (G3) → blue (B3) → purple (E4).
 const _STRING_BASE_COLORS: Array[Color] = [
-	Color(0.60, 0.51, 0.36),   # E2 – wound brass
-	Color(0.60, 0.52, 0.38),   # A2 – wound
-	Color(0.62, 0.54, 0.40),   # D3 – wound
-	Color(0.82, 0.78, 0.72),   # G3 – plain/wound
-	Color(0.88, 0.88, 0.88),   # B3 – plain
-	Color(0.95, 0.95, 0.95),   # E4 – plain (thinnest)
+	Color(0.95, 0.15, 0.15),  # E2 – red
+	Color(1.00, 0.52, 0.08),  # A2 – orange
+	Color(0.98, 0.88, 0.05),  # D3 – yellow
+	Color(0.12, 0.88, 0.25),  # G3 – green
+	Color(0.18, 0.48, 1.00),  # B3 – blue
+	Color(0.62, 0.08, 0.95),  # E4 – purple
 ]
 const _STRING_WIDTHS: PackedFloat32Array = [5.5, 4.4, 3.4, 2.5, 1.9, 1.3]
 
