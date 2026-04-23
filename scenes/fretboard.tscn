@@ -15,22 +15,22 @@ shader_parameter/glow_intensity  = 0.0
 
 [sub_resource type="ShaderMaterial" id="StringMat_1"]
 shader = ExtResource("2_fbshader")
-shader_parameter/string_color   = Color(1.00, 0.52, 0.08, 1)
+shader_parameter/string_color   = Color(0.98, 0.88, 0.05, 1)
 shader_parameter/glow_intensity  = 0.0
 
 [sub_resource type="ShaderMaterial" id="StringMat_2"]
 shader = ExtResource("2_fbshader")
-shader_parameter/string_color   = Color(0.98, 0.88, 0.05, 1)
+shader_parameter/string_color   = Color(0.18, 0.48, 1.00, 1)
 shader_parameter/glow_intensity  = 0.0
 
 [sub_resource type="ShaderMaterial" id="StringMat_3"]
 shader = ExtResource("2_fbshader")
-shader_parameter/string_color   = Color(0.12, 0.88, 0.25, 1)
+shader_parameter/string_color   = Color(1.00, 0.52, 0.08, 1)
 shader_parameter/glow_intensity  = 0.0
 
 [sub_resource type="ShaderMaterial" id="StringMat_4"]
 shader = ExtResource("2_fbshader")
-shader_parameter/string_color   = Color(0.18, 0.48, 1.00, 1)
+shader_parameter/string_color   = Color(0.12, 0.88, 0.25, 1)
 shader_parameter/glow_intensity  = 0.0
 
 [sub_resource type="ShaderMaterial" id="StringMat_5"]
