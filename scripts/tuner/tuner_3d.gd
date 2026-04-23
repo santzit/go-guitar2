@@ -219,7 +219,7 @@ func _apply_live_ui(target_idx: int) -> void:
 	_update_side_note_labels(note_name)
 
 	# Clear all string glows, then light the active string
-	for i in 6:
+	for i in _target_freqs.size():
 		_fretboard_3d.set_string_glow(i, 0.0)
 	# Full brightness when in tune; slightly dimmer otherwise so the colour
 	# gradient of the shader is still easy to distinguish
@@ -248,7 +248,7 @@ func _set_waiting_ui() -> void:
 	_guidance_label.modulate  = Color(1.0, 1.0, 1.0)
 	_gauge_meter.set_meter_value(0.0, false, false)
 	# Extinguish all strings while waiting for audio
-	for i in 6:
+	for i in _target_freqs.size():
 		_fretboard_3d.set_string_glow(i, 0.0)
 
 
