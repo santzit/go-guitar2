@@ -16,15 +16,17 @@ const NOTE_NAMES: PackedStringArray = [
 	"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"
 ]
 
-@onready var _tuning_name_label: Label = $Panel/MarginContainer/VBoxContainer/TuningNameLabel
-@onready var _target_notes_label: Label = $Panel/MarginContainer/VBoxContainer/TargetNotesLabel
-@onready var _selected_string_label: Label = $Panel/MarginContainer/VBoxContainer/SelectedStringLabel
-@onready var _detected_note_label: Label = $Panel/MarginContainer/VBoxContainer/DetectedNoteLabel
-@onready var _frequency_label: Label = $Panel/MarginContainer/VBoxContainer/DetectedFrequencyLabel
-@onready var _cents_label: Label = $Panel/MarginContainer/VBoxContainer/CentsLabel
-@onready var _guidance_label: Label = $Panel/MarginContainer/VBoxContainer/GuidanceLabel
-@onready var _cents_bar: ProgressBar = $Panel/MarginContainer/VBoxContainer/CentsBar
-@onready var _string_buttons: HBoxContainer = $Panel/MarginContainer/VBoxContainer/StringButtons
+@onready var _tuning_name_label: Label = $Panel/MarginContainer/VBoxRoot/TopMeta/TuningNameLabel
+@onready var _target_notes_label: Label = $Panel/MarginContainer/VBoxRoot/TopMeta/TargetNotesLabel
+@onready var _selected_string_label: Label = $Panel/MarginContainer/VBoxRoot/TopMeta/SelectedStringLabel
+@onready var _detected_note_label: Label = $Panel/MarginContainer/VBoxRoot/MainArea/CenterStack/NoteRow/NoteCircle/DetectedNoteLabel
+@onready var _frequency_label: Label = $Panel/MarginContainer/VBoxRoot/MainArea/CenterStack/NoteRow/NoteCircle/DetectedFrequencyLabel
+@onready var _cents_label: Label = $Panel/MarginContainer/VBoxRoot/BottomControls/BottomRow/CentsChip/CentsLabel
+@onready var _guidance_label: Label = $Panel/MarginContainer/VBoxRoot/MainArea/CenterStack/GuidanceLabel
+@onready var _cents_bar: ProgressBar = $Panel/MarginContainer/VBoxRoot/MainArea/CenterStack/CentsBar
+@onready var _string_buttons: HBoxContainer = $Panel/MarginContainer/VBoxRoot/BottomControls/StringButtons
+@onready var _left_note_label: Label = $Panel/MarginContainer/VBoxRoot/MainArea/CenterStack/NoteRow/LeftNoteLabel
+@onready var _right_note_label: Label = $Panel/MarginContainer/VBoxRoot/MainArea/CenterStack/NoteRow/RightNoteLabel
 
 var _pitch_detector = null
 var _input_audio_manager = null
@@ -174,10 +176,11 @@ func _apply_live_ui(target_idx: int) -> void:
 		return
 	var target_hz: float = _target_freqs[target_idx]
 	var note_name: String = _freq_to_note_name(_smoothed_freq_hz)
-	_detected_note_label.text = "Detected note: %s" % note_name
-	_frequency_label.text = "Detected frequency: %.2f Hz" % _smoothed_freq_hz
+	_detected_note_label.text = note_name
+	_frequency_label.text = "%.2f Hz" % _smoothed_freq_hz
 	_cents_label.text = "Offset: %+0.1f cents vs %s (%.2f Hz)" % [_smoothed_cents, _target_notes[target_idx], target_hz]
 	_cents_bar.value = clampf(_smoothed_cents, -50.0, 50.0)
+	_update_side_note_labels(note_name)
 
 	if absf(_smoothed_cents) <= IN_TUNE_TOLERANCE_CENTS:
 		_guidance_label.text = "IN TUNE ✓"
@@ -192,9 +195,11 @@ func _apply_live_ui(target_idx: int) -> void:
 
 func _set_waiting_ui() -> void:
 	_has_detection = false
-	_detected_note_label.text = "Detected note: --"
-	_frequency_label.text = "Detected frequency: -- Hz"
+	_detected_note_label.text = "--"
+	_frequency_label.text = "-- Hz"
 	_cents_label.text = "Offset: -- cents"
+	_left_note_label.text = "--"
+	_right_note_label.text = "--"
 	_guidance_label.text = "Waiting for signal…"
 	_guidance_label.modulate = Color(1.0, 1.0, 1.0)
 	_cents_bar.value = 0.0
@@ -260,3 +265,24 @@ func _note_to_freq(note: String) -> float:
 		return 0.0
 	var midi: int = (octave + 1) * 12 + semitone
 	return A4_FREQUENCY_HZ * pow(2.0, float(midi - A4_MIDI_NOTE) / SEMITONES_PER_OCTAVE)
+
+
+func _update_side_note_labels(note_with_octave: String) -> void:
+	if note_with_octave == "--":
+		_left_note_label.text = "--"
+		_right_note_label.text = "--"
+		return
+	var split: int = note_with_octave.length()
+	while split > 0:
+		var ch: String = note_with_octave.substr(split - 1, 1)
+		if ch < "0" or ch > "9":
+			break
+		split -= 1
+	var base: String = note_with_octave.substr(0, split)
+	var idx: int = NOTE_NAMES.find(base)
+	if idx < 0:
+		_left_note_label.text = "--"
+		_right_note_label.text = "--"
+		return
+	_left_note_label.text = NOTE_NAMES[posmod(idx - 1, NOTE_NAMES.size())]
+	_right_note_label.text = NOTE_NAMES[posmod(idx + 1, NOTE_NAMES.size())]
