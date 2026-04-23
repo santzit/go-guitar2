@@ -21,6 +21,11 @@ const SEMITONES_PER_OCTAVE: float = 12.0
 const CAMERA_POSITION: Vector3 = Vector3(0.0, 7.5, 42.0)
 const CAMERA_LOOK_AT: Vector3 = Vector3(0.0, -2.0, -8.0)
 const CAMERA_FOV_DEGREES: float = 32.0
+const FRETBOARD_RIG_POSITION: Vector3 = Vector3(0.0, -8.8, -12.0)
+const FRETBOARD_RIG_ROTATION: Vector3 = Vector3(0.0, -45.0, -15.0)
+const FRETBOARD_OFFSET: Vector3 = Vector3(-24.0, -1.5, 0.0)
+const GAUGE_PLANE_POSITION: Vector3 = Vector3(0.0, 10.0, -4.0)
+const GAUGE_PLANE_SCALE: Vector3 = Vector3(7.2, 7.2, 1.0)
 
 const NOTE_NAMES: PackedStringArray = [
 	"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"
@@ -141,17 +146,17 @@ func _build_3d_environment() -> void:
 
 
 func _apply_3d_layout() -> void:
-	_fretboard_rig.position = Vector3(0.0, -8.8, -12.0)
-	_fretboard_rig.rotation_degrees = Vector3(0.0, -45.0, -15.0)
-	_fretboard_3d.position = Vector3(-24.0, -1.5, 0.0)
+	# Center the real fretboard scene on the rig before applying the requested
+	# angled presentation, so the 48-unit neck rotates around its midpoint.
+	_fretboard_rig.position = FRETBOARD_RIG_POSITION
+	_fretboard_rig.rotation_degrees = FRETBOARD_RIG_ROTATION
+	_fretboard_3d.position = FRETBOARD_OFFSET
 	_fretboard_3d.scale = Vector3.ONE
 
-	_gauge_plane.position = Vector3(0.0, 10.0, -4.0)
-	_gauge_plane.scale = Vector3(7.2, 7.2, 1.0)
-
-	if _camera != null:
-		_camera.position = CAMERA_POSITION
-		_camera.look_at(CAMERA_LOOK_AT, Vector3.UP)
+	_gauge_plane.position = GAUGE_PLANE_POSITION
+	_gauge_plane.scale = GAUGE_PLANE_SCALE
+	_camera.position = CAMERA_POSITION
+	_camera.look_at(CAMERA_LOOK_AT, Vector3.UP)
 
 
 # ── Game loop ─────────────────────────────────────────────────────────────────
