@@ -22,6 +22,7 @@ theme/custom="res://assets/fonts/project_theme.tres"
 [audio]
 
 driver/enable_input=true
+driver/mix_rate=48000
 
 [autoload]
 
