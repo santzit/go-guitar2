@@ -59,7 +59,17 @@ fn main() {
         "windows" => {
             let lib_dir = format!("{manifest_dir}/lib/windows");
             println!("cargo:rustc-link-search=native={lib_dir}");
-            println!("cargo:rustc-link-search=native=/usr/lib/gcc/x86_64-w64-mingw32/13-win32");
+            if let Ok(output) = std::process::Command::new("x86_64-w64-mingw32-g++")
+                .arg("-print-file-name=libstdc++.a")
+                .output()
+            {
+                let libstdcpp = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if !libstdcpp.is_empty() {
+                    if let Some(parent) = std::path::Path::new(&libstdcpp).parent() {
+                        println!("cargo:rustc-link-search=native={}", parent.display());
+                    }
+                }
+            }
             // Windows: vgmstream WEM decoder (cross-compiled via MinGW, USE_VORBIS=ON).
             println!("cargo:rustc-link-lib=static=vgmstream");
             println!("cargo:rustc-link-lib=static=vorbisfile");
