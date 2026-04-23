@@ -8,6 +8,11 @@ static var selected_psarc_path: String = ""
 ## Maps to DDC bands: 0–33=Easy, 34–66=Medium, 67–100=Hard.
 static var difficulty_percent: float = 100.0
 
+## Tuner state (shared between tuning list and live tuner scenes).
+static var selected_tuning_name: String = "E Standard"
+## 6-note array from low string to high string (e.g. ["E2","A2","D3","G3","B3","E4"]).
+static var selected_tuning_notes: Array[String] = ["E2", "A2", "D3", "G3", "B3", "E4"]
+
 ## ── Mixer settings (persisted to user://mixer_settings.cfg) ─────────────────
 
 const BUS_COUNT: int = 9
