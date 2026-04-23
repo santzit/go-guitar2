@@ -33,7 +33,6 @@ script = ExtResource("1")
 
 [node name="GaugeViewport" type="SubViewport" parent="."]
 size = Vector2i(800, 400)
-# render_target_update_mode=4 = ALWAYS: required so the gauge redraws every frame
 render_target_update_mode = 4
 
 [node name="GaugeMeter" type="Control" parent="GaugeViewport"]
