@@ -241,6 +241,20 @@ uint32_t q_dsp_push_input_i16(QDspBridge*    bridge,
     return written;
 }
 
+uint32_t q_dsp_push_input_f32(QDspBridge*  bridge,
+                               const float* data,
+                               uint32_t     count)
+{
+    if (!bridge || !data) return 0u;
+    uint32_t written = 0;
+    for (uint32_t i = 0; i < count; ++i) {
+        if (!bridge->in_rb.push(data[i]))
+            break;
+        ++written;
+    }
+    return written;
+}
+
 uint32_t q_dsp_pop_output_f32(QDspBridge* bridge,
                                float*      out,
                                uint32_t    max_count)

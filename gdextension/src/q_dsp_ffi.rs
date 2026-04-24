@@ -43,6 +43,15 @@ extern "C" {
         count:  c_uint,
     ) -> c_uint;
 
+    /// Push f32 samples directly into the input ring buffer (no conversion).
+    /// Preferred over q_dsp_push_input_i16 — avoids the f32→i16→f32 round-trip.
+    /// Returns the number of samples actually written.
+    pub fn q_dsp_push_input_f32(
+        bridge: *mut QDspBridge,
+        data:   *const c_float,
+        count:  c_uint,
+    ) -> c_uint;
+
     /// Pop f32 samples from the output ring buffer.
     /// Returns the number of samples actually read.
     pub fn q_dsp_pop_output_f32(

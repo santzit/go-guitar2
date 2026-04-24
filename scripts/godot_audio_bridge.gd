@@ -3,7 +3,7 @@ extends Node
 ##
 ## Implements the "Godot block I/O" audio pipeline described in the issue:
 ##
-##   Godot (AudioEffectCapture)            ──push_input_pcm──►  godot_in  SPSC ring
+##   Godot (AudioEffectCapture)            ──push_input_f32──►  godot_in  SPSC ring
 ##       ↓ native DSP thread (ToneEngine amp-sim)
 ##   Godot (AudioStreamGeneratorPlayback)  ◄─pop_output_frames─  godot_out SPSC ring
 ##
@@ -34,7 +34,7 @@ extends Node
 ## Emitted when processed stereo frames are written to the generator playback.
 signal output_pushed(frame_count: int)
 
-## Emitted when raw DI PCM bytes are pushed to the native ring buffer.
+## Emitted when raw DI f32 samples are pushed to the native ring buffer.
 signal input_pushed(sample_count: int)
 
 ## Set to false to call tick() manually from your own _process().
@@ -154,22 +154,22 @@ func _push_input() -> void:
 		return
 
 	var stereo_buf : PackedVector2Array = _capture_effect.get_buffer(frames)
-	var pcm_bytes  : PackedByteArray    = PackedByteArray()
-	pcm_bytes.resize(stereo_buf.size() * 2)
+	var f32_buf    : PackedFloat32Array = PackedFloat32Array()
+	f32_buf.resize(stereo_buf.size())
 
 	var any_signal := false
 	for fi in stereo_buf.size():
-		# Use L channel only (guitar DI is mono on L), apply noise gate, then quantise to PCM-16-LE.
+		# Use L channel only (guitar DI is mono on L), apply noise gate.
+		# Pass f32 directly to C++/Q — no PCM-16 conversion step needed.
 		var s : float = clampf(stereo_buf[fi].x, -1.0, 1.0)
 		if absf(s) < noise_gate:
 			s = 0.0
 		else:
 			any_signal = true
-		var s16 : int = clampi(int(s * 32768.0), -32768, 32767)
-		pcm_bytes.encode_s16(fi * 2, s16)
+		f32_buf[fi] = s
 
 	if any_signal or noise_gate <= 0.0:
-		var written : int = _rt_engine.push_input_pcm(pcm_bytes)
+		var written : int = _rt_engine.push_input_f32(f32_buf)
 		if written > 0:
 			input_pushed.emit(written)
 

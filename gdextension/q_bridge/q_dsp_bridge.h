@@ -7,9 +7,9 @@
 ///
 /// ## Pipeline
 /// ```
-/// push_input_i16()  →  [in_rb]  →  DSP thread (dc_block + lowpass)
-///                                           ↓
-/// pop_output_f32()  ←  [out_rb] ←──────────╯
+/// push_input_f32()  →  [in_rb]  →  DSP thread (dc_block + lowpass)
+/// push_input_i16()  ↗                         ↓
+/// pop_output_f32()  ←  [out_rb] ←─────────────╯
 /// ```
 
 #ifndef Q_DSP_BRIDGE_H
@@ -54,6 +54,19 @@ void q_dsp_stop(QDspBridge* bridge);
 /// @return       Number of samples actually written (< count if buffer full).
 uint32_t q_dsp_push_input_i16(QDspBridge* bridge,
                                const int16_t* data,
+                               uint32_t count);
+
+/// Push f32 mono samples directly into the input ring buffer.
+///
+/// Preferred over q_dsp_push_input_i16 — avoids the f32→i16→f32 round-trip
+/// that introduces unnecessary quantisation noise.
+///
+/// @param data   Pointer to an array of `count` float samples (any range,
+///               though values in [-1, 1] are conventional).
+/// @param count  Number of samples to push.
+/// @return       Number of samples actually written (< count if buffer full).
+uint32_t q_dsp_push_input_f32(QDspBridge* bridge,
+                               const float* data,
                                uint32_t count);
 
 /// Pop f32 samples from the output ring buffer.

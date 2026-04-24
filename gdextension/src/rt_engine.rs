@@ -18,7 +18,7 @@
 ///
 /// ```text
 /// Godot AudioEffectCapture
-///   → push_input_pcm(pcm_bytes)  [PCM-16-LE → C++ in_rb SPSC]
+///   → push_input_f32(f32_samples)  [f32 L-channel → C++ in_rb SPSC, no conversion]
 ///   → C++ DSP thread  (dc_block + one_pole_lowpass via cycfi/q)
 ///   → C++ out_rb SPSC  →  pop_output_frames(n)
 ///   → AudioStreamGeneratorPlayback
@@ -33,7 +33,7 @@
 /// rt.start_streams("default", "default") # open CPAL I/O streams (optional)
 /// rt.push_music_pcm(audio_engine.decode_all())
 /// # …Godot-block-I/O…
-/// rt.push_input_pcm(pcm16_bytes)         # feed DI from AudioEffectCapture
+/// rt.push_input_f32(f32_samples)         # feed DI from AudioEffectCapture (L channel)
 /// var frames = rt.pop_output_frames(n)   # pull Q-processed output
 /// # …gameplay loop…
 /// rt.stop_streams()
@@ -62,7 +62,7 @@ const Q_BLOCK_SIZE: u32 = 128;
 /// 1. `start(channels, sample_rate)` — spawns the engine thread + Q DSP bridge.
 /// 2. `start_streams(input_name, output_name)` — open CPAL I/O.
 /// 3. `push_music_pcm(pcm_bytes)` — feed decoded WEM/PCM into the music ring buffer.
-/// 4. `push_input_pcm(pcm_bytes)` — feed DI input into the Q SPSC bridge.
+/// 4. `push_input_f32(f32_samples)` — feed DI input into the Q SPSC bridge (no conversion).
 /// 5. `pop_output_frames(n)` — pull Q-processed output for AudioStreamGenerator.
 /// 6. `set_bus_*` — adjust mixer buses from GDScript.
 /// 7. `stop_streams()` — close CPAL streams.
@@ -226,7 +226,7 @@ impl RtEngine {
     //
     // These four methods implement the "Godot block I/O" audio pipeline:
     //
-    //   Godot (AudioEffectCapture) ──push_input_pcm──► C++ in_rb SPSC
+    //   Godot (AudioEffectCapture) ──push_input_f32──► C++ in_rb SPSC (no conversion)
     //       ↓ C++ DSP thread (dc_block + lowpass via cycfi/q)
     //   Godot (AudioStreamGeneratorPlayback) ◄──pop_output_frames── C++ out_rb SPSC
     //
@@ -271,6 +271,46 @@ impl RtEngine {
         #[cfg(not(q_available))]
         {
             godot_warn!("RtEngine: push_input_pcm() — Q bridge not available (build without Q headers).");
+            let _ = data;
+            0
+        }
+    }
+
+    /// Push f32 mono samples from Godot's `AudioEffectCapture` directly into
+    /// the C++ SPSC input ring buffer — no PCM-16 conversion step.
+    ///
+    /// This is the preferred method over `push_input_pcm`: the float values are
+    /// passed to C++ as-is, avoiding the lossy f32→i16→f32 round-trip.
+    ///
+    /// `data` should contain L-channel (or pre-mixed mono) samples in [-1, 1].
+    ///
+    /// Returns the number of samples actually written (may be less than
+    /// `data.size()` if the ring buffer is full).
+    #[func]
+    pub fn push_input_f32(&self, data: PackedFloat32Array) -> i64 {
+        #[cfg(q_available)]
+        {
+            let guard = match self.q_dsp.lock() {
+                Ok(g)  => g,
+                Err(_) => return 0,
+            };
+            let ptr = *guard;
+            if ptr.is_null() {
+                godot_warn!("RtEngine: push_input_f32() called before start().");
+                return 0;
+            }
+            let raw = data.to_vec();
+            unsafe {
+                crate::q_dsp_ffi::q_dsp_push_input_f32(
+                    ptr,
+                    raw.as_ptr(),
+                    raw.len() as u32,
+                ) as i64
+            }
+        }
+        #[cfg(not(q_available))]
+        {
+            godot_warn!("RtEngine: push_input_f32() — Q bridge not available (build without Q headers).");
             let _ = data;
             0
         }
