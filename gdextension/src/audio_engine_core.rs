@@ -3,9 +3,12 @@
 /// Architecture:
 /// ```text
 /// Main thread             Engine thread (RT priority)
-///   push_music_pcm ──►  music_consumer  ──►  Mixer ──► output_producer ──► CPAL output
-///   send_cmd       ──►  cmd_consumer    ──►  param updates
-///                        input_consumer ◄──  CPAL input (mic / guitar DI)
+///   push_music_pcm ──►  music_consumer      ──►  Mixer ──► output_producer ──► CPAL output
+///   send_cmd       ──►  cmd_consumer        ──►  param updates
+///                        input_consumer     ◄──  CPAL input (mic / guitar DI)
+///
+///   push_input_pcm ──►  godot_in_consumer   ──►  ToneEngine ──► godot_out_producer
+///   pop_output_frames ◄── godot_out_consumer   ◄── (Godot AudioStreamGeneratorPlayback)
 /// ```
 ///
 /// ## Lifecycle
@@ -16,6 +19,7 @@
 /// ```
 
 use crate::audio_mixer::{bus_id_from_index, BUS_COUNT, MixInput, Mixer};
+use crate::tone_engine::ToneEngine;
 use rtrb::RingBuffer;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -28,6 +32,10 @@ pub const BLOCK_SIZE: usize = 128;
 
 /// Ring buffer capacity in f32 samples (~0.5 s of stereo 48 kHz).
 pub const RING_CAPACITY: usize = 48_000 * 2;
+
+/// Ring buffer capacity for the Godot-facing SPSC ring buffers.
+/// ~1 s of mono audio at 48 kHz — enough to absorb several game frames.
+pub const GODOT_RB_CAPACITY: usize = 48_000;
 
 /// Ring buffer capacity for the command queue.
 pub const CMD_CAPACITY: usize = 64;
@@ -53,25 +61,36 @@ pub enum EngineCmd {
 ///
 /// The caller is expected to transfer `output_consumer` and `input_producer`
 /// to the audio-io layer immediately after `start()`.
+///
+/// For the **Godot-block-I/O path** (no CPAL):
+/// - Push guitar DI samples via `godot_in_producer`.
+/// - Pull processed (ToneEngine DSP) samples via `godot_out_consumer`.
 pub struct EngineCore {
     /// Push interleaved f32 music samples into this producer.
-    pub music_producer:  rtrb::Producer<f32>,
+    pub music_producer:       rtrb::Producer<f32>,
     /// Send mixer-parameter commands here (non-blocking, RT-safe).
-    pub cmd_producer:    rtrb::Producer<EngineCmd>,
+    pub cmd_producer:         rtrb::Producer<EngineCmd>,
     /// Engine-thread output — hand this to the CPAL output callback.
-    pub output_consumer: Option<rtrb::Consumer<f32>>,
+    pub output_consumer:      Option<rtrb::Consumer<f32>>,
     /// Engine-thread mic/DI input — hand this to the CPAL input callback.
-    pub input_producer:  Option<rtrb::Producer<f32>>,
+    pub input_producer:       Option<rtrb::Producer<f32>>,
+    /// **Godot-block-I/O**: push PCM-16-LE DI input here from GDScript.
+    /// The engine DSP thread drains this, runs ToneEngine, and writes the
+    /// result into `godot_out_consumer` for GDScript to read back.
+    pub godot_in_producer:    rtrb::Producer<f32>,
+    /// **Godot-block-I/O**: pop ToneEngine-processed f32 samples from here
+    /// and push them into an `AudioStreamGeneratorPlayback` in GDScript.
+    pub godot_out_consumer:   rtrb::Consumer<f32>,
     /// Shared peak-meter values per bus, written by the engine thread each block.
-    pub meter_peaks:     Arc<Mutex<Vec<f32>>>,
+    pub meter_peaks:          Arc<Mutex<Vec<f32>>>,
     /// Mirror of per-bus gain_db set from the main thread (for readback).
-    pub gain_db:         [f32; BUS_COUNT],
+    pub gain_db:              [f32; BUS_COUNT],
     /// Set to `false` to signal the engine thread to exit.
-    running:             Arc<AtomicBool>,
-    handle:              Option<std::thread::JoinHandle<()>>,
+    running:                  Arc<AtomicBool>,
+    handle:                   Option<std::thread::JoinHandle<()>>,
     /// Cached config for informational purposes.
-    pub channels:        u32,
-    pub sample_rate:     u32,
+    pub channels:             u32,
+    pub sample_rate:          u32,
 }
 
 impl EngineCore {
@@ -85,6 +104,11 @@ impl EngineCore {
         let (cmd_producer,    cmd_consumer)    = RingBuffer::<EngineCmd>::new(CMD_CAPACITY);
         let (input_producer,  input_consumer)  = RingBuffer::<f32>::new(RING_CAPACITY);
 
+        // Dedicated Godot-facing SPSC ring buffers:
+        //   godot_in  — GDScript (AudioEffectCapture) → engine DSP thread
+        //   godot_out — engine DSP thread → GDScript (AudioStreamGeneratorPlayback)
+        let (godot_in_producer,  godot_in_consumer)  = RingBuffer::<f32>::new(GODOT_RB_CAPACITY);
+        let (godot_out_producer, godot_out_consumer) = RingBuffer::<f32>::new(GODOT_RB_CAPACITY);
         let running      = Arc::new(AtomicBool::new(true));
         let meter_peaks  = Arc::new(Mutex::new(vec![0.0f32; BUS_COUNT]));
 
@@ -100,6 +124,8 @@ impl EngineCore {
                     input_consumer,
                     output_producer,
                     cmd_consumer,
+                    godot_in_consumer,
+                    godot_out_producer,
                     running_clone,
                     meter_peaks_clone,
                 );
@@ -111,6 +137,8 @@ impl EngineCore {
             cmd_producer,
             output_consumer: Some(output_consumer),
             input_producer:  Some(input_producer),
+            godot_in_producer,
+            godot_out_consumer,
             meter_peaks,
             gain_db:         [0.0; BUS_COUNT],
             running,
@@ -143,14 +171,16 @@ impl Drop for EngineCore {
 // ── Engine thread ─────────────────────────────────────────────────────────────
 
 fn engine_thread(
-    channels:       u32,
-    _sample_rate:   u32,
-    mut music_in:   rtrb::Consumer<f32>,
-    mut input_in:   rtrb::Consumer<f32>,
-    mut output_out: rtrb::Producer<f32>,
-    mut cmd_in:     rtrb::Consumer<EngineCmd>,
-    running:        Arc<AtomicBool>,
-    meter_peaks:    Arc<Mutex<Vec<f32>>>,
+    channels:                 u32,
+    _sample_rate:             u32,
+    mut music_in:             rtrb::Consumer<f32>,
+    mut input_in:             rtrb::Consumer<f32>,
+    mut output_out:           rtrb::Producer<f32>,
+    mut cmd_in:               rtrb::Consumer<EngineCmd>,
+    mut godot_input_in:       rtrb::Consumer<f32>,
+    mut godot_output_out:     rtrb::Producer<f32>,
+    running:                  Arc<AtomicBool>,
+    meter_peaks:              Arc<Mutex<Vec<f32>>>,
 ) {
     use thread_priority::{set_current_thread_priority, ThreadPriority};
     // Failure is silently ignored — the thread still works at normal priority.
@@ -159,6 +189,11 @@ fn engine_thread(
     let ch           = channels as usize;
     let block_samples = BLOCK_SIZE * ch;
     let mut mixer    = Mixer::new();
+    let mut tone_engine = ToneEngine::new();
+
+    // Stack-allocated scratch buffers for the Godot DSP path.
+    let mut godot_in_buf  = [0.0f32; BLOCK_SIZE];
+    let mut godot_out_buf = [0.0f32; BLOCK_SIZE];
 
     loop {
         if !running.load(Ordering::Relaxed) {
@@ -226,6 +261,29 @@ fn engine_thread(
         } else {
             // Output ring full — yield briefly.
             std::thread::sleep(Duration::from_micros(500));
+        }
+
+        // ── Godot-block-I/O path ─────────────────────────────────────────────
+        // Drain whatever complete BLOCK_SIZE-sample blocks are available from
+        // the Godot input ring buffer, run ToneEngine DSP on each block, and
+        // write the result to the Godot output ring buffer.
+        //
+        // This path is fully independent from the CPAL path above and is safe
+        // to use regardless of whether start_streams() has been called.
+        {
+            let blocks_in  = godot_input_in.slots() / BLOCK_SIZE;
+            let blocks_out = godot_output_out.slots() / BLOCK_SIZE;
+            let blocks     = blocks_in.min(blocks_out);
+
+            for _ in 0..blocks {
+                for s in &mut godot_in_buf {
+                    *s = godot_input_in.pop().unwrap_or(0.0);
+                }
+                tone_engine.process_block(&godot_in_buf, &mut godot_out_buf);
+                for &s in &godot_out_buf {
+                    let _ = godot_output_out.push(s);
+                }
+            }
         }
     }
 }

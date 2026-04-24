@@ -10,12 +10,30 @@
 ///                └─► audio_io::open_streams   (CPAL input/output streams)
 /// ```
 ///
+/// ## Godot-block-I/O path (SPSC ring buffers)
+///
+/// In addition to hardware CPAL streams, `RtEngine` exposes a second audio
+/// path driven entirely from GDScript:
+///
+/// ```text
+/// Godot AudioEffectCapture
+///   → push_input_pcm(pcm_bytes)
+///   → godot_in  SPSC ring  →  engine DSP thread (ToneEngine)
+///   → godot_out SPSC ring  →  pop_output_frames(n)
+///   → AudioStreamGeneratorPlayback
+/// ```
+///
+/// Use `scripts/godot_audio_bridge.gd` to wire this pipeline automatically.
+///
 /// GDScript usage:
 /// ```gdscript
 /// var rt = RtEngine.new()
 /// rt.start(2, 48000)                     # start engine thread + allocate ring buffers
-/// rt.start_streams("default", "default") # open CPAL I/O streams
+/// rt.start_streams("default", "default") # open CPAL I/O streams (optional)
 /// rt.push_music_pcm(audio_engine.decode_all())
+/// # …Godot-block-I/O…
+/// rt.push_input_pcm(pcm16_bytes)         # feed DI from AudioEffectCapture
+/// var frames = rt.pop_output_frames(n)   # pull processed output
 /// # …gameplay loop…
 /// rt.stop_streams()
 /// rt.stop()
@@ -25,6 +43,7 @@ use crate::audio_engine_core::{EngineCmd, EngineCore};
 use crate::audio_io::{open_streams, AudioIoConfig};
 use crate::audio_mixer::BUS_COUNT;
 use godot::prelude::*;
+use godot::builtin::Vector2;
 use std::sync::{Arc, Mutex};
 
 // ── GDExtension class ─────────────────────────────────────────────────────────
@@ -136,6 +155,116 @@ impl RtEngine {
             }
         }
         written
+    }
+
+    // ── Godot-block-I/O (SPSC ring-buffer bridge) ─────────────────────────────
+    //
+    // These four methods implement the "Godot block I/O" audio pipeline:
+    //
+    //   Godot (AudioEffectCapture) ──push_input_pcm──► godot_in SPSC ring
+    //       ↓ engine DSP thread (ToneEngine)
+    //   Godot (AudioStreamGeneratorPlayback) ◄──pop_output_frames── godot_out SPSC ring
+    //
+    // This path works independently of whether CPAL hardware streams are open.
+
+    /// Push raw PCM-16-LE mono bytes from Godot's `AudioEffectCapture` into
+    /// the native SPSC input ring buffer.  The engine DSP thread will drain
+    /// this, process the samples through `ToneEngine`, and write the result to
+    /// the output ring buffer (readable via `pop_output_frames`).
+    ///
+    /// Returns the number of f32 samples actually written (may be less than
+    /// `data.size() / 2` if the ring buffer is full).
+    ///
+    /// GDScript example:
+    /// ```gdscript
+    /// var bytes := capture_effect.get_buffer(frames_available)  # → PackedVector2Array
+    /// var pcm   := stereo_to_pcm16(bytes)  # average L+R → PCM-16-LE
+    /// rt_engine.push_input_pcm(pcm)
+    /// ```
+    #[func]
+    pub fn push_input_pcm(&self, data: PackedByteArray) -> i64 {
+        let mut core_guard = match self.core.lock() {
+            Ok(g)  => g,
+            Err(_) => return 0,
+        };
+        let engine = match core_guard.as_mut() {
+            Some(e) => e,
+            None    => {
+                godot_warn!("RtEngine: push_input_pcm() called before start().");
+                return 0;
+            }
+        };
+
+        let raw: Vec<u8> = data.to_vec();
+        let mut written  = 0i64;
+        for chunk in raw.chunks_exact(2) {
+            let s = i16::from_le_bytes([chunk[0], chunk[1]]) as f32 / 32_768.0;
+            match engine.godot_in_producer.push(s) {
+                Ok(()) => written += 1,
+                Err(_) => break,
+            }
+        }
+        written
+    }
+
+    /// Pop up to `max_frames` ToneEngine-processed stereo frames from the
+    /// native SPSC output ring buffer and return them as a `PackedVector2Array`
+    /// ready for `AudioStreamGeneratorPlayback.push_buffer()`.
+    ///
+    /// The engine produces mono output; this method duplicates the signal to
+    /// both channels (L = R) so the Godot generator plays back in stereo.
+    ///
+    /// Returns an empty array when no samples are available or the engine has
+    /// not been started yet.
+    ///
+    /// GDScript example:
+    /// ```gdscript
+    /// var frames := rt_engine.pop_output_frames(playback.get_frames_available())
+    /// if frames.size() > 0:
+    ///     playback.push_buffer(frames)
+    /// ```
+    #[func]
+    pub fn pop_output_frames(&self, max_frames: i32) -> PackedVector2Array {
+        let mut result = PackedVector2Array::new();
+        if max_frames <= 0 {
+            return result;
+        }
+        let mut core_guard = match self.core.lock() {
+            Ok(g)  => g,
+            Err(_) => return result,
+        };
+        let engine = match core_guard.as_mut() {
+            Some(e) => e,
+            None    => return result,
+        };
+
+        let n        = max_frames as usize;
+        let to_read  = n.min(engine.godot_out_consumer.slots());
+        for _ in 0..to_read {
+            let s = engine.godot_out_consumer.pop().unwrap_or(0.0);
+            result.push(Vector2::new(s, s));
+        }
+        result
+    }
+
+    /// Returns the number of free f32 sample slots in the Godot input ring
+    /// buffer.  Use this to avoid pushing more samples than the buffer can hold.
+    #[func]
+    pub fn input_rb_free_slots(&self) -> i64 {
+        self.core.lock()
+            .ok()
+            .and_then(|g| g.as_ref().map(|e| e.godot_in_producer.slots() as i64))
+            .unwrap_or(0)
+    }
+
+    /// Returns the number of processed f32 samples currently available in the
+    /// Godot output ring buffer.
+    #[func]
+    pub fn output_rb_available(&self) -> i64 {
+        self.core.lock()
+            .ok()
+            .and_then(|g| g.as_ref().map(|e| e.godot_out_consumer.slots() as i64))
+            .unwrap_or(0)
     }
 
     /// Set gain in dB for a mixer bus (0=Ui, 1=Music, …, 6=Master, …).
