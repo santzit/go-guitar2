@@ -35,16 +35,9 @@ extern "C" {
     /// Stop the internal DSP thread (blocks until the thread exits).
     pub fn q_dsp_stop(bridge: *mut QDspBridge);
 
-    /// Push PCM-16-LE samples into the input ring buffer.
-    /// Returns the number of samples actually written.
-    pub fn q_dsp_push_input_i16(
-        bridge: *mut QDspBridge,
-        data:   *const i16,
-        count:  c_uint,
-    ) -> c_uint;
-
-    /// Push f32 samples directly into the input ring buffer (no conversion).
-    /// Preferred over q_dsp_push_input_i16 — avoids the f32→i16→f32 round-trip.
+    /// Push f32 samples directly into the input ring buffer.
+    /// Rust extracts the L channel from the raw `PackedVector2Array` slice and
+    /// passes the resulting f32 pointer here — no PCM-16 conversion anywhere.
     /// Returns the number of samples actually written.
     pub fn q_dsp_push_input_f32(
         bridge: *mut QDspBridge,

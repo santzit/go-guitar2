@@ -3,9 +3,13 @@ extends Node
 ##
 ## Implements the "Godot block I/O" audio pipeline described in the issue:
 ##
-##   Godot (AudioEffectCapture)            ──push_input_f32──►  godot_in  SPSC ring
+##   Godot (AudioEffectCapture)            ──push_input_stereo──►  godot_in  SPSC ring
 ##       ↓ native DSP thread (ToneEngine amp-sim)
 ##   Godot (AudioStreamGeneratorPlayback)  ◄─pop_output_frames─  godot_out SPSC ring
+##
+## The `PackedVector2Array` from `AudioEffectCapture.get_buffer()` is passed
+## directly to Rust, which extracts the L channel inline and forwards the raw
+## f32 pointer to C++ — no intermediate array or GDScript conversion loop.
 ##
 ## ## Usage
 ##
@@ -153,25 +157,16 @@ func _push_input() -> void:
 	if frames <= 0:
 		return
 
+	# Pass the stereo buffer directly to Rust.
+	# Rust extracts the L channel and applies the noise gate inline —
+	# no intermediate PackedFloat32Array or GDScript conversion loop needed.
 	var stereo_buf : PackedVector2Array = _capture_effect.get_buffer(frames)
-	var f32_buf    : PackedFloat32Array = PackedFloat32Array()
-	f32_buf.resize(stereo_buf.size())
+	if stereo_buf.is_empty():
+		return
 
-	var any_signal := false
-	for fi in stereo_buf.size():
-		# Use L channel only (guitar DI is mono on L), apply noise gate.
-		# Pass f32 directly to C++/Q — no PCM-16 conversion step needed.
-		var s : float = clampf(stereo_buf[fi].x, -1.0, 1.0)
-		if absf(s) < noise_gate:
-			s = 0.0
-		else:
-			any_signal = true
-		f32_buf[fi] = s
-
-	if any_signal or noise_gate <= 0.0:
-		var written : int = _rt_engine.push_input_f32(f32_buf)
-		if written > 0:
-			input_pushed.emit(written)
+	var written : int = _rt_engine.push_input_stereo(stereo_buf, noise_gate)
+	if written > 0:
+		input_pushed.emit(written)
 
 
 func _pull_output() -> void:

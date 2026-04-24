@@ -10,6 +10,9 @@ cycfi/q signal-conditioning, then feeds the processed output to an
 
 The SPSC ring buffers and DSP thread live entirely in C++ (`q_dsp_bridge.cpp`)
 and use cycfi/q directly — no Rust implementation for the audio I/O path.
+Rust acts as a thin GDExtension layer: it accepts the raw `PackedVector2Array`
+from `AudioEffectCapture`, extracts the L channel inline, and passes the raw
+`f32*` pointer straight to C++ with zero conversion.
 
 ```
 Guitar / Microphone (hardware)
@@ -19,10 +22,11 @@ Guitar / Microphone (hardware)
  │ AudioServer bus  "GodotBridge_In"   │
  │   AudioEffectCapture                │  ← drained every _process() frame
  └─────────────────────────────────────┘
-       │  PackedVector2Array (stereo, f32)
-       ▼  stereo → mono  →  PCM-16-LE  (noise-gate applied)
+       │  PackedVector2Array (stereo, f32)  ← passed directly to Rust
+       ▼  Rust: L channel (.x) extracted inline, noise gate applied
  ┌────────────────────────────────────────────────────────────┐
- │  RtEngine.push_input_pcm(pcm_bytes)                        │
+ │  RtEngine.push_input_stereo(stereo_buf, noise_gate)        │
+ │      raw f32*  →  C++ q_dsp_push_input_f32()              │
  │      ↓  C++ SPSC in_rb  (std::atomic wait-free)           │
  │  C++ DSP thread  ──►  dc_block (cycfi/q)                  │
  │                  ──►  one_pole_lowpass (cycfi/q)           │
@@ -34,6 +38,13 @@ Guitar / Microphone (hardware)
  AudioStreamGeneratorPlayback.push_buffer(frames)
  (low-latency monitoring output)
 ```
+
+**Audio path — zero conversion:**
+- `AudioEffectCapture.get_buffer()` returns `PackedVector2Array` (Godot f32 stereo)
+- GDScript passes it **as-is** to `RtEngine.push_input_stereo()` — no intermediate array
+- Rust extracts L channel (`.x`) and applies noise gate inline
+- Raw `f32*` is forwarded directly to `q_dsp_push_input_f32()` in C++
+- No f32 → i16 → f32 round-trip; no PCM encoding at any stage
 
 This pipeline is fully independent of the CPAL hardware streams.  You can use
 it alongside CPAL (for music + effects) or alone (Godot-only audio I/O).
@@ -49,8 +60,8 @@ The DSP bridge lives entirely in C++ and uses cycfi/q directly:
 | Component | Description |
 |-----------|-------------|
 | `SpscRingBuffer` | Lock-free wait-free SPSC ring buffer (Lamport/Vyukov, `std::atomic`) |
-| `QDspBridge::in_rb` | Input ring buffer: GDScript → DSP thread |
-| `QDspBridge::out_rb` | Output ring buffer: DSP thread → GDScript |
+| `QDspBridge::in_rb` | Input ring buffer: Rust → DSP thread |
+| `QDspBridge::out_rb` | Output ring buffer: DSP thread → Rust → GDScript |
 | `QDspBridge::dc` | `cycfi::q::dc_block` — removes DC offset (20 Hz pole) |
 | `QDspBridge::lp` | `cycfi::q::one_pole_lowpass` — 12 kHz anti-alias filter |
 | `QDspBridge::dsp_thread` | C++ `std::thread` draining `in_rb` in 128-sample blocks |
@@ -68,7 +79,7 @@ Rust calls into the C++ bridge via a plain-C `extern "C"` interface:
 ```
 q_dsp_create(capacity, sample_rate, block_size, start_dsp_thread) → *mut QDspBridge
 q_dsp_destroy(bridge)
-q_dsp_push_input_i16(bridge, data, count)  → uint32_t  (samples written)
+q_dsp_push_input_f32(bridge, data, count)  → uint32_t  (samples written)
 q_dsp_pop_output_f32(bridge, out, max)     → uint32_t  (samples read)
 q_dsp_input_free(bridge)                   → uint32_t  (free slots)
 q_dsp_output_avail(bridge)                 → uint32_t  (available samples)
@@ -77,7 +88,7 @@ q_dsp_output_avail(bridge)                 → uint32_t  (available samples)
 The bridge pointer is owned by `RtEngine` (behind a `Mutex<*mut QDspBridge>`),
 created in `RtEngine::start()` and destroyed in `RtEngine::stop()`.
 
-All four Godot methods are gated on `#[cfg(q_available)]`.  When Q headers are
+All Godot methods are gated on `#[cfg(q_available)]`.  When Q headers are
 absent, the methods return `0` / empty array and print a Godot warning.
 
 ### Godot Side (GDScript — `scripts/godot_audio_bridge.gd`)
@@ -87,8 +98,8 @@ The `GodotAudioBridge` node ties everything together:
 1. Opens a dedicated `AudioServer` capture bus with an `AudioEffectCapture`.
 2. Creates an `AudioStreamGenerator` player for the output.
 3. On every `_process()` frame:
-   - Drains `AudioEffectCapture` → averages L+R to mono → PCM-16-LE bytes.
-   - Calls `RtEngine.push_input_pcm(bytes)` → C++ SPSC `in_rb`.
+   - Drains `AudioEffectCapture` → `PackedVector2Array` (passed directly to Rust).
+   - Calls `RtEngine.push_input_stereo(stereo_buf, noise_gate)` — Rust handles L-channel extraction.
    - Calls `RtEngine.pop_output_frames(n)` ← C++ SPSC `out_rb`.
    - Calls `AudioStreamGeneratorPlayback.push_buffer(frames)` to play back.
 
@@ -96,13 +107,15 @@ The `GodotAudioBridge` node ties everything together:
 
 ## RtEngine API
 
-### `push_input_pcm(data: PackedByteArray) -> int`
+### `push_input_stereo(data: PackedVector2Array, noise_gate: float) -> int`
 
-Push mono **PCM-16-LE** bytes into the C++ SPSC input ring buffer.
+Push a stereo capture buffer from `AudioEffectCapture` directly to the C++ SPSC ring buffer.
 
-- `data` — mono PCM-16 little-endian (2 bytes per sample).
+- `data` — the `PackedVector2Array` returned by `AudioEffectCapture.get_buffer()`.
+- `noise_gate` — absolute amplitude threshold (0..1); samples below this are silenced.
+- Rust extracts the **L channel** (`.x`) of each frame inline.  No intermediate array.
 - Returns the number of f32 samples actually written.  Will be less than
-  `data.size() / 2` if the ring buffer is full.
+  `data.size()` if the ring buffer is full.
 
 ### `pop_output_frames(max_frames: int) -> PackedVector2Array`
 
@@ -196,7 +209,7 @@ The build script compiles `q_dsp_bridge.cpp` separately from the prebuilt
 `libq_bridge.a` (which contains only the pitch-detector bridge), so the DSP
 bridge is always fresh and never requires updating the prebuilt archive.
 
-When Q headers are absent, `q_available` is not set and all four Godot-block-I/O
+When Q headers are absent, `q_available` is not set and all Godot-block-I/O
 methods fall back gracefully (return 0 / empty, print a warning).
 
 ---
@@ -207,5 +220,5 @@ methods fall back gracefully (return 0 / empty, print a warning).
 - `q_bridge/q_dsp_bridge.h` — C API for the DSP bridge
 - `q_bridge/q_dsp_bridge.cpp` — C++ implementation with SPSC ring buffers + Q DSP
 - `src/q_dsp_ffi.rs` — Rust `extern "C"` bindings
-- `src/rt_engine.rs` — `RtEngine` Godot class (`push_input_pcm`, `pop_output_frames`)
+- `src/rt_engine.rs` — `RtEngine` Godot class (`push_input_stereo`, `pop_output_frames`)
 - `scripts/godot_audio_bridge.gd` — Godot-side bridge node
