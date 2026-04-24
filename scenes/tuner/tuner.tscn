@@ -1,0 +1,225 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://scripts/tuner/tuner.gd" id="1_tuner_script"]
+[ext_resource type="Script" path="res://scripts/tuner/pitch_gauge.gd" id="2_pitch_gauge"]
+[ext_resource type="Script" path="res://scripts/tuner/fretboard_view.gd" id="3_fretboard"]
+
+[sub_resource type="Gradient" id="Gradient_bg"]
+offsets = PackedFloat32Array(0, 1)
+colors = PackedColorArray(0.16, 0.16, 0.17, 1, 0.22, 0.23, 0.25, 1)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_bg"]
+gradient = SubResource("Gradient_bg")
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_circle"]
+bg_color = Color(0.105882, 0.239216, 0.435294, 1)
+corner_radius_top_left = 240
+corner_radius_top_right = 240
+corner_radius_bottom_right = 240
+corner_radius_bottom_left = 240
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_chip"]
+bg_color = Color(0.227451, 0.403922, 0.639216, 1)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button"]
+bg_color = Color(0.219608, 0.388235, 0.611765, 1)
+corner_radius_top_left = 18
+corner_radius_top_right = 18
+corner_radius_bottom_right = 18
+corner_radius_bottom_left = 18
+
+[node name="Tuner" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_tuner_script")
+
+[node name="Bg" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = SubResource("GradientTexture1D_bg")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="Panel" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="Panel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 12
+
+[node name="VBoxRoot" type="VBoxContainer" parent="Panel/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="TopMeta" type="VBoxContainer" parent="Panel/MarginContainer/VBoxRoot"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="TuningNameLabel" type="Label" parent="Panel/MarginContainer/VBoxRoot/TopMeta"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "E Standard"
+horizontal_alignment = 1
+
+[node name="TargetNotesLabel" type="Label" parent="Panel/MarginContainer/VBoxRoot/TopMeta"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "E A D G B E"
+horizontal_alignment = 1
+
+[node name="SelectedStringLabel" type="Label" parent="Panel/MarginContainer/VBoxRoot/TopMeta"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.83, 0.83, 0.83, 1)
+text = "Selected string: Auto"
+horizontal_alignment = 1
+
+[node name="MainArea" type="VBoxContainer" parent="Panel/MarginContainer/VBoxRoot"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="CenterStack" type="VBoxContainer" parent="Panel/MarginContainer/VBoxRoot/MainArea"]
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/separation = 6
+
+[node name="GaugeMeter" type="Control" parent="Panel/MarginContainer/VBoxRoot/MainArea/CenterStack"]
+custom_minimum_size = Vector2(0, 170)
+layout_mode = 2
+script = ExtResource("2_pitch_gauge")
+
+[node name="NoteRow" type="HBoxContainer" parent="Panel/MarginContainer/VBoxRoot/MainArea/CenterStack"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 16
+
+[node name="LeftNoteLabel" type="Label" parent="Panel/MarginContainer/VBoxRoot/MainArea/CenterStack/NoteRow"]
+custom_minimum_size = Vector2(72, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 36
+text = "--"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="NoteCircle" type="Panel" parent="Panel/MarginContainer/VBoxRoot/MainArea/CenterStack/NoteRow"]
+custom_minimum_size = Vector2(180, 180)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_circle")
+
+[node name="DetectedNoteLabel" type="Label" parent="Panel/MarginContainer/VBoxRoot/MainArea/CenterStack/NoteRow/NoteCircle"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -65.0
+offset_top = -73.0
+offset_right = 65.0
+offset_bottom = 0.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 72
+text = "--"
+horizontal_alignment = 1
+
+[node name="DetectedFrequencyLabel" type="Label" parent="Panel/MarginContainer/VBoxRoot/MainArea/CenterStack/NoteRow/NoteCircle"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -80.0
+offset_top = 22.0
+offset_right = 80.0
+offset_bottom = 48.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 22
+text = "-- Hz"
+horizontal_alignment = 1
+
+[node name="RightNoteLabel" type="Label" parent="Panel/MarginContainer/VBoxRoot/MainArea/CenterStack/NoteRow"]
+custom_minimum_size = Vector2(72, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 36
+text = "--"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="GuidanceLabel" type="Label" parent="Panel/MarginContainer/VBoxRoot/MainArea/CenterStack"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Waiting for signal…"
+horizontal_alignment = 1
+
+[node name="BottomControls" type="VBoxContainer" parent="Panel/MarginContainer/VBoxRoot"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="FretboardView" type="Control" parent="Panel/MarginContainer/VBoxRoot/BottomControls"]
+custom_minimum_size = Vector2(0, 140)
+layout_mode = 2
+size_flags_horizontal = 3
+script = ExtResource("3_fretboard")
+
+[node name="BottomRow" type="HBoxContainer" parent="Panel/MarginContainer/VBoxRoot/BottomControls"]
+layout_mode = 2
+
+[node name="CentsChip" type="Panel" parent="Panel/MarginContainer/VBoxRoot/BottomControls/BottomRow"]
+custom_minimum_size = Vector2(250, 50)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_chip")
+
+[node name="CentsLabel" type="Label" parent="Panel/MarginContainer/VBoxRoot/BottomControls/BottomRow/CentsChip"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 22
+text = "Offset: -- cents"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Spacer" type="Control" parent="Panel/MarginContainer/VBoxRoot/BottomControls/BottomRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="BackButton" type="Button" parent="Panel/MarginContainer/VBoxRoot/BottomControls/BottomRow"]
+custom_minimum_size = Vector2(200, 50)
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+theme_override_styles/normal = SubResource("StyleBoxFlat_button")
+theme_override_styles/hover = SubResource("StyleBoxFlat_button")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_button")
+text = "Back"
+
+[connection signal="pressed" from="Panel/MarginContainer/VBoxRoot/BottomControls/BottomRow/BackButton" to="." method="_on_back_button_pressed"]

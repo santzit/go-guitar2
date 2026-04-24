@@ -15,19 +15,20 @@ config/description="Rocksmith 2014 like Guitar 3D Game"
 run/main_scene="res://scenes/boot.tscn"
 config/features=PackedStringArray("4.4", "Mobile")
 
-[gui]
-
-theme/custom="res://assets/fonts/project_theme.tres"
-
 [audio]
 
 driver/enable_input=true
+driver/mix_rate=48000
 
 [autoload]
 
 AudioInput="*res://scripts/audio_input.gd"
 PlayerManager="*res://scripts/player_manager.gd"
 InputAudioManager="*res://scripts/input_audio_manager.gd"
+
+[gui]
+
+theme/custom="res://assets/fonts/project_theme.tres"
 
 [rendering]
 

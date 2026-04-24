@@ -12,4 +12,4 @@ func _on_mixer_button_pressed() -> void:
 
 
 func _on_settings_button_pressed() -> void:
-	_status_label.text = "Settings: coming soon."
+	get_tree().change_scene_to_file("res://scenes/settings/settings.tscn")
