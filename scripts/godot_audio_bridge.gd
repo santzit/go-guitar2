@@ -159,8 +159,8 @@ func _push_input() -> void:
 
 	var any_signal := false
 	for fi in stereo_buf.size():
-		# Average L+R to mono, apply noise gate, then quantise to PCM-16-LE.
-		var s : float = clampf((stereo_buf[fi].x + stereo_buf[fi].y) * 0.5, -1.0, 1.0)
+		# Use L channel only (guitar DI is mono on L), apply noise gate, then quantise to PCM-16-LE.
+		var s : float = clampf(stereo_buf[fi].x, -1.0, 1.0)
 		if absf(s) < noise_gate:
 			s = 0.0
 		else:
