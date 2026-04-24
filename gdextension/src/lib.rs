@@ -14,6 +14,10 @@ mod q_ffi;
 #[cfg(q_available)]
 pub mod pitch_detector;
 
+// ── Q SPSC DSP bridge FFI (C++ ring buffer + DSP thread via cycfi/q) ──────────
+#[cfg(q_available)]
+mod q_dsp_ffi;
+
 // ── Godot GDExtension wrapper classes ─────────────────────────────────────────
 mod audio_engine;
 mod goguitar_bridge;

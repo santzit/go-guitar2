@@ -10,16 +10,17 @@
 ///                └─► audio_io::open_streams   (CPAL input/output streams)
 /// ```
 ///
-/// ## Godot-block-I/O path (SPSC ring buffers)
+/// ## Godot-block-I/O path (Q C++ SPSC ring buffers)
 ///
 /// In addition to hardware CPAL streams, `RtEngine` exposes a second audio
-/// path driven entirely from GDScript:
+/// path driven entirely from GDScript.  The SPSC ring buffers and DSP thread
+/// live in the C++ bridge (`q_dsp_bridge.cpp`) and use cycfi/q directly:
 ///
 /// ```text
 /// Godot AudioEffectCapture
-///   → push_input_pcm(pcm_bytes)
-///   → godot_in  SPSC ring  →  engine DSP thread (ToneEngine)
-///   → godot_out SPSC ring  →  pop_output_frames(n)
+///   → push_input_pcm(pcm_bytes)  [PCM-16-LE → C++ in_rb SPSC]
+///   → C++ DSP thread  (dc_block + one_pole_lowpass via cycfi/q)
+///   → C++ out_rb SPSC  →  pop_output_frames(n)
 ///   → AudioStreamGeneratorPlayback
 /// ```
 ///
@@ -33,7 +34,7 @@
 /// rt.push_music_pcm(audio_engine.decode_all())
 /// # …Godot-block-I/O…
 /// rt.push_input_pcm(pcm16_bytes)         # feed DI from AudioEffectCapture
-/// var frames = rt.pop_output_frames(n)   # pull processed output
+/// var frames = rt.pop_output_frames(n)   # pull Q-processed output
 /// # …gameplay loop…
 /// rt.stop_streams()
 /// rt.stop()
@@ -48,30 +49,55 @@ use std::sync::{Arc, Mutex};
 
 // ── GDExtension class ─────────────────────────────────────────────────────────
 
-/// **RtEngine** — Godot GDExtension class managing the RT audio engine thread
-/// and CPAL audio I/O streams.
+/// Capacity of each Q SPSC ring buffer in f32 samples (~1 s mono at 48 kHz).
+const Q_RB_CAPACITY: u32 = 48_000;
+
+/// Default DSP block size in samples.
+const Q_BLOCK_SIZE: u32 = 128;
+
+/// **RtEngine** — Godot GDExtension class managing the RT audio engine thread,
+/// CPAL audio I/O streams, and the C++/Q SPSC DSP bridge.
 ///
 /// Lifecycle:
-/// 1. `start(channels, sample_rate)` — spawns the engine thread.
+/// 1. `start(channels, sample_rate)` — spawns the engine thread + Q DSP bridge.
 /// 2. `start_streams(input_name, output_name)` — open CPAL I/O.
 /// 3. `push_music_pcm(pcm_bytes)` — feed decoded WEM/PCM into the music ring buffer.
-/// 4. `set_bus_*` — adjust mixer buses from GDScript.
-/// 5. `stop_streams()` — close CPAL streams.
-/// 6. `stop()` — shut down the engine thread.
+/// 4. `push_input_pcm(pcm_bytes)` — feed DI input into the Q SPSC bridge.
+/// 5. `pop_output_frames(n)` — pull Q-processed output for AudioStreamGenerator.
+/// 6. `set_bus_*` — adjust mixer buses from GDScript.
+/// 7. `stop_streams()` — close CPAL streams.
+/// 8. `stop()` — shut down the engine thread and Q DSP bridge.
 #[derive(GodotClass)]
 #[class(base = Object)]
 pub struct RtEngine {
     #[base]
-    base:         Base<Object>,
+    base:           Base<Object>,
     /// The core engine (engine thread + ring buffers).
-    core:         Mutex<Option<EngineCore>>,
+    core:           Mutex<Option<EngineCore>>,
     /// Live CPAL streams; dropping closes the hardware.
-    io_streams:   Mutex<Option<crate::audio_io::AudioIoStreams>>,
+    io_streams:     Mutex<Option<crate::audio_io::AudioIoStreams>>,
     /// Shared peak-meter values (readable from GDScript).
-    meter_peaks:  Arc<Mutex<Vec<f32>>>,
+    meter_peaks:    Arc<Mutex<Vec<f32>>>,
     /// Mirror of per-bus gain_db set from GDScript (for readback without RT round-trip).
     gain_db_mirror: Mutex<[f32; BUS_COUNT]>,
+    /// C++/Q SPSC DSP bridge — owns two lock-free ring buffers and a DSP thread.
+    /// Created on `start()`, destroyed on `stop()`.
+    /// Raw pointer because the C++ object is heap-allocated and not Send.
+    #[cfg(q_available)]
+    q_dsp:          Mutex<*mut crate::q_dsp_ffi::QDspBridge>,
 }
+
+// SAFETY: `QDspBridge` is a C++ heap object that is:
+//   1. Created/destroyed only from the Godot main thread (inside `start()`/`stop()`).
+//   2. Accessed for push/pop only from the Godot main thread (Godot callbacks).
+//   3. The raw pointer is guarded by a `Mutex`, preventing concurrent Rust-side access.
+//   4. The C++ DSP thread accesses the ring buffers through the SPSC protocol
+//      (`std::atomic` acquire/release) which is safe to use from any thread.
+// Therefore it is safe to move/share the raw pointer across OS thread boundaries.
+#[cfg(q_available)]
+unsafe impl Send for RtEngine {}
+#[cfg(q_available)]
+unsafe impl Sync for RtEngine {}
 
 #[godot_api]
 impl IObject for RtEngine {
@@ -82,6 +108,8 @@ impl IObject for RtEngine {
             io_streams:      Mutex::new(None),
             meter_peaks:     Arc::new(Mutex::new(vec![0.0f32; BUS_COUNT])),
             gain_db_mirror:  Mutex::new([0.0; BUS_COUNT]),
+            #[cfg(q_available)]
+            q_dsp:           Mutex::new(std::ptr::null_mut()),
         }
     }
 }
@@ -112,6 +140,33 @@ impl RtEngine {
             *mp = vec![0.0f32; BUS_COUNT];
         }
 
+        // Create the C++/Q SPSC DSP bridge — two lock-free ring buffers and a
+        // DSP thread using cycfi/q (dc_block + one_pole_lowpass).
+        #[cfg(q_available)]
+        {
+            if let Ok(mut q) = self.q_dsp.lock() {
+                if q.is_null() {
+                    let ptr = unsafe {
+                        crate::q_dsp_ffi::q_dsp_create(
+                            Q_RB_CAPACITY,
+                            sr,
+                            Q_BLOCK_SIZE,
+                            true,  // start DSP thread immediately
+                        )
+                    };
+                    if ptr.is_null() {
+                        godot_error!(
+                            "RtEngine: q_dsp_create() returned null (capacity={}, sr={}, block={}). \
+                             Check Q headers / memory.",
+                            Q_RB_CAPACITY, sr, Q_BLOCK_SIZE
+                        );
+                        return false;
+                    }
+                    *q = ptr;
+                }
+            }
+        }
+
         godot_print!("RtEngine: started — {} ch  {} Hz", ch, sr);
         *core_guard = Some(engine);
         true
@@ -124,6 +179,16 @@ impl RtEngine {
         if let Ok(mut core_guard) = self.core.lock() {
             if let Some(mut engine) = core_guard.take() {
                 engine.stop();
+            }
+        }
+        // Stop and destroy the Q DSP bridge.
+        #[cfg(q_available)]
+        {
+            if let Ok(mut q) = self.q_dsp.lock() {
+                if !q.is_null() {
+                    unsafe { crate::q_dsp_ffi::q_dsp_destroy(*q) };
+                    *q = std::ptr::null_mut();
+                }
             }
         }
         godot_print!("RtEngine: stopped.");
@@ -157,114 +222,132 @@ impl RtEngine {
         written
     }
 
-    // ── Godot-block-I/O (SPSC ring-buffer bridge) ─────────────────────────────
+    // ── Godot-block-I/O (Q C++ SPSC ring-buffer bridge) ──────────────────────
     //
     // These four methods implement the "Godot block I/O" audio pipeline:
     //
-    //   Godot (AudioEffectCapture) ──push_input_pcm──► godot_in SPSC ring
-    //       ↓ engine DSP thread (ToneEngine)
-    //   Godot (AudioStreamGeneratorPlayback) ◄──pop_output_frames── godot_out SPSC ring
+    //   Godot (AudioEffectCapture) ──push_input_pcm──► C++ in_rb SPSC
+    //       ↓ C++ DSP thread (dc_block + lowpass via cycfi/q)
+    //   Godot (AudioStreamGeneratorPlayback) ◄──pop_output_frames── C++ out_rb SPSC
+    //
+    // When Q is not available (q_available cfg flag absent), all methods return
+    // 0 / empty array and print a warning.
     //
     // This path works independently of whether CPAL hardware streams are open.
 
     /// Push raw PCM-16-LE mono bytes from Godot's `AudioEffectCapture` into
-    /// the native SPSC input ring buffer.  The engine DSP thread will drain
-    /// this, process the samples through `ToneEngine`, and write the result to
-    /// the output ring buffer (readable via `pop_output_frames`).
+    /// the C++ SPSC input ring buffer.  The C++/Q DSP thread drains the buffer,
+    /// applies `dc_block` + `one_pole_lowpass` (cycfi/q), and writes the result
+    /// to the output ring buffer (readable via `pop_output_frames`).
     ///
     /// Returns the number of f32 samples actually written (may be less than
     /// `data.size() / 2` if the ring buffer is full).
-    ///
-    /// GDScript example:
-    /// ```gdscript
-    /// var bytes := capture_effect.get_buffer(frames_available)  # → PackedVector2Array
-    /// var pcm   := stereo_to_pcm16(bytes)  # average L+R → PCM-16-LE
-    /// rt_engine.push_input_pcm(pcm)
-    /// ```
     #[func]
     pub fn push_input_pcm(&self, data: PackedByteArray) -> i64 {
-        let mut core_guard = match self.core.lock() {
-            Ok(g)  => g,
-            Err(_) => return 0,
-        };
-        let engine = match core_guard.as_mut() {
-            Some(e) => e,
-            None    => {
+        #[cfg(q_available)]
+        {
+            let guard = match self.q_dsp.lock() {
+                Ok(g)  => g,
+                Err(_) => return 0,
+            };
+            let ptr = *guard;
+            if ptr.is_null() {
                 godot_warn!("RtEngine: push_input_pcm() called before start().");
                 return 0;
             }
-        };
-
-        let raw: Vec<u8> = data.to_vec();
-        let mut written  = 0i64;
-        for chunk in raw.chunks_exact(2) {
-            let s = i16::from_le_bytes([chunk[0], chunk[1]]) as f32 / 32_768.0;
-            match engine.godot_in_producer.push(s) {
-                Ok(()) => written += 1,
-                Err(_) => break,
+            // Convert PCM-16-LE bytes to i16 slice and pass directly to C++.
+            let raw: Vec<u8> = data.to_vec();
+            let samples: Vec<i16> = raw.chunks_exact(2)
+                .map(|c| i16::from_le_bytes([c[0], c[1]]))
+                .collect();
+            unsafe {
+                crate::q_dsp_ffi::q_dsp_push_input_i16(
+                    ptr,
+                    samples.as_ptr(),
+                    samples.len() as u32,
+                ) as i64
             }
         }
-        written
+        #[cfg(not(q_available))]
+        {
+            godot_warn!("RtEngine: push_input_pcm() — Q bridge not available (build without Q headers).");
+            let _ = data;
+            0
+        }
     }
 
-    /// Pop up to `max_frames` ToneEngine-processed stereo frames from the
-    /// native SPSC output ring buffer and return them as a `PackedVector2Array`
-    /// ready for `AudioStreamGeneratorPlayback.push_buffer()`.
+    /// Pop up to `max_frames` Q-processed stereo frames from the C++ SPSC output
+    /// ring buffer and return them as a `PackedVector2Array` ready for
+    /// `AudioStreamGeneratorPlayback.push_buffer()`.
     ///
-    /// The engine produces mono output; this method duplicates the signal to
-    /// both channels (L = R) so the Godot generator plays back in stereo.
+    /// The C++ DSP produces mono output; this method duplicates to both channels
+    /// (L = R) so the Godot generator plays back in stereo.
     ///
-    /// Returns an empty array when no samples are available or the engine has
-    /// not been started yet.
-    ///
-    /// GDScript example:
-    /// ```gdscript
-    /// var frames := rt_engine.pop_output_frames(playback.get_frames_available())
-    /// if frames.size() > 0:
-    ///     playback.push_buffer(frames)
-    /// ```
+    /// Returns an empty array when no samples are available or Q is not built in.
     #[func]
     pub fn pop_output_frames(&self, max_frames: i32) -> PackedVector2Array {
         let mut result = PackedVector2Array::new();
         if max_frames <= 0 {
             return result;
         }
-        let mut core_guard = match self.core.lock() {
-            Ok(g)  => g,
-            Err(_) => return result,
-        };
-        let engine = match core_guard.as_mut() {
-            Some(e) => e,
-            None    => return result,
-        };
-
-        let n        = max_frames as usize;
-        let to_read  = n.min(engine.godot_out_consumer.slots());
-        for _ in 0..to_read {
-            let s = engine.godot_out_consumer.pop().unwrap_or(0.0);
-            result.push(Vector2::new(s, s));
+        #[cfg(q_available)]
+        {
+            let guard = match self.q_dsp.lock() {
+                Ok(g)  => g,
+                Err(_) => return result,
+            };
+            let ptr = *guard;
+            if ptr.is_null() {
+                return result;
+            }
+            let n = max_frames as usize;
+            let mut buf: Vec<f32> = vec![0.0f32; n];
+            let read = unsafe {
+                crate::q_dsp_ffi::q_dsp_pop_output_f32(
+                    ptr,
+                    buf.as_mut_ptr(),
+                    n as u32,
+                )
+            } as usize;
+            for i in 0..read {
+                result.push(Vector2::new(buf[i], buf[i]));
+            }
+        }
+        #[cfg(not(q_available))]
+        {
+            let _ = max_frames;
         }
         result
     }
 
-    /// Returns the number of free f32 sample slots in the Godot input ring
-    /// buffer.  Use this to avoid pushing more samples than the buffer can hold.
+    /// Returns the number of free f32 sample slots in the C++ SPSC input ring buffer.
     #[func]
     pub fn input_rb_free_slots(&self) -> i64 {
-        self.core.lock()
-            .ok()
-            .and_then(|g| g.as_ref().map(|e| e.godot_in_producer.slots() as i64))
-            .unwrap_or(0)
+        #[cfg(q_available)]
+        {
+            if let Ok(guard) = self.q_dsp.lock() {
+                let ptr = *guard;
+                if !ptr.is_null() {
+                    return unsafe { crate::q_dsp_ffi::q_dsp_input_free(ptr) } as i64;
+                }
+            }
+        }
+        0
     }
 
-    /// Returns the number of processed f32 samples currently available in the
-    /// Godot output ring buffer.
+    /// Returns the number of Q-processed f32 samples available in the C++ SPSC output ring buffer.
     #[func]
     pub fn output_rb_available(&self) -> i64 {
-        self.core.lock()
-            .ok()
-            .and_then(|g| g.as_ref().map(|e| e.godot_out_consumer.slots() as i64))
-            .unwrap_or(0)
+        #[cfg(q_available)]
+        {
+            if let Ok(guard) = self.q_dsp.lock() {
+                let ptr = *guard;
+                if !ptr.is_null() {
+                    return unsafe { crate::q_dsp_ffi::q_dsp_output_avail(ptr) } as i64;
+                }
+            }
+        }
+        0
     }
 
     /// Set gain in dB for a mixer bus (0=Ui, 1=Music, …, 6=Master, …).
