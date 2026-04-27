@@ -7,7 +7,7 @@ const _GoGuitarBridgeScript = preload("res://scripts/goguitar_bridge.gd")
 const _GameStateScript = preload("res://scripts/game_state.gd")
 const ChartCommon = preload("res://scripts/common.gd")
 
-# -- Mixer bus indices (must match GameState.BUS_NAMES / gg-mixer BusId) ------
+# -- Mixer bus indices (must match GameState.BUS_NAMES) -----------------------
 const BUS_MUSIC  : int = 1   # Music bus
 const BUS_MASTER : int = 6   # Master bus
 
@@ -72,6 +72,8 @@ const NOTE_NAMES      : Array[String] = ["C","C#","D","D#","E","F","F#","G","G#"
 const DEBUG_CHORD_WINDOW : float = 0.25
 ## Maximum timestamp difference between notes to be considered part of the same chord.
 const CHORD_GROUP_THRESHOLD : float = 0.02
+const QENGINE_CAPTURE_BUS   : StringName = &"QEngineInput"
+const QENGINE_NOISE_GATE    : float = 0.02
 
 # -- Scene references --------------------------------------------------------
 @onready var _chord_pool  : Node3D            = $ChordPool
@@ -117,19 +119,15 @@ var _active_window_max_fret : int = -1
 ## Empty string means no chord has been spawned yet.
 var _last_chord_sig: String = ""
 
-## ── Scoring (NoteScorer + optional PitchDetector) ────────────────────────────
+## ── Scoring (NoteScorer + QEngine) ───────────────────────────────────────────
 ## NoteScorer evaluates live pitch detections against expected note events.
-## PitchDetector is the cycfi/q GDExtension; initialised when the class exists.
+## QEngine is the Rust GDExtension that receives AudioEffectCapture buffers,
+## runs cycfi/q pitch detection, and stores detections in its SPSC ring buffer.
 var _scorer          : NoteScorer          = null
-var _pitch_detector                        = null   # PitchDetector GDExtension (optional)
-
-## ── Guitar / microphone input capture ────────────────────────────────────────
-## InputAudioManager (autoload) owns one capture bus per player profile.
-## music_play connects to InputAudioManager.samples_ready(player_id, pcm_bytes)
-## when PitchDetector is active; no local bus management or cleanup is needed.
-
-## Detections produced by the PitchDetector signal handler; consumed in _process().
-var _pending_detections : Array = []
+var _q_engine                             = null   # QEngine GDExtension (optional)
+var _capture_effect  : AudioEffectCapture = null
+var _capture_player  : AudioStreamPlayer  = null
+var _capture_bus_idx : int                = -1
 
 
 func _ready() -> void:
@@ -225,22 +223,19 @@ func _ready() -> void:
 		ProjectSettings.globalize_path(SCREENSHOT_DIR)
 	)
 
-	# ── Optional: initialise cycfi/q PitchDetector ───────────────────────────
-	# InputAudioManager owns all capture buses (one per player profile).
-	# music_play only starts the Rust PitchDetector and connects to the
-	# InputAudioManager.samples_ready signal for Player 1.
-	if ClassDB.class_exists("PitchDetector"):
-		_pitch_detector = ClassDB.instantiate("PitchDetector")
+	# ── Optional: initialise QEngine (AudioEffectCapture -> cycfi/q) ─────────
+	if ClassDB.class_exists("QEngine"):
+		_q_engine = ClassDB.instantiate("QEngine")
 		var sr : int = AudioServer.get_mix_rate()
-		if _pitch_detector.start(sr):
-			print("MusicPlay: PitchDetector started — %d Hz" % sr)
-			InputAudioManager.samples_ready.connect(_on_guitar_samples)
-			print("MusicPlay: connected to InputAudioManager.samples_ready")
+		if _q_engine.start(sr):
+			_q_engine.set_noise_gate(QENGINE_NOISE_GATE)
+			_open_qengine_capture_bus()
+			print("MusicPlay: QEngine started — %d Hz" % sr)
 		else:
-			push_warning("MusicPlay: PitchDetector.start() failed — cycfi/q may not be linked.")
-			_pitch_detector = null
+			push_warning("MusicPlay: QEngine.start() failed — cycfi/q may not be linked.")
+			_q_engine = null
 	else:
-		print("MusicPlay: PitchDetector GDExtension not found — scoring runs in passive mode.")
+		print("MusicPlay: QEngine GDExtension not found — scoring runs in passive mode.")
 
 	# Snap camera to the centre of the highway on startup; enable zoom FOV.
 	_lane_glow = _zero_lane_array()
@@ -312,19 +307,16 @@ func _process(delta: float) -> void:
 	_chord_pool.tick(_song_time)
 
 	# ── Pitch detection + scoring ─────────────────────────────────────────────
-	# PCM samples arrive via _on_guitar_samples() (connected to
-	# AudioInput.samples_available in _ready).  Detections are accumulated in
-	# _pending_detections and consumed below to keep scoring in sync with the
-	# audio clock updated above.
-	if _pitch_detector != null and _scorer != null:
-		for det in _pending_detections:
+	_poll_qengine(_song_time)
+	if _q_engine != null and _scorer != null:
+		var detections : Array = _q_engine.pop_detections(256)
+		for det in detections:
 			_scorer.add_detection(
-				_song_time,
+				float(det.get("timestamp", _song_time)),
 				int(det.get("string",      1)),
 				float(det.get("frequency",  0.0)),
 				float(det.get("periodicity", 0.0))
 			)
-	_pending_detections.clear()
 	if _scorer != null:
 		_scorer.tick(_song_time)
 
@@ -683,25 +675,61 @@ func _on_note_scored(ev: Dictionary, result: String) -> void:
 		result, kind, t0, sc.hits, sc.total, sc.pct])
 
 
-## Called by InputAudioManager.samples_ready (connected in _ready when PitchDetector
-## is active).  Receives only Player 1 samples; player_id arg is used to filter.
-## Runs PitchDetector.process_samples and queues results for
-## _process() to consume with the current audio clock.
-func _on_guitar_samples(player_id: int, pcm_bytes: PackedByteArray) -> void:
-	if player_id != 1:
-		return   # music_play uses Player 1 only; ignore other players.
-	if _pitch_detector == null:
+func _poll_qengine(song_time_sec: float) -> void:
+	if _q_engine == null or _capture_effect == null:
 		return
-	var detections : Array = _pitch_detector.process_samples(pcm_bytes)
-	for det in detections:
-		_pending_detections.append(det)
+	var frames : int = _capture_effect.get_frames_available()
+	if frames <= 0:
+		return
+	var stereo_buf : PackedVector2Array = _capture_effect.get_buffer(frames)
+	if stereo_buf.is_empty():
+		return
+	_q_engine.push_input_stereo(stereo_buf, song_time_sec)
+
+
+func _open_qengine_capture_bus() -> void:
+	var existing_idx : int = AudioServer.get_bus_index(QENGINE_CAPTURE_BUS)
+	if existing_idx != -1:
+		_capture_bus_idx = existing_idx
+		for ei in AudioServer.get_bus_effect_count(_capture_bus_idx):
+			var fx = AudioServer.get_bus_effect(_capture_bus_idx, ei)
+			if fx is AudioEffectCapture:
+				_capture_effect = fx
+				break
+	else:
+		_capture_bus_idx = AudioServer.bus_count
+		AudioServer.add_bus()
+		AudioServer.set_bus_name(_capture_bus_idx, QENGINE_CAPTURE_BUS)
+		AudioServer.set_bus_mute(_capture_bus_idx, true)
+		_capture_effect = AudioEffectCapture.new()
+		AudioServer.add_bus_effect(_capture_bus_idx, _capture_effect)
+
+	if _capture_player == null:
+		_capture_player = AudioStreamPlayer.new()
+		_capture_player.stream = AudioStreamMicrophone.new()
+		_capture_player.bus = QENGINE_CAPTURE_BUS
+		add_child(_capture_player)
+
+	if not _capture_player.playing:
+		_capture_player.play()
+
+
+func _close_qengine_capture_bus() -> void:
+	if _capture_player:
+		_capture_player.stop()
+		_capture_player.queue_free()
+		_capture_player = null
+	_capture_effect = null
+	if _capture_bus_idx != -1:
+		AudioServer.remove_bus(_capture_bus_idx)
+		_capture_bus_idx = -1
 
 
 func _exit_tree() -> void:
-	# Disconnect from InputAudioManager so stale callbacks are not called after
-	# this scene is freed.  Capture buses stay alive (owned by InputAudioManager).
-	if InputAudioManager.samples_ready.is_connected(_on_guitar_samples):
-		InputAudioManager.samples_ready.disconnect(_on_guitar_samples)
+	_close_qengine_capture_bus()
+	if _q_engine != null:
+		_q_engine.stop()
+		_q_engine = null
 
 
 func push_print(msg: String) -> void:

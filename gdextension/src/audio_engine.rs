@@ -15,7 +15,6 @@
 ///     stream.data     = eng.decode_all()
 /// ```
 use godot::prelude::*;
-use crate::audio_mixer::{BusId, Mixer, mix_pcm_buffer};
 
 // ── Godot class ──────────────────────────────────────────────────────────────
 
@@ -29,7 +28,6 @@ pub struct AudioEngine {
     pcm_ready:   bool,
     // Decoded PCM-16 bytes (interleaved channels, little-endian).
     pcm_buf:     Vec<u8>,
-    mixer:       Mixer,
 }
 
 #[godot_api]
@@ -41,7 +39,6 @@ impl IObject for AudioEngine {
             sample_rate: 0,
             pcm_ready:   false,
             pcm_buf:     Vec::new(),
-            mixer:       Mixer::new(),
         }
     }
 }
@@ -71,10 +68,9 @@ impl AudioEngine {
                     self.channels    = result.channels;
                     self.sample_rate = result.sample_rate;
                     self.pcm_buf     = result.pcm_bytes;
-                    self.apply_mixer_to_pcm();
                     if self.channels > 2 {
                         // AudioStreamWAV only supports mono/stereo.
-                        // Multi-channel WEMs are downmixed to stereo in mix_pcm_buffer().
+                        // Keep channel metadata clamped for Godot playback expectations.
                         self.channels = 2;
                     }
                     self.pcm_ready   = true;
@@ -132,71 +128,45 @@ impl AudioEngine {
         self.pcm_ready
     }
 
-    /// Set gain (dB) for the Music bus in gg-mixer.
+    /// Legacy mixer API retained for script compatibility.
     #[func]
-    pub fn set_music_gain_db(&mut self, gain_db: f32) {
-        self.mixer.set_gain_db(BusId::Music, gain_db);
+    pub fn set_music_gain_db(&mut self, _gain_db: f32) {
     }
 
-    /// Set gain (dB) for the Lead Guitar stem bus in gg-mixer.
     #[func]
-    pub fn set_lead_guitar_gain_db(&mut self, gain_db: f32) {
-        self.mixer.set_gain_db(BusId::LeadGuitarStem, gain_db);
+    pub fn set_lead_guitar_gain_db(&mut self, _gain_db: f32) {
     }
 
-    /// Set gain (dB) for the Rhythm Guitar stem bus in gg-mixer.
     #[func]
-    pub fn set_rhythm_guitar_gain_db(&mut self, gain_db: f32) {
-        self.mixer.set_gain_db(BusId::RhythmGuitarStem, gain_db);
+    pub fn set_rhythm_guitar_gain_db(&mut self, _gain_db: f32) {
     }
 
-    /// Set gain (dB) for the Bass stem bus in gg-mixer.
     #[func]
-    pub fn set_bass_gain_db(&mut self, gain_db: f32) {
-        self.mixer.set_gain_db(BusId::BassStem, gain_db);
+    pub fn set_bass_gain_db(&mut self, _gain_db: f32) {
     }
 
-    /// Set gain (dB) for the Master bus in gg-mixer.
     #[func]
-    pub fn set_master_gain_db(&mut self, gain_db: f32) {
-        self.mixer.set_gain_db(BusId::Master, gain_db);
+    pub fn set_master_gain_db(&mut self, _gain_db: f32) {
     }
 
-    /// Mute/unmute the Music bus in gg-mixer.
     #[func]
-    pub fn set_music_mute(&mut self, mute: bool) {
-        self.mixer.set_mute(BusId::Music, mute);
+    pub fn set_music_mute(&mut self, _mute: bool) {
     }
 
-    /// Mute/unmute the Lead Guitar stem bus in gg-mixer.
     #[func]
-    pub fn set_lead_guitar_mute(&mut self, mute: bool) {
-        self.mixer.set_mute(BusId::LeadGuitarStem, mute);
+    pub fn set_lead_guitar_mute(&mut self, _mute: bool) {
     }
 
-    /// Mute/unmute the Rhythm Guitar stem bus in gg-mixer.
     #[func]
-    pub fn set_rhythm_guitar_mute(&mut self, mute: bool) {
-        self.mixer.set_mute(BusId::RhythmGuitarStem, mute);
+    pub fn set_rhythm_guitar_mute(&mut self, _mute: bool) {
     }
 
-    /// Mute/unmute the Bass stem bus in gg-mixer.
     #[func]
-    pub fn set_bass_mute(&mut self, mute: bool) {
-        self.mixer.set_mute(BusId::BassStem, mute);
+    pub fn set_bass_mute(&mut self, _mute: bool) {
     }
 
-    /// Mute/unmute the Master bus in gg-mixer.
     #[func]
-    pub fn set_master_mute(&mut self, mute: bool) {
-        self.mixer.set_mute(BusId::Master, mute);
-    }
-}
-
-impl AudioEngine {
-    fn apply_mixer_to_pcm(&mut self) {
-        let channels = self.channels.max(1) as usize;
-        mix_pcm_buffer(&mut self.pcm_buf, channels, &mut self.mixer);
+    pub fn set_master_mute(&mut self, _mute: bool) {
     }
 }
 

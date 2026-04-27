@@ -3,6 +3,7 @@
 # in chord.gd fails at parse time and all texture/mesh assets are unavailable.
 # Exclude only machine-local editor caches that should never be committed.
 .godot/editor/
+.godot/imported/
 .godot/global_script_class_cache.cfg
 .godot/scene_groups_cache.cfg
 .godot/uid_cache.bin

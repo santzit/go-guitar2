@@ -128,21 +128,8 @@ fn main() {
                 .compile("q_bridge");
         }
 
-        // Always compile q_dsp_bridge.cpp from source (it is not included in the
-        // prebuilt q_bridge archive) so that the SPSC DSP bridge is always available
-        // when Q headers are present, regardless of whether a prebuilt archive exists.
-        cc::Build::new()
-            .cpp(true)
-            .std("c++20")
-            .include(&q_include)
-            .include(&infra_include)
-            .file(format!("{manifest_dir}/q_bridge/q_dsp_bridge.cpp"))
-            .compile("q_dsp_bridge");
-
         println!("cargo:rerun-if-changed=q_bridge/q_bridge.cpp");
         println!("cargo:rerun-if-changed=q_bridge/q_bridge.h");
-        println!("cargo:rerun-if-changed=q_bridge/q_dsp_bridge.cpp");
-        println!("cargo:rerun-if-changed=q_bridge/q_dsp_bridge.h");
         println!("cargo:rerun-if-changed=include/q");
         println!("cargo:rerun-if-changed=extern/q/q_lib/include");
         println!("cargo:rerun-if-changed=extern/q/include");

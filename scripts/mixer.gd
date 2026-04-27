@@ -2,8 +2,6 @@ extends Control
 ## mixer.gd — Mixer scene: per-bus gain sliders + mute toggles.
 ##
 ## Reads/writes GameState.bus_gains_db / bus_mutes and persists them to disk.
-## If an RtEngine is running (singleton stored in GameState), changes are also
-## applied live via set_bus_gain_db() / set_bus_mute().
 
 const _GameStateScript = preload("res://scripts/game_state.gd")
 const _MixerStripScene: PackedScene = preload("res://scenes/mixer_strip.tscn")
@@ -75,30 +73,13 @@ func _refresh_mute_visuals() -> void:
 			btn.modulate = Color(1.0, 1.0, 1.0)
 
 
-## Apply a single bus setting to Godot AudioServer and running RtEngine, if available.
+## Apply a single bus setting to Godot AudioServer.
 func _apply_to_outputs(bus_idx: int) -> void:
 	var bus_name := StringName(_GameStateScript.BUS_NAMES[bus_idx])
 	var godot_bus_idx: int = AudioServer.get_bus_index(bus_name)
 	if godot_bus_idx != -1:
 		AudioServer.set_bus_volume_db(godot_bus_idx, _GameStateScript.bus_gains_db[bus_idx])
 		AudioServer.set_bus_mute(godot_bus_idx, _GameStateScript.bus_mutes[bus_idx])
-
-	var rt := _get_rt_engine()
-	if rt == null:
-		return
-	rt.set_bus_gain_db(bus_idx, _GameStateScript.bus_gains_db[bus_idx])
-	rt.set_bus_mute(bus_idx, _GameStateScript.bus_mutes[bus_idx])
-
-
-## Try to get a live RtEngine from the scene tree (node named "RtEngine" anywhere).
-func _get_rt_engine() -> Object:
-	var nodes := get_tree().get_nodes_in_group("rt_engine")
-	if nodes.size() > 0:
-		return nodes[0]
-	# Fallback: look for an autoload or a direct child of root.
-	if Engine.has_singleton("RtEngine"):
-		return Engine.get_singleton("RtEngine")
-	return null
 
 
 func _on_back_button_pressed() -> void:
