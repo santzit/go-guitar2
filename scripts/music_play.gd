@@ -124,7 +124,7 @@ var _last_chord_sig: String = ""
 ## QEngine is the Rust GDExtension that receives AudioEffectCapture buffers,
 ## runs cycfi/q pitch detection, and stores detections in its SPSC ring buffer.
 var _scorer          : NoteScorer          = null
-var _q_engine                             = null   # QEngine GDExtension (optional)
+var _q_engine: QEngine                    = null
 var _capture_effect  : AudioEffectCapture = null
 var _capture_player  : AudioStreamPlayer  = null
 var _capture_bus_idx : int                = -1
@@ -223,19 +223,16 @@ func _ready() -> void:
 		ProjectSettings.globalize_path(SCREENSHOT_DIR)
 	)
 
-	# ── Optional: initialise QEngine (AudioEffectCapture -> cycfi/q) ─────────
-	if ClassDB.class_exists("QEngine"):
-		_q_engine = ClassDB.instantiate("QEngine")
-		var sr : int = AudioServer.get_mix_rate()
-		if _q_engine.start(sr):
-			_q_engine.set_noise_gate(QENGINE_NOISE_GATE)
-			_open_qengine_capture_bus()
-			print("MusicPlay: QEngine started — %d Hz" % sr)
-		else:
-			push_warning("MusicPlay: QEngine.start() failed — cycfi/q may not be linked.")
-			_q_engine = null
+	# ── Initialise QEngine (AudioEffectCapture -> cycfi/q) ───────────────────
+	_q_engine = QEngine.new()
+	var sr : int = AudioServer.get_mix_rate()
+	if _q_engine.start(sr):
+		_q_engine.set_noise_gate(QENGINE_NOISE_GATE)
+		_open_qengine_capture_bus()
+		print("MusicPlay: QEngine started — %d Hz" % sr)
 	else:
-		print("MusicPlay: QEngine GDExtension not found — scoring runs in passive mode.")
+		push_warning("MusicPlay: QEngine.start() failed — cycfi/q may not be linked.")
+		_q_engine = null
 
 	# Snap camera to the centre of the highway on startup; enable zoom FOV.
 	_lane_glow = _zero_lane_array()
