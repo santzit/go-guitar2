@@ -20,7 +20,7 @@ const BUS_COUNT: int = 9
 ## Display names for each bus.
 const BUS_NAMES: Array = [
 	"UI", "Music", "Lead Guitar", "Rhythm Guitar", "Bass",
-	"Player Instrument", "Master", "Metronome", "Mic Room"
+	"Player 1", "Master", "Metronome", "Mic Room"
 ]
 
 ## Per-bus gain in dB.  Range: -60.0 to +6.0.  Default: 0.0 (unity gain).

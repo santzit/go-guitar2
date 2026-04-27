@@ -18,6 +18,3 @@ godot            = { git = "https://github.com/godot-rust/gdext", branch = "mast
 # Rocksmith 2014 PSARC/SNG parsing (pure Rust, no .NET)
 rocksmith2014-psarc = { git = "https://github.com/santzit/Rocksmith2014.rs", rev = "38efcfe9c26bf9849a10b2df942409e273c998ee" }
 rocksmith2014-sng   = { git = "https://github.com/santzit/Rocksmith2014.rs", rev = "38efcfe9c26bf9849a10b2df942409e273c998ee" }
-[build-dependencies]
-# Used to compile q_bridge.cpp when cycfi/q headers are present.
-cc               = "1"

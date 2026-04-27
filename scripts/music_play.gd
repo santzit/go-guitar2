@@ -72,7 +72,7 @@ const NOTE_NAMES      : Array[String] = ["C","C#","D","D#","E","F","F#","G","G#"
 const DEBUG_CHORD_WINDOW : float = 0.25
 ## Maximum timestamp difference between notes to be considered part of the same chord.
 const CHORD_GROUP_THRESHOLD : float = 0.02
-const QENGINE_CAPTURE_BUS   : StringName = &"QEngineInput"
+const QENGINE_CAPTURE_BUS   : StringName = &"Player 1"
 const QENGINE_NOISE_GATE    : float = 0.02
 
 # -- Scene references --------------------------------------------------------
@@ -686,18 +686,18 @@ func _poll_qengine(song_time_sec: float) -> void:
 
 func _open_qengine_capture_bus() -> void:
 	var existing_idx : int = AudioServer.get_bus_index(QENGINE_CAPTURE_BUS)
-	if existing_idx != -1:
-		_capture_bus_idx = existing_idx
-		for ei in AudioServer.get_bus_effect_count(_capture_bus_idx):
-			var fx = AudioServer.get_bus_effect(_capture_bus_idx, ei)
-			if fx is AudioEffectCapture:
-				_capture_effect = fx
-				break
-	else:
-		_capture_bus_idx = AudioServer.bus_count
-		AudioServer.add_bus()
-		AudioServer.set_bus_name(_capture_bus_idx, QENGINE_CAPTURE_BUS)
-		AudioServer.set_bus_mute(_capture_bus_idx, true)
+	if existing_idx == -1:
+		push_error("MusicPlay: required bus '%s' not found in default_bus_layout.tres." % QENGINE_CAPTURE_BUS)
+		return
+
+	_capture_bus_idx = existing_idx
+	for ei in AudioServer.get_bus_effect_count(_capture_bus_idx):
+		var fx = AudioServer.get_bus_effect(_capture_bus_idx, ei)
+		if fx is AudioEffectCapture:
+			_capture_effect = fx
+			break
+
+	if _capture_effect == null:
 		_capture_effect = AudioEffectCapture.new()
 		AudioServer.add_bus_effect(_capture_bus_idx, _capture_effect)
 
@@ -717,9 +717,7 @@ func _close_qengine_capture_bus() -> void:
 		_capture_player.queue_free()
 		_capture_player = null
 	_capture_effect = null
-	if _capture_bus_idx != -1:
-		AudioServer.remove_bus(_capture_bus_idx)
-		_capture_bus_idx = -1
+	_capture_bus_idx = -1
 
 
 func _exit_tree() -> void:

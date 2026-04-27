@@ -26,6 +26,7 @@ mono_crash.*.json
 
 # Rust build artefacts (keep gdextension/bin/ tracked — pre-built binaries)
 gdextension/target/
+gdextension_qengine/target/
 wget-log
 
 # Godot binary (downloaded at runtime, not committed)
