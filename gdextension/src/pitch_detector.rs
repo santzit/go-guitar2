@@ -203,7 +203,7 @@ fn to_string_number(idx: usize) -> i64 {
 ///
 /// Uses one `cycfi::q::pitch_detector` per string, configured with Standard E
 /// tuning frequency ranges.  Feed PCM-16-LE bytes captured from the guitar DI
-/// input (e.g. via `RtEngine`'s input ring buffer) and poll `get_last_result()`
+/// input and poll `get_last_result()`
 /// every frame.
 ///
 /// GDScript example:

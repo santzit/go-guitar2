@@ -28,7 +28,7 @@
 //! ── 00_Rock1-130-A_solo_mic.wav: 12 total detection events — OK ──────────────
 //! ```
 
-use godot_goguitar_rs::bandpass::{
+use godot_qengine_rs::bandpass::{
     build_string_filters, OPEN_FREQS, STRING_NAMES, STRING_RANGES,
 };
 use std::path::Path;
@@ -130,15 +130,13 @@ fn measure_string_energies(samples: &[f32], sample_rate: u32) -> [f32; 6] {
         .unwrap()
 }
 
-// ── Full Q detection (only when Q is compiled in) ────────────────────────────
+// ── Full Q detection ───────────────────────────────────────────────────────────
 
-#[cfg(q_available)]
-use godot_goguitar_rs::pitch_detector::{DetectionResult, GuitarPitchDetector};
+use godot_qengine_rs::pitch_detector::{DetectionResult, GuitarPitchDetector};
 
 /// Run the full Q detector pipeline on `samples`.
 ///
 /// Returns a Vec of `(time_ms, result)` for every detection event that fires.
-#[cfg(q_available)]
 fn run_q_detector(samples: &[f32], sample_rate: u32) -> Vec<(f32, DetectionResult)> {
     let mut detector = match GuitarPitchDetector::new(sample_rate) {
         Some(d) => d,
@@ -215,100 +213,96 @@ fn run_bandpass_test(wav_path: &str) {
 }
 
 /// Full Q-backed note detection test for one WAV file.
-/// Falls back to bandpass-only when Q is not compiled in.
 fn run_full_test(wav_path: &str) {
     run_bandpass_test(wav_path);
 
-    #[cfg(q_available)]
-    {
-        let path = Path::new(wav_path);
-        let stem = path
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .into_owned();
+    let path = Path::new(wav_path);
+    let stem = path
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .into_owned();
 
-        let bytes = std::fs::read(path).expect("file already verified above");
-        let (samples, sr) = decode_wav(&bytes);
+    let bytes = std::fs::read(path).expect("file already verified above");
+    let (samples, sr) = decode_wav(&bytes);
 
+    println!(
+        "\n── {} ─ Q pitch detection ─────────────────────────────────────────",
+        stem
+    );
+    println!(
+        "  {:>10}  {:^16}  {:^6}  {:>10}  {:>10}  {:>5}",
+        "time (ms)", "string", "fret", "freq (Hz)", "periodicity", "note"
+    );
+    println!("  {}", "─".repeat(70));
+
+    let events = run_q_detector(&samples, sr);
+
+    // Per-string accumulators for the summary.
+    let mut string_count    = [0usize; 6];
+    let mut string_freq_sum = [0.0f64; 6];
+    let mut string_peri_sum = [0.0f64; 6];
+
+    for (time_ms, r) in &events {
+        let si = r.string_index;
+        let fret = freq_to_fret(r.frequency, si);
+        let (_, note_name, octave) = freq_to_note(r.frequency);
+        string_count[si]    += 1;
+        string_freq_sum[si] += r.frequency as f64;
+        string_peri_sum[si] += r.periodicity as f64;
         println!(
-            "\n── {} ─ Q pitch detection ─────────────────────────────────────────",
-            stem
-        );
-        println!(
-            "  {:>10}  {:^16}  {:^6}  {:>10}  {:>10}  {:>5}",
-            "time (ms)", "string", "fret", "freq (Hz)", "periodicity", "note"
-        );
-        println!("  {}", "─".repeat(70));
-
-        let events = run_q_detector(&samples, sr);
-
-        // Per-string accumulators for the summary.
-        let mut string_count    = [0usize; 6];
-        let mut string_freq_sum = [0.0f64; 6];
-        let mut string_peri_sum = [0.0f64; 6];
-
-        for (time_ms, r) in &events {
-            let si = r.string_index;
-            let fret = freq_to_fret(r.frequency, si);
-            let (_, note_name, octave) = freq_to_note(r.frequency);
-            string_count[si]    += 1;
-            string_freq_sum[si] += r.frequency as f64;
-            string_peri_sum[si] += r.periodicity as f64;
-            println!(
-                "  {:>10.1}  {:^16}  {:>6}  {:>10.2}  {:>10.3}  {}{}",
-                time_ms,
-                format!("String {} ({})", 6 - si, STRING_NAMES[si]),
-                if fret >= 0 { format!("{}", fret) } else { "?".to_string() },
-                r.frequency,
-                r.periodicity,
-                note_name,
-                octave,
-            );
-        }
-
-        // ── Per-string summary ──────────────────────────────────────────────
-        println!("\n── {} summary ─ per string ──────────────────────────────────────────", stem);
-        println!(
-            "  {:^20}  {:>7}  {:>11}  {:>11}",
-            "string", "events", "avg Hz", "avg period."
-        );
-        println!("  {}", "─".repeat(58));
-        for idx in 0..6 {
-            let n = string_count[idx];
-            if n > 0 {
-                let avg_hz   = string_freq_sum[idx] / n as f64;
-                let avg_peri = string_peri_sum[idx] / n as f64;
-                println!(
-                    "  {:^20}  {:>7}  {:>11.2}  {:>11.3}",
-                    format!("String {} ({})", 6 - idx, STRING_NAMES[idx]),
-                    n,
-                    avg_hz,
-                    avg_peri,
-                );
-            } else {
-                println!(
-                    "  {:^20}  {:>7}",
-                    format!("String {} ({})", 6 - idx, STRING_NAMES[idx]),
-                    "─",
-                );
-            }
-        }
-
-        let total: usize = string_count.iter().sum();
-        println!(
-            "\n── {}: {} total detection events — {}\n",
-            stem,
-            total,
-            if total > 0 { "OK" } else { "WARN: no notes detected" }
-        );
-
-        assert!(
-            total > 0,
-            "{}: Q detector found no notes — verify Q is compiled and audio is valid",
-            stem
+            "  {:>10.1}  {:^16}  {:>6}  {:>10.2}  {:>10.3}  {}{}",
+            time_ms,
+            format!("String {} ({})", 6 - si, STRING_NAMES[si]),
+            if fret >= 0 { format!("{}", fret) } else { "?".to_string() },
+            r.frequency,
+            r.periodicity,
+            note_name,
+            octave,
         );
     }
+
+    // ── Per-string summary ──────────────────────────────────────────────
+    println!("\n── {} summary ─ per string ──────────────────────────────────────────", stem);
+    println!(
+        "  {:^20}  {:>7}  {:>11}  {:>11}",
+        "string", "events", "avg Hz", "avg period."
+    );
+    println!("  {}", "─".repeat(58));
+    for idx in 0..6 {
+        let n = string_count[idx];
+        if n > 0 {
+            let avg_hz   = string_freq_sum[idx] / n as f64;
+            let avg_peri = string_peri_sum[idx] / n as f64;
+            println!(
+                "  {:^20}  {:>7}  {:>11.2}  {:>11.3}",
+                format!("String {} ({})", 6 - idx, STRING_NAMES[idx]),
+                n,
+                avg_hz,
+                avg_peri,
+            );
+        } else {
+            println!(
+                "  {:^20}  {:>7}",
+                format!("String {} ({})", 6 - idx, STRING_NAMES[idx]),
+                "─",
+            );
+        }
+    }
+
+    let total: usize = string_count.iter().sum();
+    println!(
+        "\n── {}: {} total detection events — {}\n",
+        stem,
+        total,
+        if total > 0 { "OK" } else { "WARN: no notes detected" }
+    );
+
+    assert!(
+        total > 0,
+        "{}: Q detector found no notes — verify Q is compiled and audio is valid",
+        stem
+    );
 }
 
 // ── Individual file tests ─────────────────────────────────────────────────────
@@ -341,7 +335,7 @@ rock_test!(rock3_148_c_comp,   "00_Rock3-148-C_comp_mic.wav");
 
 #[test]
 fn bandpass_open_e2_passes_string6() {
-    use godot_goguitar_rs::bandpass::BiquadBandpass;
+    use godot_qengine_rs::bandpass::BiquadBandpass;
     use std::f32::consts::TAU;
 
     let sr = 44_100u32;
@@ -387,7 +381,7 @@ fn bandpass_open_e2_passes_string6() {
 
 #[test]
 fn bandpass_open_e4_passes_string1() {
-    use godot_goguitar_rs::bandpass::BiquadBandpass;
+    use godot_qengine_rs::bandpass::BiquadBandpass;
     use std::f32::consts::TAU;
 
     let sr = 44_100u32;
@@ -432,7 +426,7 @@ fn bandpass_open_e4_passes_string1() {
 
 #[test]
 fn bandpass_all_open_strings_self_select() {
-    use godot_goguitar_rs::bandpass::BiquadBandpass;
+    use godot_qengine_rs::bandpass::BiquadBandpass;
     use std::f32::consts::TAU;
 
     let sr = 44_100u32;

@@ -13,12 +13,13 @@ config_version=5
 config/name="GoGuitar2"
 config/description="Rocksmith 2014 like Guitar 3D Game"
 run/main_scene="res://scenes/boot.tscn"
-config/features=PackedStringArray("4.4", "Mobile")
+config/features=PackedStringArray("4.5", "Mobile")
 
 [audio]
 
 driver/enable_input=true
 driver/mix_rate=48000
+buses/default_bus_layout="res://default_bus_layout.tres"
 
 [autoload]
 

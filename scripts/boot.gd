@@ -53,7 +53,7 @@ func _apply_audio_settings() -> void:
 
 
 func _probe_gdextension() -> void:
-	# Verify the Rust GDExtension (RocksmithBridge / PitchDetector) loaded.
+	# Verify the Rust GDExtension classes needed by gameplay are loaded.
 	# We do NOT crash if it is missing — gameplay will simply run without live
 	# pitch detection (demo / song-playback mode).
 	if ClassDB.class_exists("RocksmithBridge"):
@@ -65,6 +65,11 @@ func _probe_gdextension() -> void:
 		print("Boot: PitchDetector GDExtension — OK.")
 	else:
 		push_warning("Boot: PitchDetector GDExtension not found — pitch detection disabled.")
+
+	if ClassDB.class_exists("QEngine"):
+		print("Boot: QEngine GDExtension — OK.")
+	else:
+		push_warning("Boot: QEngine GDExtension not found — music_play live detection disabled.")
 
 
 func _go_to_menu() -> void:

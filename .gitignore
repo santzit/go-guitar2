@@ -3,6 +3,8 @@
 # in chord.gd fails at parse time and all texture/mesh assets are unavailable.
 # Exclude only machine-local editor caches that should never be committed.
 .godot/editor/
+.godot/imported/
+.godot/shader_cache/
 .godot/global_script_class_cache.cfg
 .godot/scene_groups_cache.cfg
 .godot/uid_cache.bin
@@ -25,9 +27,11 @@ mono_crash.*.json
 
 # Rust build artefacts (keep gdextension/bin/ tracked — pre-built binaries)
 gdextension/target/
+gdextension_qengine/target/
 wget-log
 
 # Godot binary (downloaded at runtime, not committed)
 Godot_v4.4.1-stable_linux.x86_64
 Godot_v4.4.1-stable_linux.x86_64.zip
+Godot_v4.5-stable_linux.x86_64
 g.zip
