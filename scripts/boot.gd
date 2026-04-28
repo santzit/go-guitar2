@@ -75,4 +75,4 @@ func _probe_gdextension() -> void:
 func _go_to_menu() -> void:
 	set_process(false)
 	boot_finished.emit()
-	get_tree().change_scene_to_file(MENU_SCENE)
+	SceneManager.goto_main_menu()

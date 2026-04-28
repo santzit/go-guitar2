@@ -142,6 +142,13 @@ func get_sng_info() -> Dictionary:
 	return _ext.get_sng_info()
 
 
+## Returns parsed song metadata extracted from the currently loaded PSARC.
+func get_song_metadata() -> Dictionary:
+	if _ext == null or not _ext.has_method("get_song_metadata"):
+		return {}
+	return _ext.get_song_metadata()
+
+
 ## Decode WEM bytes into an AudioStreamWAV via the AudioEngine GDExtension.
 ## Returns null when the AudioEngine class is absent or decoding fails.
 func _decode_wem_to_stream(wem: PackedByteArray) -> AudioStream:

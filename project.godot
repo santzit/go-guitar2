@@ -19,13 +19,13 @@ config/features=PackedStringArray("4.5", "Mobile")
 
 driver/enable_input=true
 driver/mix_rate=48000
-buses/default_bus_layout="res://default_bus_layout.tres"
 
 [autoload]
 
 AudioInput="*res://scripts/audio_input.gd"
 PlayerManager="*res://scripts/player_manager.gd"
 InputAudioManager="*res://scripts/input_audio_manager.gd"
+SceneManager="*res://scripts/scene_manager.gd"
 
 [gui]
 

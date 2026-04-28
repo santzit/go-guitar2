@@ -286,6 +286,7 @@ dependencies = [
  "godot",
  "rocksmith2014-psarc",
  "rocksmith2014-sng",
+ "serde_json",
 ]
 
 [[package]]

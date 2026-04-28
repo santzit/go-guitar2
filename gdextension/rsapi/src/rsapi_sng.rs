@@ -60,6 +60,13 @@ pub struct RSAPI_SNG {
     sng_difficulty: i32,
     sng_capo: i8,
     sng_tuning: Vec<i16>,
+    sng_song_length: f32,
+    song_title: String,
+    song_artist: String,
+    song_year: i32,
+    has_lead: bool,
+    has_rhythm: bool,
+    has_bass: bool,
     difficulty_band: usize,
 }
 
@@ -81,6 +88,13 @@ impl IObject for RSAPI_SNG {
             sng_difficulty: -1,
             sng_capo: 0,
             sng_tuning: vec![],
+            sng_song_length: 0.0,
+            song_title: String::new(),
+            song_artist: String::new(),
+            song_year: 0,
+            has_lead: false,
+            has_rhythm: false,
+            has_bass: false,
             difficulty_band: 2,
         }
     }
@@ -273,6 +287,25 @@ impl RSAPI_SNG {
         dict.set(&GString::from("tuning"), &tuning_arr.to_variant());
         dict
     }
+
+    #[func]
+    fn get_song_metadata(&self) -> Dictionary<GString, Variant> {
+        let mut d: Dictionary<GString, Variant> = Dictionary::new();
+        d.set(
+            &GString::from("title"),
+            &Variant::from(self.song_title.as_str()),
+        );
+        d.set(
+            &GString::from("artist"),
+            &Variant::from(self.song_artist.as_str()),
+        );
+        d.set(&GString::from("year"), self.song_year);
+        d.set(&GString::from("sng_song_length"), self.sng_song_length);
+        d.set(&GString::from("has_lead"), self.has_lead);
+        d.set(&GString::from("has_rhythm"), self.has_rhythm);
+        d.set(&GString::from("has_bass"), self.has_bass);
+        d
+    }
 }
 
 impl RSAPI_SNG {
@@ -290,6 +323,13 @@ impl RSAPI_SNG {
         self.sng_difficulty = -1;
         self.sng_capo = 0;
         self.sng_tuning.clear();
+        self.sng_song_length = 0.0;
+        self.song_title = String::new();
+        self.song_artist = String::new();
+        self.song_year = 0;
+        self.has_lead = false;
+        self.has_rhythm = false;
+        self.has_bass = false;
     }
 
     fn parse_psarc(&mut self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -298,6 +338,13 @@ impl RSAPI_SNG {
         self.sng_difficulty = data.sng_difficulty;
         self.sng_capo = data.sng_capo;
         self.sng_tuning = data.sng_tuning;
+        self.sng_song_length = data.sng_song_length;
+        self.song_title = data.song_title;
+        self.song_artist = data.song_artist;
+        self.song_year = data.song_year;
+        self.has_lead = data.has_lead;
+        self.has_rhythm = data.has_rhythm;
+        self.has_bass = data.has_bass;
         self.chord_templates = data.chord_templates;
         self.hand_shapes = data.hand_shapes;
         self.phrases = data.phrases;

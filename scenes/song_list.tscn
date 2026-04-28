@@ -17,36 +17,45 @@ anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = 100.0
-offset_top = 80.0
+offset_top = 70.0
 offset_right = -100.0
-offset_bottom = -80.0
+offset_bottom = -70.0
 grow_horizontal = 2
 grow_vertical = 2
 
 [node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer"]
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 10
 
 [node name="Title" type="Label" parent="MarginContainer/VBoxContainer"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 30
-text = "GoGuitar2"
+theme_override_font_sizes/font_size = 34
+text = "Song List"
 horizontal_alignment = 1
 
 [node name="Subtitle" type="Label" parent="MarginContainer/VBoxContainer"]
 layout_mode = 2
-text = "Choose a song"
+text = "Choose a track"
 horizontal_alignment = 1
 
-[node name="SongList" type="ItemList" parent="MarginContainer/VBoxContainer"]
-custom_minimum_size = Vector2(0, 360)
+[node name="SongsScroll" type="ScrollContainer" parent="MarginContainer/VBoxContainer"]
+custom_minimum_size = Vector2(0, 420)
 layout_mode = 2
-select_mode = 0
+size_flags_vertical = 3
+
+[node name="Songs" type="VBoxContainer" parent="MarginContainer/VBoxContainer/SongsScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
 
 [node name="Buttons" type="HBoxContainer" parent="MarginContainer/VBoxContainer"]
 layout_mode = 2
 alignment = 1
 theme_override_constants/separation = 10
+
+[node name="BackButton" type="Button" parent="MarginContainer/VBoxContainer/Buttons"]
+layout_mode = 2
+text = "Back"
 
 [node name="PlayButton" type="Button" parent="MarginContainer/VBoxContainer/Buttons"]
 layout_mode = 2
@@ -62,6 +71,6 @@ horizontal_alignment = 1
 wait_time = 1.0
 one_shot = true
 
+[connection signal="pressed" from="MarginContainer/VBoxContainer/Buttons/BackButton" to="." method="_on_back_button_pressed"]
 [connection signal="pressed" from="MarginContainer/VBoxContainer/Buttons/PlayButton" to="." method="_on_play_button_pressed"]
-[connection signal="item_selected" from="MarginContainer/VBoxContainer/SongList" to="." method="_on_song_list_item_selected"]
 [connection signal="timeout" from="PreviewTimer" to="." method="_on_preview_timer_timeout"]

@@ -134,7 +134,7 @@ func _on_guitar_samples(player_id: int, pcm_bytes: PackedByteArray) -> void:
 
 
 func _on_back_button_pressed() -> void:
-	get_tree().change_scene_to_file("res://scenes/tuner/tuning_list.tscn")
+	SceneManager.goto_tuning_list()
 
 
 func _on_string_button_pressed(string_idx: int) -> void:

@@ -89,6 +89,10 @@ const QENGINE_NOISE_GATE    : float = 0.02
 @onready var _player      : AudioStreamPlayer = $AudioStreamPlayer
 @onready var _camera      : Camera3D          = $Camera3D
 @onready var _debug_label : Label             = $DebugOverlay/DebugLabel
+@onready var _pause_dimmer : ColorRect        = $PauseOverlay/Dimmer
+@onready var _pause_panel  : PanelContainer   = $PauseOverlay/PausePanel
+@onready var _resume_button: Button           = $PauseOverlay/PausePanel/Buttons/ResumeButton
+@onready var _quit_button  : Button           = $PauseOverlay/PausePanel/Buttons/QuitButton
 
 # -- State -------------------------------------------------------------------
 var _bridge              = null  # GoGuitarBridge instance (no static type — avoids parse errors when class is not yet registered)
@@ -137,6 +141,8 @@ var _q_engine: QEngine                    = null
 var _capture_effect  : AudioEffectCapture = null
 var _capture_player  : AudioStreamPlayer  = null
 var _capture_bus_idx : int                = -1
+var _pause_menu_visible: bool              = false
+var _was_playing_before_pause: bool        = false
 
 
 func _ready() -> void:
@@ -144,6 +150,10 @@ func _ready() -> void:
 
 	# Load persisted mixer settings so volume/mute state is correct from the start.
 	_GameStateScript.load_mixer_settings()
+	_resume_button.pressed.connect(_on_resume_button_pressed)
+	_quit_button.pressed.connect(_on_quit_button_pressed)
+	_pause_dimmer.visible = false
+	_pause_panel.visible = false
 
 	var selected_psarc_path: String = _GameStateScript.selected_psarc_path
 	print("MusicPlay: RSAPI_SNG GDExtension loaded: %s" % str(ClassDB.class_exists("RSAPI_SNG")))
@@ -268,6 +278,9 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if _pause_menu_visible:
+		return
+
 	# Warmup phase: show the empty highway for WARMUP_SECS real seconds,
 	# then start audio and note spawning simultaneously.
 	if _warmup_timer > 0.0:
@@ -392,6 +405,51 @@ func _process(delta: float) -> void:
 
 	# Update debug info overlay.
 	_update_debug_info()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel"):
+		_toggle_pause_menu()
+		get_viewport().set_input_as_handled()
+
+
+func _toggle_pause_menu() -> void:
+	if _pause_menu_visible:
+		_resume_gameplay()
+	else:
+		_show_pause_menu()
+
+
+func _show_pause_menu() -> void:
+	_pause_menu_visible = true
+	_pause_dimmer.visible = true
+	_pause_panel.visible = true
+	_was_playing_before_pause = _playing
+	if _player:
+		_player.stream_paused = true
+	_playing = false
+	if _resume_button:
+		_resume_button.grab_focus()
+
+
+func _resume_gameplay() -> void:
+	_pause_menu_visible = false
+	_pause_dimmer.visible = false
+	_pause_panel.visible = false
+	if _player:
+		_player.stream_paused = false
+	_playing = _was_playing_before_pause
+
+
+func _on_resume_button_pressed() -> void:
+	_resume_gameplay()
+
+
+func _on_quit_button_pressed() -> void:
+	if _player:
+		_player.stop()
+	_resume_gameplay()
+	call_deferred("_return_to_song_list")
 
 
 # -- Helpers -----------------------------------------------------------------
@@ -678,7 +736,11 @@ func _zero_lane_array() -> Array[float]:
 
 
 func _return_to_menu() -> void:
-	get_tree().change_scene_to_file("res://scenes/game_menu.tscn")
+	SceneManager.goto_main_menu()
+
+
+func _return_to_song_list() -> void:
+	SceneManager.goto_song_list()
 
 
 ## Compute the note name for a given fret + string index using standard tuning.

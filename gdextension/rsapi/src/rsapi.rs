@@ -7,6 +7,7 @@ use std::fs::File;
 
 use rocksmith2014_sng::NoteMask;
 pub use rocksmith2014_sng::Platform;
+use serde_json::Value;
 
 /// A parsed note extracted from the SNG arrangement.
 #[derive(Clone, Debug)]
@@ -99,6 +100,18 @@ pub struct PsarcData {
     /// Per-string tuning offsets in semitones from standard E-A-D-G-B-e tuning.
     /// An all-zero (or empty) vector means standard tuning.
     pub sng_tuning: Vec<i16>,
+    /// SNG-reported song length in seconds (fallback metadata).
+    pub sng_song_length: f32,
+    /// Song title extracted from PSARC metadata when available.
+    pub song_title: String,
+    /// Artist name extracted from PSARC metadata when available.
+    pub song_artist: String,
+    /// Album/song year extracted from PSARC metadata when available.
+    pub song_year: i32,
+    /// Arrangement presence flags from SNG entries inside PSARC.
+    pub has_lead: bool,
+    pub has_rhythm: bool,
+    pub has_bass: bool,
 }
 
 impl PsarcData {
@@ -123,6 +136,18 @@ impl PsarcData {
             .map_err(|e| format!("Failed to parse PSARC '{}': {}", path, e))?;
 
         let manifest = psarc.manifest().to_vec();
+        let manifest_lc: Vec<String> = manifest.iter().map(|m| m.to_ascii_lowercase()).collect();
+        let has_lead = manifest_lc
+            .iter()
+            .any(|n| n.ends_with(".sng") && n.contains("lead") && !n.contains("vocals"));
+        let has_rhythm = manifest_lc
+            .iter()
+            .any(|n| n.ends_with(".sng") && n.contains("rhythm") && !n.contains("vocals"));
+        let has_bass = manifest_lc
+            .iter()
+            .any(|n| n.ends_with(".sng") && n.contains("bass") && !n.contains("vocals"));
+
+        let (song_title, song_artist, song_year) = extract_hsan_metadata(&mut psarc, &manifest);
 
         // ── Find SNG arrangement ──────────────────────────────────────────────
         // Preference: lead > rhythm > bass > any non-vocals SNG
@@ -153,6 +178,7 @@ impl PsarcData {
             sng_difficulty,
             sng_capo,
             sng_tuning,
+            sng_song_length,
         ) = if let Some(ref name) = sng_name {
             let encrypted = psarc
                 .inflate_file(name)
@@ -169,6 +195,7 @@ impl PsarcData {
             // The field is typically 0 or -1.  Frets in the SNG are physical (absolute).
             let capo = sng.metadata.capo_fret_id;
             let tuning = sng.metadata.tuning.clone();
+            let song_length = sng.metadata.song_length;
 
             let cstr = |bytes: &[u8]| -> String {
                 let end = bytes.iter().position(|b| *b == 0).unwrap_or(bytes.len());
@@ -420,6 +447,7 @@ impl PsarcData {
                     selected_difficulty,
                     capo,
                     tuning,
+                    song_length,
                 )
             } else {
                 // ── Fallback: flat level with most note events ───────────────────
@@ -452,6 +480,7 @@ impl PsarcData {
                             lvl.difficulty,
                             capo,
                             tuning,
+                            song_length,
                         )
                     }
                     None => {
@@ -467,6 +496,7 @@ impl PsarcData {
                             max_diff,
                             capo,
                             tuning,
+                            song_length,
                         )
                     }
                 }
@@ -483,6 +513,7 @@ impl PsarcData {
                 -1i32,
                 0i8,
                 vec![],
+                0.0f32,
             )
         };
 
@@ -587,6 +618,13 @@ impl PsarcData {
             sng_difficulty,
             sng_capo,
             sng_tuning,
+            sng_song_length,
+            song_title,
+            song_artist,
+            song_year,
+            has_lead,
+            has_rhythm,
+            has_bass,
         })
     }
 }
@@ -626,4 +664,98 @@ fn wem_ids_from_bnk(data: &[u8]) -> Vec<u32> {
 
 fn is_preview_wem_name(name: &str) -> bool {
     name.contains("PREVIEW")
+}
+
+fn extract_hsan_metadata(
+    psarc: &mut rocksmith2014_psarc::Psarc<File>,
+    manifest: &[String],
+) -> (String, String, i32) {
+    let hsan_name = manifest
+        .iter()
+        .find(|n| n.to_ascii_lowercase().ends_with(".hsan"));
+    let Some(hsan_name) = hsan_name else {
+        return (String::new(), String::new(), 0);
+    };
+
+    let Ok(bytes) = psarc.inflate_file(hsan_name) else {
+        return (String::new(), String::new(), 0);
+    };
+    let Ok(text) = String::from_utf8(bytes) else {
+        return (String::new(), String::new(), 0);
+    };
+    let Ok(json) = serde_json::from_str::<Value>(&text) else {
+        return (String::new(), String::new(), 0);
+    };
+
+    let title = find_first_string(
+        &json,
+        &["SongName", "Title", "songName", "title", "name", "Name"],
+    )
+    .unwrap_or_default();
+    let artist = find_first_string(
+        &json,
+        &[
+            "ArtistName",
+            "artistName",
+            "Artist",
+            "artist",
+            "Band",
+            "band",
+        ],
+    )
+    .unwrap_or_default();
+    let year = find_first_i32(&json, &["AlbumYear", "albumYear", "Year", "year"]).unwrap_or(0);
+
+    (title, artist, year)
+}
+
+fn find_first_string(v: &Value, keys: &[&str]) -> Option<String> {
+    match v {
+        Value::Object(map) => {
+            for (k, val) in map {
+                if keys.iter().any(|needle| k.eq_ignore_ascii_case(needle)) {
+                    if let Some(s) = val.as_str() {
+                        if !s.trim().is_empty() {
+                            return Some(s.trim().to_string());
+                        }
+                    }
+                }
+            }
+            for (_, val) in map {
+                if let Some(found) = find_first_string(val, keys) {
+                    return Some(found);
+                }
+            }
+            None
+        }
+        Value::Array(arr) => arr.iter().find_map(|it| find_first_string(it, keys)),
+        _ => None,
+    }
+}
+
+fn find_first_i32(v: &Value, keys: &[&str]) -> Option<i32> {
+    match v {
+        Value::Object(map) => {
+            for (k, val) in map {
+                if keys.iter().any(|needle| k.eq_ignore_ascii_case(needle)) {
+                    if let Some(n) = val.as_i64() {
+                        return i32::try_from(n).ok();
+                    }
+                    if let Some(s) = val.as_str() {
+                        if let Ok(n) = s.parse::<i32>() {
+                            return Some(n);
+                        }
+                    }
+                }
+            }
+            for (_, val) in map {
+                if let Some(found) = find_first_i32(val, keys) {
+                    return Some(found);
+                }
+            }
+            None
+        }
+        Value::Array(arr) => arr.iter().find_map(|it| find_first_i32(it, keys)),
+        _ => None,
+    }
 }
