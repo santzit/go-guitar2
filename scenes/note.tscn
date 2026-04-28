@@ -3,7 +3,7 @@
 [ext_resource type="Script" path="res://scripts/note.gd" id="1_notescript"]
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_note_marker"]
-size = Vector2(0.5, 0.5)
+size = Vector2(0.78, 0.34)
 
 [node name="Note" type="Node3D"]
 script = ExtResource("1_notescript")
