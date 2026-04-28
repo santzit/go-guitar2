@@ -8,7 +8,7 @@ const ChartCommon = preload("res://scripts/common.gd")
 ## Chord events:
 ##   - multiple note-slot markers (real Note instances from ChordPool's NotePool)
 ##   - optional chord label
-##   - shader outline with glow on top edge, top corners, and side edges
+##   - shader outline with glow only on the bottom corners
 ##
 ## Coordinate conventions (shared via ChartCommon):
 ##   X = fret position, Y = string height, Z = time (spawns at -20 → travels to 0)
@@ -21,38 +21,29 @@ const ChartCommon = preload("res://scripts/common.gd")
 ## Project font — Inter 18pt Bold, used for the chord name Label3D.
 const _INTER_BOLD: FontFile = preload("res://assets/fonts/Inter_18pt-Bold.ttf")
 
-## Border shader — subtle top outline + side rails + brighter top corners.
+## Border shader — bottom-corner glow only.
+## Glow touches the bottom edge of the chord box (UV.y == 1.0), which aligns
+## with the highway string-separator lines underneath the chord.
 ## Color matches the highway separator lines (vec4(0.55, 0.85, 1.00, 1.0)).
+## Each corner fades outward (horizontally) and upward (away from the bottom edge).
 const _BORDER_SHADER_CODE: String = """
 shader_type spatial;
 render_mode blend_mix, unshaded, cull_disabled, depth_test_disabled;
-uniform float border_u : hint_range(0.005, 0.2) = 0.03;
-uniform float border_v : hint_range(0.01, 0.25) = 0.07;
-uniform float side_fade_start : hint_range(0.0, 1.0) = 0.35;
-uniform float corner_u : hint_range(0.02, 0.5) = 0.20;
-uniform float corner_v : hint_range(0.02, 0.5) = 0.26;
-uniform vec4 edge_glow_color : source_color = vec4(0.55, 0.85, 1.0, 1.0);
-uniform float edge_glow_strength : hint_range(0.0, 8.0) = 2.4;
-uniform float corner_boost : hint_range(0.0, 4.0) = 1.6;
+uniform float border_v : hint_range(0.01, 0.5) = 0.07;
+uniform float corner_u : hint_range(0.02, 0.5) = 0.22;
+uniform vec4 corner_glow_color : source_color = vec4(0.55, 0.85, 1.0, 1.0);
+uniform float corner_glow_strength : hint_range(0.0, 8.0) = 3.0;
 void fragment() {
-	float top = 1.0 - smoothstep(border_v, border_v * 1.8, UV.y);
-	float left = 1.0 - smoothstep(border_u, border_u * 1.8, UV.x);
-	float right = smoothstep(1.0 - border_u * 1.8, 1.0 - border_u, UV.x);
-	float side_region = 1.0 - smoothstep(0.0, side_fade_start, UV.y);
-	float side = max(left, right) * side_region;
-
-	vec2 top_left_n = vec2(UV.x / corner_u, UV.y / corner_v);
-	vec2 top_right_n = vec2((1.0 - UV.x) / corner_u, UV.y / corner_v);
-	float corner_left = pow(clamp(1.0 - length(top_left_n), 0.0, 1.0), 1.4);
-	float corner_right = pow(clamp(1.0 - length(top_right_n), 0.0, 1.0), 1.4);
-	float corners = max(corner_left, corner_right);
-
-	float intensity = clamp(max(top, side) + corners * corner_boost, 0.0, 1.0);
-	if (intensity <= 0.001) { discard; }
-
-	ALBEDO = edge_glow_color.rgb;
-	ALPHA = edge_glow_color.a * intensity;
-	EMISSION = edge_glow_color.rgb * edge_glow_strength * intensity;
+	bool on_bottom       = UV.y > (1.0 - border_v);
+	bool in_left_corner  = UV.x < corner_u;
+	bool in_right_corner = UV.x > 1.0 - corner_u;
+	if (!on_bottom || (!in_left_corner && !in_right_corner)) { discard; }
+	float h_t = in_left_corner ? (1.0 - UV.x / corner_u) : ((UV.x - (1.0 - corner_u)) / corner_u);
+	float v_t = (UV.y - (1.0 - border_v)) / border_v;
+	float intensity = h_t * v_t;
+	ALBEDO    = corner_glow_color.rgb;
+	ALPHA     = corner_glow_color.a * intensity;
+	EMISSION  = corner_glow_color.rgb * corner_glow_strength * intensity;
 }
 """
 
@@ -170,22 +161,18 @@ func _ensure_border(w: float, h: float) -> void:
 		_border_mesh = MeshInstance3D.new()
 		_border_mesh.position = Vector3(0.0, 0.0, 0.05)
 		add_child(_border_mesh)
-	# Convert desired world-space glow thickness to UV fractions.
+	# Convert desired glow height (~5% of chord height) to UV fraction.
+	# Kept deliberately thin to resemble the highway separator line thickness.
 	var bv : float = clampf(0.05 / maxf(h, 0.001), 0.03, 0.12)
-	var bu : float = clampf(0.05 / maxf(w, 0.001), 0.012, 0.06)
 	var shader := Shader.new()
 	shader.code = _BORDER_SHADER_CODE
 	var mat := ShaderMaterial.new()
 	mat.shader = shader
 	# Use the same colour as highway fret-separator lines.
-	mat.set_shader_parameter("edge_glow_color", Color(0.55, 0.85, 1.0, 1.0))
-	mat.set_shader_parameter("edge_glow_strength", 2.4)
-	mat.set_shader_parameter("corner_boost", 1.6)
-	mat.set_shader_parameter("border_u", bu)
+	mat.set_shader_parameter("corner_glow_color", Color(0.55, 0.85, 1.0, 1.0))
+	mat.set_shader_parameter("corner_glow_strength", 3.0)
 	mat.set_shader_parameter("border_v", bv)
-	mat.set_shader_parameter("side_fade_start", 0.35)
-	mat.set_shader_parameter("corner_u", 0.20)
-	mat.set_shader_parameter("corner_v", 0.26)
+	mat.set_shader_parameter("corner_u", 0.22)
 	var plane := PlaneMesh.new()
 	plane.size        = Vector2(w, h)
 	plane.orientation = PlaneMesh.FACE_Z
