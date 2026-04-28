@@ -9,7 +9,7 @@ scenes/
   game_menu.tscn       – Main menu with Song List, Mixer, and Settings options
   settings/settings.tscn – Settings screen (includes Tuner entry)
   tuner/tuning_list.tscn – Tuning preset selection (E Standard, Drop D, etc.)
-  tuner/tuner.tscn       – Live tuner UI (note + frequency + cents guidance)
+  tuner/tuner_3d.tscn    – Live tuner UI (3D TU300-style indicator + note guidance)
   song_list.tscn       – Song picker UI (lists DLC .psarc files and starts gameplay)
   music_play.tscn      – Root Node3D: Camera3D, DirectionalLight3D, Highway, NotePool, Background
   fretboard.tscn       – 6 visible string lines at the strum position (Z=0)
@@ -21,7 +21,7 @@ scripts/
   game_menu.gd         – Opens the song list scene
   settings.gd          – Settings navigation handlers
   tuner/tuning_list.gd – Tuning preset list logic
-  tuner/tuner.gd       – Live tuner logic using PitchDetector + InputAudioManager
+  tuner/tuner_3d.gd    – Live tuner logic using PitchDetector + InputAudioManager
   song_list.gd         – Populates song list and launches music_play with selected song
   game_state.gd        – Shared selected-song state and DLC scan helper
   music_play.gd        – Loads selected .psarc via RSAPI_SNG, schedules notes, plays audio
