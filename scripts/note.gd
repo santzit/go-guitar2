@@ -44,6 +44,7 @@ const NOTE_MARKER_LOCAL_ROTATION_DEGREES: Vector3 = Vector3.ZERO
 const NOTE_MARKER_NEON_GLOW_BASE: float = 1.8
 const NOTE_MARKER_NEON_GLOW_PULSE: float = 0.8
 const NOTE_MARKER_PULSE_FREQUENCY: float = 8.0
+const NOTE_MARKER_TEXTURE_ALPHA: float = 1.0
 const NOTE_VISUAL_ALPHA: float = 0.4
 const SUSTAIN_MIN_SECS: float = 0.05
 const SUSTAIN_TRAIL_WIDTH_RATIO: float = 0.5 # Half of note marker length
@@ -61,6 +62,7 @@ var _note_marker_mat: StandardMaterial3D = null
 var _sustain_trail: MeshInstance3D = null
 var _sustain_trail_mat: StandardMaterial3D = null
 var _indicator_color: Color = Color(1.0, 0.5, 0.1, 1.0)
+var _marker_texture: Texture2D = null
 
 @onready var _note_marker: MeshInstance3D = $NoteMarker
 
@@ -74,9 +76,10 @@ func _ready() -> void:
 		_note_marker.rotation_degrees = NOTE_MARKER_LOCAL_ROTATION_DEGREES
 		_note_marker_mat = StandardMaterial3D.new()
 		_note_marker_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		_note_marker_mat.albedo_color = Color(1.0, 1.0, 1.0, NOTE_VISUAL_ALPHA)
+		_note_marker_mat.albedo_color = Color(1.0, 1.0, 1.0, NOTE_MARKER_TEXTURE_ALPHA)
 		_note_marker_mat.emission_enabled = true
-		_note_marker_mat.emission = Color(1.0, 1.0, 1.0, NOTE_VISUAL_ALPHA)
+		_note_marker_mat.emission = Color(1.0, 1.0, 1.0, NOTE_MARKER_TEXTURE_ALPHA)
+		_note_marker_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		_note_marker_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 		_note_marker_mat.emission_energy_multiplier = NOTE_MARKER_NEON_GLOW_BASE
 		_note_marker_mat.metallic = 0.2
@@ -88,6 +91,9 @@ func _ready() -> void:
 		_note_marker_mat.rim = 0.45
 		_note_marker_mat.rim_tint = 0.35
 		_note_marker.set_surface_override_material(0, _note_marker_mat)
+		if _marker_texture == null:
+			_marker_texture = STRING_TEXTURES[string_index] if string_index < STRING_TEXTURES.size() else null
+		_apply_marker_texture(_marker_texture)
 		_sustain_trail = MeshInstance3D.new()
 		_sustain_trail_mat = StandardMaterial3D.new()
 		_sustain_trail_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -118,8 +124,8 @@ func setup(
 
 	position = Vector3(ChartCommon.fret_mid_world_x(fret - 1), ChartCommon.string_world_y(string_index), START_Z)
 	_indicator_color = STRING_COLORS[string_index] if string_index < STRING_COLORS.size() else Color.WHITE
-	var marker_texture: Texture2D = STRING_TEXTURES[string_index] if string_index < STRING_TEXTURES.size() else null
-	_apply_marker_texture(marker_texture)
+	_marker_texture = STRING_TEXTURES[string_index] if string_index < STRING_TEXTURES.size() else null
+	_apply_marker_texture(_marker_texture)
 	_apply_marker_color()
 	_update_sustain_trail()
 	_update_marker_glow(0.0)
@@ -153,8 +159,8 @@ func deactivate() -> void:
 func _apply_marker_color() -> void:
 	if _note_marker_mat == null:
 		return
-	_note_marker_mat.albedo_color = Color(1.0, 1.0, 1.0, NOTE_VISUAL_ALPHA)
-	_note_marker_mat.emission = Color(1.0, 1.0, 1.0, NOTE_VISUAL_ALPHA)
+	_note_marker_mat.albedo_color = Color(1.0, 1.0, 1.0, NOTE_MARKER_TEXTURE_ALPHA)
+	_note_marker_mat.emission = Color(1.0, 1.0, 1.0, NOTE_MARKER_TEXTURE_ALPHA)
 	if _sustain_trail_mat != null:
 		var visual_color := _with_visual_alpha(_indicator_color)
 		_sustain_trail_mat.albedo_color = visual_color
