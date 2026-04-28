@@ -16,6 +16,12 @@ pub struct NoteEntry {
     pub fret:         i8,
     pub string_index: i8,
     pub sustain:      f32,
+    pub hand_shape_id: i32,
+    pub hand_shape_chord_id: i32,
+    pub hand_shape_min_fret: i8,
+    pub hand_shape_max_fret: i8,
+    pub hand_shape_min_string: i8,
+    pub hand_shape_max_string: i8,
 }
 
 /// Parsed PSARC contents: notes from the lead (or highest-difficulty) arrangement,
@@ -129,15 +135,62 @@ impl PsarcData {
             // SNG frets are always physical (absolute) — no capo offset is applied.
             let mut entries: Vec<NoteEntry> = Vec::new();
 
+            let hand_shape_fret_span = |chord_id: i32| -> Option<(i8, i8, i8, i8)> {
+                if chord_id < 0 {
+                    return None;
+                }
+                let chord = sng.chords.get(chord_id as usize)?;
+                let mut min_fret: i8 = i8::MAX;
+                let mut max_fret: i8 = i8::MIN;
+                let mut min_string: i8 = i8::MAX;
+                let mut max_string: i8 = i8::MIN;
+                for s in 0i8..6 {
+                    let fret = chord.frets[s as usize];
+                    if fret < 0 {
+                        continue;
+                    }
+                    min_fret = min_fret.min(fret);
+                    max_fret = max_fret.max(fret);
+                    min_string = min_string.min(s);
+                    max_string = max_string.max(s);
+                }
+                if min_fret == i8::MAX {
+                    None
+                } else {
+                    Some((min_fret, max_fret, min_string, max_string))
+                }
+            };
+
+            let find_hand_shape = |hand_shapes: &[rocksmith2014_sng::FingerPrint], note_time: f32| -> Option<(i32, i32, i8, i8, i8, i8)> {
+                let hs = hand_shapes.iter().enumerate().find(|(_, fp)| {
+                    note_time >= fp.start_time && note_time <= fp.end_time
+                })?;
+                let hand_shape_id = hs.0 as i32;
+                let hand_shape_chord_id = hs.1.chord_id;
+                let (min_fret, max_fret, min_string, max_string) = hand_shape_fret_span(hand_shape_chord_id)
+                    .unwrap_or((-1, -1, -1, -1));
+                Some((
+                    hand_shape_id,
+                    hand_shape_chord_id,
+                    min_fret,
+                    max_fret,
+                    min_string,
+                    max_string,
+                ))
+            };
+
             let push_note = |entries: &mut Vec<NoteEntry>,
                              n: &rocksmith2014_sng::Note,
-                             chords: &[rocksmith2014_sng::Chord]| {
+                             chords: &[rocksmith2014_sng::Chord],
+                             hand_shapes: &[rocksmith2014_sng::FingerPrint]| {
                 // Skip notes flagged as IGNORE — never scored or displayed.
                 // HIGH_DENSITY notes must NOT be skipped: they are genuine playable
                 // notes required at higher difficulties.
                 if n.mask.contains(NoteMask::IGNORE) {
                     return;
                 }
+                let hand_shape_meta = find_hand_shape(hand_shapes, n.time)
+                    .unwrap_or((-1, -1, -1, -1, -1, -1));
                 if n.chord_id >= 0 {
                     // Chord event: expand per-string frets from the chord template.
                     // chord_id is authoritative (sng_to_xml reference confirms this).
@@ -150,6 +203,12 @@ impl PsarcData {
                                 fret:         raw_fret,
                                 string_index: s,
                                 sustain:      n.sustain,
+                                hand_shape_id: hand_shape_meta.0,
+                                hand_shape_chord_id: hand_shape_meta.1,
+                                hand_shape_min_fret: hand_shape_meta.2,
+                                hand_shape_max_fret: hand_shape_meta.3,
+                                hand_shape_min_string: hand_shape_meta.4,
+                                hand_shape_max_string: hand_shape_meta.5,
                             });
                         }
                     }
@@ -160,6 +219,12 @@ impl PsarcData {
                         fret:         n.fret,
                         string_index: n.string_index,
                         sustain:      n.sustain,
+                        hand_shape_id: hand_shape_meta.0,
+                        hand_shape_chord_id: hand_shape_meta.1,
+                        hand_shape_min_fret: hand_shape_meta.2,
+                        hand_shape_max_fret: hand_shape_meta.3,
+                        hand_shape_min_string: hand_shape_meta.4,
+                        hand_shape_max_string: hand_shape_meta.5,
                     });
                 }
             };
@@ -179,7 +244,7 @@ impl PsarcData {
                     };
                     for n in &lvl.notes {
                         if n.time < t_start || n.time >= t_end { continue; }
-                        push_note(&mut entries, n, &sng.chords);
+                        push_note(&mut entries, n, &sng.chords, &lvl.hand_shapes);
                     }
                 }
                 eprintln!(
@@ -199,7 +264,7 @@ impl PsarcData {
                 match best {
                     Some(lvl) => {
                         for n in &lvl.notes {
-                            push_note(&mut entries, n, &sng.chords);
+                            push_note(&mut entries, n, &sng.chords, &lvl.hand_shapes);
                         }
                         eprintln!("rsapi: fallback level {} — {} note_events", lvl.difficulty, entries.len());
                         (entries, start_time, lvl.difficulty, capo, tuning)

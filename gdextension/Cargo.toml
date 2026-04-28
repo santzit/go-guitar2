@@ -15,9 +15,9 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 # Godot integration
 godot            = { git = "https://github.com/godot-rust/gdext", branch = "master", features = ["api-4-4"] }
-# Rocksmith 2014 PSARC/SNG parsing (pure Rust, no .NET)
-rocksmith2014-psarc = { git = "https://github.com/santzit/Rocksmith2014.rs", rev = "38efcfe9c26bf9849a10b2df942409e273c998ee" }
-rocksmith2014-sng   = { git = "https://github.com/santzit/Rocksmith2014.rs", rev = "38efcfe9c26bf9849a10b2df942409e273c998ee" }
+# Rocksmith 2014 PSARC/SNG parsing (pure Rust, no .NET) vendored as extern subproject.
+rocksmith2014-psarc = { path = "extern/Rocksmith2014.rs/rocksmith2014-psarc" }
+rocksmith2014-sng   = { path = "extern/Rocksmith2014.rs/rocksmith2014-sng" }
 
 [dev-dependencies]
 godot_qengine_rs = { path = "../gdextension_qengine" }

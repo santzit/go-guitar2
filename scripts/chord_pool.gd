@@ -1,7 +1,7 @@
 extends Node3D
 ## chord_pool.gd — manages a fixed pool of chord container instances.
 ##
-## Usage:  spawn_event(notes, time, name, show_details, kind) → Node3D
+## Usage:  spawn_event(notes, time, name, show_details, kind, force_outline, outline bounds) → Node3D
 ##         tick(song_time)   — called every frame from music_play._process()
 ##         clear_chords()    — call on song stop / restart
 ##
@@ -38,12 +38,28 @@ func spawn_event(
 		p_time: float,
 		p_chord_name: String,
 		p_show_details: bool,
-		p_event_kind: String
+		p_event_kind: String,
+		p_force_outline: bool = false,
+		p_outline_min_fret: int = -1,
+		p_outline_max_fret: int = -1,
+		p_outline_min_string: int = -1,
+		p_outline_max_string: int = -1
 ) -> Node3D:
 	if _pool.is_empty():
 		_pool.append(_make_chord())
 	var chord : Node3D = _pool.pop_back()
-	chord.setup(p_notes, p_time, p_chord_name, p_show_details, p_event_kind)
+	chord.setup(
+		p_notes,
+		p_time,
+		p_chord_name,
+		p_show_details,
+		p_event_kind,
+		p_force_outline,
+		p_outline_min_fret,
+		p_outline_max_fret,
+		p_outline_min_string,
+		p_outline_max_string,
+	)
 	_active.append(chord)
 	return chord
 

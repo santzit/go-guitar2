@@ -8,6 +8,12 @@ struct NoteData {
     fret:         i32,
     string_index: i32,
     duration:     f32,
+    hand_shape_id: i32,
+    hand_shape_chord_id: i32,
+    hand_shape_min_fret: i32,
+    hand_shape_max_fret: i32,
+    hand_shape_min_string: i32,
+    hand_shape_max_string: i32,
 }
 
 /// GDExtension class exposed to Godot as **RocksmithBridge**.
@@ -112,7 +118,18 @@ impl RocksmithBridge {
     }
 
     /// Returns an `Array[Dictionary]` where each entry has:
-    /// `{ "time": float, "fret": int, "string": int, "duration": float }`
+    /// {
+    ///   "time": float,
+    ///   "fret": int,
+    ///   "string": int,
+    ///   "duration": float,
+    ///   "hand_shape_id": int,
+    ///   "hand_shape_chord_id": int,
+    ///   "hand_shape_min_fret": int,
+    ///   "hand_shape_max_fret": int,
+    ///   "hand_shape_min_string": int,
+    ///   "hand_shape_max_string": int,
+    /// }
     #[func]
     fn get_notes(&self) -> Array<Variant> {
         let mut arr: Array<Variant> = Array::new();
@@ -122,6 +139,12 @@ impl RocksmithBridge {
             dict.set(&GString::from("fret"),     n.fret);
             dict.set(&GString::from("string"),   n.string_index);
             dict.set(&GString::from("duration"), n.duration);
+            dict.set(&GString::from("hand_shape_id"), n.hand_shape_id);
+            dict.set(&GString::from("hand_shape_chord_id"), n.hand_shape_chord_id);
+            dict.set(&GString::from("hand_shape_min_fret"), n.hand_shape_min_fret);
+            dict.set(&GString::from("hand_shape_max_fret"), n.hand_shape_max_fret);
+            dict.set(&GString::from("hand_shape_min_string"), n.hand_shape_min_string);
+            dict.set(&GString::from("hand_shape_max_string"), n.hand_shape_max_string);
             arr.push(&dict.to_variant());
         }
         arr
@@ -202,6 +225,12 @@ impl RocksmithBridge {
                 fret:         n.fret as i32,
                 string_index: n.string_index as i32,
                 duration:     if n.sustain < 0.0 { 0.0 } else { n.sustain },
+                hand_shape_id: n.hand_shape_id,
+                hand_shape_chord_id: n.hand_shape_chord_id,
+                hand_shape_min_fret: n.hand_shape_min_fret as i32,
+                hand_shape_max_fret: n.hand_shape_max_fret as i32,
+                hand_shape_min_string: n.hand_shape_min_string as i32,
+                hand_shape_max_string: n.hand_shape_max_string as i32,
             })
             .collect();
 

@@ -53,7 +53,18 @@ func load_psarc_abs(abs_path: String) -> bool:
 
 
 ## Returns notes as an Array of Dictionaries:
-##   { "time": float, "fret": int, "string": int, "duration": float }
+##   {
+##     "time": float,
+##     "fret": int,
+##     "string": int,
+##     "duration": float,
+##     "hand_shape_id": int,
+##     "hand_shape_chord_id": int,
+##     "hand_shape_min_fret": int,
+##     "hand_shape_max_fret": int,
+##     "hand_shape_min_string": int,
+##     "hand_shape_max_string": int,
+##   }
 func get_notes() -> Array:
 	if _ext == null:
 		return []
