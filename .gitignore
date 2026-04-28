@@ -2,6 +2,7 @@
 # without running "godot --import" first.  Without imported/ the font preload
 # in chord.gd fails at parse time and all texture/mesh assets are unavailable.
 # Exclude only machine-local editor caches that should never be committed.
+.godot/*
 .godot/editor/
 .godot/imported/
 .godot/shader_cache/
