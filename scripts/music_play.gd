@@ -45,6 +45,8 @@ const CAMERA_LERP_SPEED : float = 0.5    # slower pan for cinematic drift
 const CAMERA_Z_LERP_SPEED : float = 0.65
 const CAMERA_EVENT_LOOKBACK : float = 0.35
 const CAMERA_FRAME_PADDING : float = 1.45
+const CAMERA_X_DEADZONE    : float = 0.45
+const CAMERA_Z_DEADZONE    : float = 0.6
 ## Camera X clamp — keeps the camera from tracking to the highway edges.
 const CAMERA_X_MIN      : float = 1.75
 const CAMERA_X_MAX      : float = FRET_WORLD_WIDTH
@@ -597,8 +599,12 @@ func _update_camera_targets_from_visible_events() -> void:
 		var distance_for_z: float = half_z / maxf(tan(vfov * 0.5), 0.001)
 		var required_distance: float = maxf(distance_for_x, distance_for_z)
 
-		_camera_target_x = clampf(center_x, CAMERA_X_MIN, CAMERA_X_MAX)
-		_camera_target_z = clampf(center_z + required_distance, CAMERA_Z_MIN, CAMERA_Z_MAX)
+		var desired_x: float = clampf(center_x, CAMERA_X_MIN, CAMERA_X_MAX)
+		var desired_z: float = clampf(center_z + required_distance, CAMERA_Z_MIN, CAMERA_Z_MAX)
+		if absf(desired_x - _camera_target_x) > CAMERA_X_DEADZONE:
+			_camera_target_x = desired_x
+		if absf(desired_z - _camera_target_z) > CAMERA_Z_DEADZONE:
+			_camera_target_z = desired_z
 		_camera_target_look_at_z = center_z
 	else:
 		_camera_target_x = clampf(ChartCommon.fret_separator_world_x(FRET_COUNT / 2), CAMERA_X_MIN, CAMERA_X_MAX)
