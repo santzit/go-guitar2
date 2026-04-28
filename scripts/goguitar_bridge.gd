@@ -79,6 +79,10 @@ func get_play_events() -> Array:
 
 
 ## Returns raw OGG bytes from the song (CDLC only).
+## NOTE: RSAPI_SNG does not expose a get_audio_bytes() method — this always
+## returns an empty array. The OGG CDLC fallback in get_audio_stream() is
+## therefore currently inactive. To restore CDLC OGG support, expose the
+## raw OGG bytes from the Rust layer as get_audio_bytes().
 func get_audio_bytes() -> PackedByteArray:
 	if _ext == null:
 		return PackedByteArray()

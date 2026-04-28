@@ -75,10 +75,10 @@ func _build_song_metadata(path: String) -> Dictionary:
 		var raw_tuning = sng_info.get("tuning", [])
 		tuning_text = _format_tuning(raw_tuning)
 
-		# Duration from MAIN song track bytes (WEM decode), as requested.
-		duration_sec = _main_track_duration_seconds(_bridge.get_wem_bytes())
-		if duration_sec <= 0.0:
-			duration_sec = float(meta.get("sng_song_length", 0.0))
+		# Duration: use SNG-reported length first (fast, no decode needed).
+		# Full WEM decode is not performed here — it is too slow to run for every
+		# song in the list and would freeze the UI for several seconds per song.
+		duration_sec = float(meta.get("sng_song_length", 0.0))
 
 	if title.is_empty():
 		title = path.get_file().get_basename()

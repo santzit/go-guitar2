@@ -436,7 +436,8 @@ fn build_play_events(src_notes: &[NoteData], tuning: &[i16]) -> Vec<PlayEventDat
         let mut outline_max_string = -1;
 
         for gn in group {
-            if gn.fret < 1 || gn.fret > FRET_COUNT || gn.string_index < 0 || gn.string_index > 5 {
+            // fret 0 = open string (valid); fret -1 = string not played in chord template.
+            if gn.fret < 0 || gn.fret > FRET_COUNT || gn.string_index < 0 || gn.string_index > 5 {
                 continue;
             }
             let dur = gn.duration.max(0.0);

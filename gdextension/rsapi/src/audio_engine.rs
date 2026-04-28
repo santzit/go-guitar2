@@ -435,8 +435,8 @@ mod ffi {
             libvgmstream_free(lib);
 
             Ok(DecodeResult {
-                channels: channels as i32,
-                sample_rate: sample_rate as i32,
+                channels,
+                sample_rate,
                 pcm_bytes: all_pcm,
             })
         }

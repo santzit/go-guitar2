@@ -5,6 +5,8 @@
 use std::collections::HashMap;
 use std::fs::File;
 
+use godot::prelude::godot_print;
+use godot::prelude::godot_warn;
 use rocksmith2014_sng::NoteMask;
 pub use rocksmith2014_sng::Platform;
 use serde_json::Value;
@@ -276,7 +278,7 @@ impl PsarcData {
             let total_phrase_iters = sng.phrase_iterations.len();
             let diff_band = difficulty_band.min(2); // clamp to valid band index
 
-            eprintln!(
+            godot_print!(
                 "rsapi: SNG levels={} phrase_iters={} difficulty_band={} max_difficulty_meta={}",
                 total_levels, total_phrase_iters, diff_band, max_diff
             );
@@ -431,7 +433,7 @@ impl PsarcData {
                         push_note(&mut entries, n, &sng.chords, &lvl.hand_shapes);
                     }
                 }
-                eprintln!(
+                godot_print!(
                     "rsapi: phrase-assembly complete — {} note_events (max band_d={})",
                     entries.len(),
                     selected_difficulty
@@ -452,7 +454,7 @@ impl PsarcData {
             } else {
                 // ── Fallback: flat level with most note events ───────────────────
                 // Used for malformed/non-DDC SNG files that have no phraseIterations.
-                eprintln!("rsapi: no phraseIterations — falling back to flat max-note level");
+                godot_warn!("rsapi: no phraseIterations — falling back to flat max-note level");
                 let best = sng.levels.iter().max_by(|a, b| {
                     a.notes
                         .len()
@@ -464,7 +466,7 @@ impl PsarcData {
                         for n in &lvl.notes {
                             push_note(&mut entries, n, &sng.chords, &lvl.hand_shapes);
                         }
-                        eprintln!(
+                        godot_print!(
                             "rsapi: fallback level {} — {} note_events",
                             lvl.difficulty,
                             entries.len()
@@ -484,7 +486,7 @@ impl PsarcData {
                         )
                     }
                     None => {
-                        eprintln!("rsapi: SNG has no levels at all");
+                        godot_warn!("rsapi: SNG has no levels at all");
                         (
                             Vec::new(),
                             chord_templates,
