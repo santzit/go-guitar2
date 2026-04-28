@@ -38,8 +38,8 @@ const TRAVEL_SPEED  : float = ChartCommon.Z_UNITS_PER_SECOND
 const MISS_HOLD_SECS: float = 1.0
 
 ## Local transform aligns the note marker plane in-lane.
-## Keep marker center exactly on the lane's string Y position.
-const NOTE_MARKER_LOCAL_OFFSET: Vector3 = Vector3(0.0, 0.0, 0.08)
+## Lift marker slightly so the visual middle aligns with the string centerline.
+const NOTE_MARKER_LOCAL_OFFSET: Vector3 = Vector3(0.0, 0.1, 0.08)
 const NOTE_MARKER_LOCAL_ROTATION_DEGREES: Vector3 = Vector3.ZERO
 const NOTE_MARKER_NEON_GLOW_BASE: float = 1.8
 const NOTE_MARKER_NEON_GLOW_PULSE: float = 0.8
