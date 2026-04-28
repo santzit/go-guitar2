@@ -21,6 +21,15 @@ const STRING_COLORS: Array[Color] = [
 	Color(0.72, 0.38, 0.98, 1.0), # purple
 ]
 
+const STRING_TEXTURES: Array[Texture2D] = [
+	preload("res://assets/textures/chartplayer/GuitarRed.png"),
+	preload("res://assets/textures/chartplayer/GuitarYellow.png"),
+	preload("res://assets/textures/chartplayer/GuitarCyan.png"),
+	preload("res://assets/textures/chartplayer/GuitarOrange.png"),
+	preload("res://assets/textures/chartplayer/GuitarGreen.png"),
+	preload("res://assets/textures/chartplayer/GuitarPurple.png"),
+]
+
 const START_Z       : float = -20.0
 const STRUM_Z       : float = 0.0
 const TRAVEL_SPEED  : float = ChartCommon.Z_UNITS_PER_SECOND
@@ -28,10 +37,10 @@ const TRAVEL_SPEED  : float = ChartCommon.Z_UNITS_PER_SECOND
 ## in the same frame window can still observe the note before it is returned.
 const MISS_HOLD_SECS: float = 1.0
 
-## Local transform aligns the imported note mesh in-lane.
+## Local transform aligns the note marker plane in-lane.
 ## Y = 0.0 keeps the marker centred on the string cylinder (radius 0.015).
 const NOTE_MARKER_LOCAL_OFFSET: Vector3 = Vector3(0.0, 0.0, 0.08)
-const NOTE_MARKER_LOCAL_ROTATION_DEGREES: Vector3 = Vector3(0.0, 90.0, 0.0)
+const NOTE_MARKER_LOCAL_ROTATION_DEGREES: Vector3 = Vector3.ZERO
 const NOTE_MARKER_NEON_GLOW_BASE: float = 1.8
 const NOTE_MARKER_NEON_GLOW_PULSE: float = 0.8
 const NOTE_MARKER_PULSE_FREQUENCY: float = 8.0
@@ -58,13 +67,17 @@ var _indicator_color: Color = Color(1.0, 0.5, 0.1, 1.0)
 
 func _ready() -> void:
 	if _note_marker:
+		var plane_mesh := _note_marker.mesh as PlaneMesh
+		if plane_mesh != null:
+			plane_mesh.orientation = PlaneMesh.FACE_Z
 		_note_marker.position = NOTE_MARKER_LOCAL_OFFSET
 		_note_marker.rotation_degrees = NOTE_MARKER_LOCAL_ROTATION_DEGREES
 		_note_marker_mat = StandardMaterial3D.new()
 		_note_marker_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		_note_marker_mat.albedo_color = _with_visual_alpha(_indicator_color)
+		_note_marker_mat.albedo_color = Color(1.0, 1.0, 1.0, NOTE_VISUAL_ALPHA)
 		_note_marker_mat.emission_enabled = true
-		_note_marker_mat.emission = _with_visual_alpha(_indicator_color)
+		_note_marker_mat.emission = Color(1.0, 1.0, 1.0, NOTE_VISUAL_ALPHA)
+		_note_marker_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 		_note_marker_mat.emission_energy_multiplier = NOTE_MARKER_NEON_GLOW_BASE
 		_note_marker_mat.metallic = 0.2
 		_note_marker_mat.roughness = 0.08
@@ -105,6 +118,8 @@ func setup(
 
 	position = Vector3(ChartCommon.fret_mid_world_x(fret - 1), ChartCommon.string_world_y(string_index), START_Z)
 	_indicator_color = STRING_COLORS[string_index] if string_index < STRING_COLORS.size() else Color.WHITE
+	var marker_texture: Texture2D = STRING_TEXTURES[string_index] if string_index < STRING_TEXTURES.size() else null
+	_apply_marker_texture(marker_texture)
 	_apply_marker_color()
 	_update_sustain_trail()
 	_update_marker_glow(0.0)
@@ -138,12 +153,19 @@ func deactivate() -> void:
 func _apply_marker_color() -> void:
 	if _note_marker_mat == null:
 		return
-	var visual_color := _with_visual_alpha(_indicator_color)
-	_note_marker_mat.albedo_color = visual_color
-	_note_marker_mat.emission = visual_color
+	_note_marker_mat.albedo_color = Color(1.0, 1.0, 1.0, NOTE_VISUAL_ALPHA)
+	_note_marker_mat.emission = Color(1.0, 1.0, 1.0, NOTE_VISUAL_ALPHA)
 	if _sustain_trail_mat != null:
+		var visual_color := _with_visual_alpha(_indicator_color)
 		_sustain_trail_mat.albedo_color = visual_color
 		_sustain_trail_mat.emission = visual_color
+
+
+func _apply_marker_texture(texture: Texture2D) -> void:
+	if _note_marker_mat == null:
+		return
+	_note_marker_mat.albedo_texture = texture
+	_note_marker_mat.emission_texture = texture
 
 
 func _update_marker_glow(song_time: float) -> void:
