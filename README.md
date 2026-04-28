@@ -24,11 +24,11 @@ scripts/
   tuner/tuner.gd       – Live tuner logic using PitchDetector + InputAudioManager
   song_list.gd         – Populates song list and launches music_play with selected song
   game_state.gd        – Shared selected-song state and DLC scan helper
-  music_play.gd        – Loads selected .psarc via RsBridge, schedules notes, plays audio
+  music_play.gd        – Loads selected .psarc via RSAPI_SNG, schedules notes, plays audio
   highway.gd           – Runtime fret/string-count config for the highway shader
   note.gd              – Note travel (X=fret, Y=string, Z=time), per-string colour, pool return
   note_pool.gd         – spawn_note / return_note pool API
-  rs_bridge.gd         – GDScript wrapper around the RocksmithBridge GDExtension
+  goguitar_bridge.gd   – GDScript wrapper around the RSAPI_SNG GDExtension
 shaders/
   highway.gdshader     – Flat highway base material (UV/glow effects currently disabled)
 assets/textures/chartplayer/ – Copied ChartPlayer Guitar*.png / FingerOutline textures used in-game
@@ -36,7 +36,8 @@ ChartPlayer/           – Upstream ChartPlayer source snapshot for reference (t
 DLC/                   – Drop .psarc CDLC files here for testing (5 songs included)
 gdextension/
   goguitar_bridge.gdextension  – GDExtension manifest
-  src/                 – Rust source (godot-rust/gdext + Rocksmith2014.rs)
+  rsapi/               – Rust RSAPI extension crate (RSAPI_SNG + AudioEngine)
+  qengine/             – Rust QEngine extension crate (QEngine + PitchDetector)
   bin/                 – Place compiled .so / .dll / .dylib here after building
   README.md            – Build instructions
 ```

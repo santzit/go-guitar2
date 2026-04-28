@@ -1,7 +1,7 @@
-## goguitar_bridge.gd  –  GDScript wrapper around the RocksmithBridge GDExtension.
+## goguitar_bridge.gd  –  GDScript wrapper around the RSAPI_SNG GDExtension.
 ##
 ## Build the native library first (see gdextension/README.md), then the
-## "RocksmithBridge" class will be available and this wrapper will delegate
+## "RSAPI_SNG" class will be available and this wrapper will delegate
 ## to it.  When the extension is absent the wrapper silently no-ops so that
 ## the rest of the game still runs (demo-mode notes are used instead).
 ##
@@ -13,15 +13,15 @@
 extends RefCounted
 class_name GoGuitarBridge
 
-var _ext: Object = null   # native RocksmithBridge instance (may be null)
+var _ext: Object = null   # native RSAPI_SNG instance (may be null)
 
 
 func _init() -> void:
-	if ClassDB.class_exists("RocksmithBridge"):
-		_ext = ClassDB.instantiate("RocksmithBridge")
+	if ClassDB.class_exists("RSAPI_SNG"):
+		_ext = ClassDB.instantiate("RSAPI_SNG")
 	else:
 		push_warning(
-			"GoGuitarBridge: RocksmithBridge GDExtension not loaded. " +
+			"GoGuitarBridge: RSAPI_SNG GDExtension not loaded. " +
 			"Build the extension from gdextension/ and copy the binary to " +
 			"gdextension/bin/.  Running in demo-note mode."
 		)
@@ -71,11 +71,20 @@ func get_notes() -> Array:
 	return _ext.get_notes()
 
 
+## Returns prebuilt unified events from Rust (single + chord events).
+func get_play_events() -> Array:
+	if _ext == null or not _ext.has_method("get_play_events"):
+		return []
+	return _ext.get_play_events()
+
+
 ## Returns raw OGG bytes from the song (CDLC only).
 func get_audio_bytes() -> PackedByteArray:
 	if _ext == null:
 		return PackedByteArray()
-	return _ext.get_audio_bytes()
+	if _ext.has_method("get_audio_bytes"):
+		return _ext.get_audio_bytes()
+	return PackedByteArray()
 
 
 ## Returns raw preview WEM bytes from the song (official DLC — short clip).

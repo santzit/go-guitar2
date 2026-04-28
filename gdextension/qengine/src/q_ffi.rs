@@ -7,7 +7,6 @@
 ///
 /// Do **not** use these symbols directly — prefer the safe wrapper in
 /// `pitch_detector.rs`.
-
 use std::os::raw::{c_float, c_uint};
 
 /// Opaque handle to a heap-allocated `QPitchDetector` C++ object.
@@ -20,9 +19,9 @@ pub struct QPitchDetector {
 extern "C" {
     /// Create a pitch detector covering [min_freq, max_freq] Hz.
     pub fn q_pd_create(
-        min_freq:      c_float,
-        max_freq:      c_float,
-        sample_rate:   c_uint,
+        min_freq: c_float,
+        max_freq: c_float,
+        sample_rate: c_uint,
         hysteresis_db: c_float,
     ) -> *mut QPitchDetector;
 

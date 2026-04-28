@@ -28,9 +28,7 @@
 //! ── 00_Rock1-130-A_solo_mic.wav: 12 total detection events — OK ──────────────
 //! ```
 
-use godot_qengine_rs::bandpass::{
-    build_string_filters, OPEN_FREQS, STRING_NAMES, STRING_RANGES,
-};
+use godot_qengine_rs::bandpass::{build_string_filters, OPEN_FREQS, STRING_NAMES, STRING_RANGES};
 use std::path::Path;
 
 // ── WAV decoder (no external crates) ─────────────────────────────────────────
@@ -54,9 +52,12 @@ fn decode_wav(bytes: &[u8]) -> (Vec<f32>, u32) {
             return (vec![], sample_rate);
         }
         let chunk_id = &bytes[pos..pos + 4];
-        let chunk_size =
-            u32::from_le_bytes([bytes[pos + 4], bytes[pos + 5], bytes[pos + 6], bytes[pos + 7]])
-                as usize;
+        let chunk_size = u32::from_le_bytes([
+            bytes[pos + 4],
+            bytes[pos + 5],
+            bytes[pos + 6],
+            bytes[pos + 7],
+        ]) as usize;
         if chunk_id == b"data" {
             data_start = pos + 8;
             data_len = chunk_size;
@@ -81,8 +82,8 @@ fn decode_wav(bytes: &[u8]) -> (Vec<f32>, u32) {
             let off = i + ch * bytes_per_sample;
             let s = match bits_per_sample {
                 16 => i16::from_le_bytes([data[off], data[off + 1]]) as f32 / 32_768.0,
-                8  => (data[off] as f32 - 128.0) / 128.0,
-                _  => 0.0,
+                8 => (data[off] as f32 - 128.0) / 128.0,
+                _ => 0.0,
             };
             sum += s;
         }
@@ -94,7 +95,9 @@ fn decode_wav(bytes: &[u8]) -> (Vec<f32>, u32) {
 
 // ── Note-name helper ──────────────────────────────────────────────────────────
 
-const NOTE_NAMES: [&str; 12] = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const NOTE_NAMES: [&str; 12] = [
+    "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
+];
 
 /// Convert a frequency in Hz to the nearest MIDI note number and note name.
 fn freq_to_note(freq: f32) -> (i32, &'static str, i32) {
@@ -176,7 +179,11 @@ fn run_bandpass_test(wav_path: &str) {
         }
     };
     let (samples, sr) = decode_wav(&bytes);
-    assert!(!samples.is_empty(), "{}: WAV decoded to empty samples", stem);
+    assert!(
+        !samples.is_empty(),
+        "{}: WAV decoded to empty samples",
+        stem
+    );
 
     println!(
         "\n{}\n── {} ─ bandpass energy ─ sr={} Hz, {:.2} s",
@@ -239,7 +246,7 @@ fn run_full_test(wav_path: &str) {
     let events = run_q_detector(&samples, sr);
 
     // Per-string accumulators for the summary.
-    let mut string_count    = [0usize; 6];
+    let mut string_count = [0usize; 6];
     let mut string_freq_sum = [0.0f64; 6];
     let mut string_peri_sum = [0.0f64; 6];
 
@@ -247,14 +254,18 @@ fn run_full_test(wav_path: &str) {
         let si = r.string_index;
         let fret = freq_to_fret(r.frequency, si);
         let (_, note_name, octave) = freq_to_note(r.frequency);
-        string_count[si]    += 1;
+        string_count[si] += 1;
         string_freq_sum[si] += r.frequency as f64;
         string_peri_sum[si] += r.periodicity as f64;
         println!(
             "  {:>10.1}  {:^16}  {:>6}  {:>10.2}  {:>10.3}  {}{}",
             time_ms,
             format!("String {} ({})", 6 - si, STRING_NAMES[si]),
-            if fret >= 0 { format!("{}", fret) } else { "?".to_string() },
+            if fret >= 0 {
+                format!("{}", fret)
+            } else {
+                "?".to_string()
+            },
             r.frequency,
             r.periodicity,
             note_name,
@@ -263,7 +274,10 @@ fn run_full_test(wav_path: &str) {
     }
 
     // ── Per-string summary ──────────────────────────────────────────────
-    println!("\n── {} summary ─ per string ──────────────────────────────────────────", stem);
+    println!(
+        "\n── {} summary ─ per string ──────────────────────────────────────────",
+        stem
+    );
     println!(
         "  {:^20}  {:>7}  {:>11}  {:>11}",
         "string", "events", "avg Hz", "avg period."
@@ -272,7 +286,7 @@ fn run_full_test(wav_path: &str) {
     for idx in 0..6 {
         let n = string_count[idx];
         if n > 0 {
-            let avg_hz   = string_freq_sum[idx] / n as f64;
+            let avg_hz = string_freq_sum[idx] / n as f64;
             let avg_peri = string_peri_sum[idx] / n as f64;
             println!(
                 "  {:^20}  {:>7}  {:>11.2}  {:>11.3}",
@@ -295,7 +309,11 @@ fn run_full_test(wav_path: &str) {
         "\n── {}: {} total detection events — {}\n",
         stem,
         total,
-        if total > 0 { "OK" } else { "WARN: no notes detected" }
+        if total > 0 {
+            "OK"
+        } else {
+            "WARN: no notes detected"
+        }
     );
 
     assert!(
@@ -307,7 +325,7 @@ fn run_full_test(wav_path: &str) {
 
 // ── Individual file tests ─────────────────────────────────────────────────────
 
-const DATASET: &str = "tests/dataset/guitarset/audio/mic";
+const DATASET: &str = "../tests/dataset/guitarset/audio/mic";
 
 macro_rules! rock_test {
     ($fn_name:ident, $file:expr) => {
@@ -318,18 +336,18 @@ macro_rules! rock_test {
     };
 }
 
-rock_test!(rock1_130_a_solo,   "00_Rock1-130-A_solo_mic.wav");
-rock_test!(rock1_130_a_comp,   "00_Rock1-130-A_comp_mic.wav");
-rock_test!(rock1_90_cs_solo,   "00_Rock1-90-C#_solo_mic.wav");
-rock_test!(rock1_90_cs_comp,   "00_Rock1-90-C#_comp_mic.wav");
-rock_test!(rock2_142_d_solo,   "00_Rock2-142-D_solo_mic.wav");
-rock_test!(rock2_142_d_comp,   "00_Rock2-142-D_comp_mic.wav");
-rock_test!(rock2_85_f_solo,    "00_Rock2-85-F_solo_mic.wav");
-rock_test!(rock2_85_f_comp,    "00_Rock2-85-F_comp_mic.wav");
-rock_test!(rock3_117_bb_solo,  "00_Rock3-117-Bb_solo_mic.wav");
-rock_test!(rock3_117_bb_comp,  "00_Rock3-117-Bb_comp_mic.wav");
-rock_test!(rock3_148_c_solo,   "00_Rock3-148-C_solo_mic.wav");
-rock_test!(rock3_148_c_comp,   "00_Rock3-148-C_comp_mic.wav");
+rock_test!(rock1_130_a_solo, "00_Rock1-130-A_solo_mic.wav");
+rock_test!(rock1_130_a_comp, "00_Rock1-130-A_comp_mic.wav");
+rock_test!(rock1_90_cs_solo, "00_Rock1-90-C#_solo_mic.wav");
+rock_test!(rock1_90_cs_comp, "00_Rock1-90-C#_comp_mic.wav");
+rock_test!(rock2_142_d_solo, "00_Rock2-142-D_solo_mic.wav");
+rock_test!(rock2_142_d_comp, "00_Rock2-142-D_comp_mic.wav");
+rock_test!(rock2_85_f_solo, "00_Rock2-85-F_solo_mic.wav");
+rock_test!(rock2_85_f_comp, "00_Rock2-85-F_comp_mic.wav");
+rock_test!(rock3_117_bb_solo, "00_Rock3-117-Bb_solo_mic.wav");
+rock_test!(rock3_117_bb_comp, "00_Rock3-117-Bb_comp_mic.wav");
+rock_test!(rock3_148_c_solo, "00_Rock3-148-C_solo_mic.wav");
+rock_test!(rock3_148_c_comp, "00_Rock3-148-C_comp_mic.wav");
 
 // ── Synthetic bandpass unit tests (always compiled) ───────────────────────────
 
@@ -475,7 +493,11 @@ fn bandpass_all_open_strings_self_select() {
             format!("String {} {} ({:.1} Hz)", 6 - si, STRING_NAMES[si], freq),
             own_rms,
             max_other,
-            format!("String {} ({})", 6 - winner_idx, STRING_NAMES.get(winner_idx).unwrap_or(&"?")),
+            format!(
+                "String {} ({})",
+                6 - winner_idx,
+                STRING_NAMES.get(winner_idx).unwrap_or(&"?")
+            ),
             if ok { "OK" } else { "WARN (overlap)" }
         );
 

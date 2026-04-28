@@ -73,8 +73,8 @@ This populates:
 
 ```bash
 cd gdextension
-cargo build --release
-cp target/release/libgodot_goguitar_rs.so bin/
+cargo build --release -p godot_qengine_rs
+cp target/release/libgodot_qengine_rs.so bin/
 ```
 
 When `lib/<platform>/libq_bridge.a` is present, `build.rs` links that archive

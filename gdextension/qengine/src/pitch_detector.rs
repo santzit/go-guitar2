@@ -1,3 +1,5 @@
+use crate::bandpass::{BiquadBandpass, STRING_NAMES, STRING_RANGES};
+use crate::q_ffi;
 /// pitch_detector.rs — 6-string guitar pitch detection via cycfi/q.
 ///
 /// Maintains one `cycfi::q::pitch_detector` per guitar string, each tuned
@@ -27,10 +29,7 @@
 /// var r := pd.get_last_result()
 /// # r["detected"], r["string"] (1-6), r["frequency"], r["periodicity"]
 /// ```
-
 use godot::prelude::*;
-use crate::q_ffi;
-use crate::bandpass::{BiquadBandpass, STRING_RANGES, STRING_NAMES};
 
 // ── String frequency ranges (Standard E, frets 0–24) ─────────────────────────
 // (defined in crate::bandpass — imported above)
@@ -50,7 +49,7 @@ const HYSTERESIS_DB: f32 = -40.0;
 /// pitch detector.  This reduces cross-string false detections significantly
 /// when multiple strings sound simultaneously.
 struct StringDetector {
-    raw:      *mut q_ffi::QPitchDetector,
+    raw: *mut q_ffi::QPitchDetector,
     bandpass: BiquadBandpass,
 }
 
@@ -60,9 +59,7 @@ unsafe impl Sync for StringDetector {}
 
 impl StringDetector {
     fn new(min_hz: f32, max_hz: f32, sample_rate: u32) -> Option<Self> {
-        let raw = unsafe {
-            q_ffi::q_pd_create(min_hz, max_hz, sample_rate, HYSTERESIS_DB)
-        };
+        let raw = unsafe { q_ffi::q_pd_create(min_hz, max_hz, sample_rate, HYSTERESIS_DB) };
         if raw.is_null() {
             None
         } else {
@@ -110,13 +107,13 @@ impl Drop for StringDetector {
 #[derive(Clone, Debug, Default)]
 pub struct DetectionResult {
     /// `true` when a pitch was detected with sufficient confidence.
-    pub detected:     bool,
+    pub detected: bool,
     /// 0-based string index (0 = String 6 / low E, 5 = String 1 / high e).
     pub string_index: usize,
     /// Detected fundamental frequency in Hz.
-    pub frequency:    f32,
+    pub frequency: f32,
     /// Periodicity / confidence score in [0.0, 1.0].
-    pub periodicity:  f32,
+    pub periodicity: f32,
 }
 
 // ── 6-string guitar pitch detector ───────────────────────────────────────────
@@ -127,7 +124,7 @@ pub struct DetectionResult {
 /// method returns `Some(DetectionResult)` carrying the winning string,
 /// frequency, and confidence.
 pub struct GuitarPitchDetector {
-    detectors:   Vec<StringDetector>,   // length == 6
+    detectors: Vec<StringDetector>, // length == 6
     last_result: DetectionResult,
     sample_rate: u32,
 }
@@ -140,7 +137,7 @@ impl GuitarPitchDetector {
         for (min, max) in &STRING_RANGES {
             match StringDetector::new(*min, *max, sample_rate) {
                 Some(d) => detectors.push(d),
-                None    => return None,
+                None => return None,
             }
         }
         Some(Self {
@@ -165,10 +162,10 @@ impl GuitarPitchDetector {
                     let is_better = best.as_ref().map_or(true, |b| peri > b.periodicity);
                     if is_better {
                         best = Some(DetectionResult {
-                            detected:     true,
+                            detected: true,
                             string_index: idx,
-                            frequency:    freq,
-                            periodicity:  peri,
+                            frequency: freq,
+                            periodicity: peri,
                         });
                     }
                 }
@@ -222,14 +219,17 @@ fn to_string_number(idx: usize) -> i64 {
 #[class(base = Object)]
 pub struct PitchDetector {
     #[base]
-    base:     Base<Object>,
+    base: Base<Object>,
     detector: Option<GuitarPitchDetector>,
 }
 
 #[godot_api]
 impl IObject for PitchDetector {
     fn init(base: Base<Object>) -> Self {
-        Self { base, detector: None }
+        Self {
+            base,
+            detector: None,
+        }
     }
 }
 
@@ -249,8 +249,10 @@ impl PitchDetector {
                 true
             }
             None => {
-                godot_error!("PitchDetector: failed to create Q pitch detectors \
-                              (Q library may not be linked).");
+                godot_error!(
+                    "PitchDetector: failed to create Q pitch detectors \
+                              (Q library may not be linked)."
+                );
                 false
             }
         }
@@ -285,7 +287,7 @@ impl PitchDetector {
         let mut events: Array<Variant> = Array::new();
         let det = match self.detector.as_mut() {
             Some(d) => d,
-            None    => return events,
+            None => return events,
         };
 
         let raw: Vec<u8> = data.to_vec();
@@ -293,8 +295,8 @@ impl PitchDetector {
             let s = i16::from_le_bytes([chunk[0], chunk[1]]) as f32 / 32_768.0;
             if let Some(r) = det.process(s) {
                 let mut d: Dictionary<GString, Variant> = Dictionary::new();
-                d.set(&GString::from("string"),      to_string_number(r.string_index));
-                d.set(&GString::from("frequency"),   r.frequency);
+                d.set(&GString::from("string"), to_string_number(r.string_index));
+                d.set(&GString::from("frequency"), r.frequency);
                 d.set(&GString::from("periodicity"), r.periodicity);
                 events.push(&d.to_variant());
             }
@@ -313,16 +315,16 @@ impl PitchDetector {
         let r = match self.detector.as_ref() {
             Some(det) => det.last_result(),
             None => {
-                d.set(&GString::from("detected"),    false);
-                d.set(&GString::from("string"),      0i64);
-                d.set(&GString::from("frequency"),   0.0f32);
+                d.set(&GString::from("detected"), false);
+                d.set(&GString::from("string"), 0i64);
+                d.set(&GString::from("frequency"), 0.0f32);
                 d.set(&GString::from("periodicity"), 0.0f32);
                 return d;
             }
         };
-        d.set(&GString::from("detected"),    r.detected);
-        d.set(&GString::from("string"),      to_string_number(r.string_index));
-        d.set(&GString::from("frequency"),   r.frequency);
+        d.set(&GString::from("detected"), r.detected);
+        d.set(&GString::from("string"), to_string_number(r.string_index));
+        d.set(&GString::from("frequency"), r.frequency);
         d.set(&GString::from("periodicity"), r.periodicity);
         d
     }
@@ -337,10 +339,10 @@ impl PitchDetector {
         let mut out: Array<Variant> = Array::new();
         for (idx, ((min, max), name)) in STRING_RANGES.iter().zip(STRING_NAMES.iter()).enumerate() {
             let mut d: Dictionary<GString, Variant> = Dictionary::new();
-            d.set(&GString::from("string"),  to_string_number(idx));
-            d.set(&GString::from("name"),    &GString::from(*name));
-            d.set(&GString::from("min_hz"),  *min);
-            d.set(&GString::from("max_hz"),  *max);
+            d.set(&GString::from("string"), to_string_number(idx));
+            d.set(&GString::from("name"), &GString::from(*name));
+            d.set(&GString::from("min_hz"), *min);
+            d.set(&GString::from("max_hz"), *max);
             out.push(&d.to_variant());
         }
         out

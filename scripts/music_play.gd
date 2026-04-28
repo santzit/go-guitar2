@@ -146,7 +146,7 @@ func _ready() -> void:
 	_GameStateScript.load_mixer_settings()
 
 	var selected_psarc_path: String = _GameStateScript.selected_psarc_path
-	print("MusicPlay: RocksmithBridge GDExtension loaded: %s" % str(ClassDB.class_exists("RocksmithBridge")))
+	print("MusicPlay: RSAPI_SNG GDExtension loaded: %s" % str(ClassDB.class_exists("RSAPI_SNG")))
 	print("MusicPlay: AudioEngine GDExtension loaded: %s" % str(ClassDB.class_exists("AudioEngine")))
 
 	if selected_psarc_path == "":
@@ -161,7 +161,9 @@ func _ready() -> void:
 	if _bridge.load_psarc_abs(selected_psarc_path):
 		_notes = _bridge.get_notes()
 		_last_chord_sig = ""
-		_events = _build_play_events(_notes)
+		_events = _bridge.get_play_events()
+		if _events.is_empty():
+			_events = _build_play_events(_notes)
 		print("MusicPlay: %d notes loaded, requesting audio stream..." % _notes.size())
 		print("MusicPlay: %d unified events built (single + chord)." % _events.size())
 		# ── Initialise the scorer from the event list ──────────────────────────

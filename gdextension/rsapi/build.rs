@@ -11,15 +11,13 @@
 //   lib/windows/libogg.a              — cross-compiled libogg
 //
 fn main() {
-    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
-        .expect("CARGO_MANIFEST_DIR not set");
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set");
 
-    let target_os = std::env::var("CARGO_CFG_TARGET_OS")
-        .unwrap_or_default();
+    let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
 
     match target_os.as_str() {
         "linux" => {
-            let lib_dir = format!("{manifest_dir}/lib/linux");
+            let lib_dir = format!("{manifest_dir}/../lib/linux");
             println!("cargo:rustc-link-search=native={lib_dir}");
 
             // ── vgmstream WEM audio decoder (static, USE_VORBIS=ON USE_G719=OFF) ──
@@ -36,7 +34,7 @@ fn main() {
             println!("cargo:rustc-link-lib=dylib=m");
         }
         "windows" => {
-            let lib_dir = format!("{manifest_dir}/lib/windows");
+            let lib_dir = format!("{manifest_dir}/../lib/windows");
             println!("cargo:rustc-link-search=native={lib_dir}");
             if let Ok(output) = std::process::Command::new("x86_64-w64-mingw32-g++")
                 .arg("-print-file-name=libstdc++.a")
@@ -63,10 +61,10 @@ fn main() {
     }
 
     // Re-run if libraries change.
-    println!("cargo:rerun-if-changed=lib/linux/libvgmstream.a");
-    println!("cargo:rerun-if-changed=lib/windows/libvgmstream.a");
-    println!("cargo:rerun-if-changed=lib/windows/libvorbisfile.a");
-    println!("cargo:rerun-if-changed=lib/windows/libvorbis.a");
-    println!("cargo:rerun-if-changed=lib/windows/libogg.a");
+    println!("cargo:rerun-if-changed=../lib/linux/libvgmstream.a");
+    println!("cargo:rerun-if-changed=../lib/windows/libvgmstream.a");
+    println!("cargo:rerun-if-changed=../lib/windows/libvorbisfile.a");
+    println!("cargo:rerun-if-changed=../lib/windows/libvorbis.a");
+    println!("cargo:rerun-if-changed=../lib/windows/libogg.a");
     println!("cargo:rerun-if-changed=build.rs");
 }

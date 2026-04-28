@@ -5,7 +5,7 @@ mod rsapi;
 
 // ── Godot GDExtension wrapper classes ─────────────────────────────────────────
 mod audio_engine;
-mod goguitar_bridge;
+mod rsapi_sng;
 
 struct GoGuitar2Extension;
 

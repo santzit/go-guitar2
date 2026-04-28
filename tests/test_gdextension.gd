@@ -67,21 +67,23 @@ func _run_all() -> void:
 
 func _test_class_registration() -> void:
 	_section("Class Registration")
-	_assert(ClassDB.class_exists("RocksmithBridge"),
-		"RocksmithBridge class is registered in ClassDB")
+	_assert(ClassDB.class_exists("RSAPI_SNG"),
+		"RSAPI_SNG class is registered in ClassDB")
 	_assert(ClassDB.class_exists("AudioEngine"),
 		"AudioEngine class is registered in ClassDB")
 
-	if ClassDB.class_exists("RocksmithBridge"):
-		var bridge: Object = ClassDB.instantiate("RocksmithBridge")
+	if ClassDB.class_exists("RSAPI_SNG"):
+		var bridge: Object = ClassDB.instantiate("RSAPI_SNG")
 		_assert(bridge != null,
-			"RocksmithBridge can be instantiated")
+			"RSAPI_SNG can be instantiated")
 		_assert(bridge.has_method("load_psarc"),
-			"RocksmithBridge has load_psarc() method")
+			"RSAPI_SNG has load_psarc() method")
 		_assert(bridge.has_method("get_notes"),
-			"RocksmithBridge has get_notes() method")
+			"RSAPI_SNG has get_notes() method")
 		_assert(bridge.has_method("get_wem_bytes"),
-			"RocksmithBridge has get_wem_bytes() method")
+			"RSAPI_SNG has get_wem_bytes() method")
+		_assert(bridge.has_method("get_play_events"),
+			"RSAPI_SNG has get_play_events() method")
 
 	if ClassDB.class_exists("AudioEngine"):
 		var audio_engine: Object = ClassDB.instantiate("AudioEngine")
@@ -114,8 +116,8 @@ func _test_class_registration() -> void:
 func _test_psarc_parsing() -> void:
 	_section("PSARC Parsing")
 
-	if not ClassDB.class_exists("RocksmithBridge"):
-		printerr("  SKIP  RocksmithBridge not available — skipping PSARC tests")
+	if not ClassDB.class_exists("RSAPI_SNG"):
+		printerr("  SKIP  RSAPI_SNG not available — skipping PSARC tests")
 		return
 
 	var psarc_path: String = _find_first_psarc()
@@ -124,7 +126,7 @@ func _test_psarc_parsing() -> void:
 		return
 
 	print("  INFO  Using PSARC: " + psarc_path)
-	var bridge: Object = ClassDB.instantiate("RocksmithBridge")
+	var bridge: Object = ClassDB.instantiate("RSAPI_SNG")
 	var ok: bool = bridge.load_psarc(ProjectSettings.globalize_path(psarc_path))
 	_assert(ok, "load_psarc() returns true for '%s'" % psarc_path.get_file())
 
@@ -145,8 +147,8 @@ func _test_psarc_parsing() -> void:
 func _test_note_fields() -> void:
 	_section("Note Field Validation")
 
-	if not ClassDB.class_exists("RocksmithBridge"):
-		printerr("  SKIP  RocksmithBridge not available")
+	if not ClassDB.class_exists("RSAPI_SNG"):
+		printerr("  SKIP  RSAPI_SNG not available")
 		return
 
 	var psarc_path: String = _find_first_psarc()
@@ -154,7 +156,7 @@ func _test_note_fields() -> void:
 		printerr("  SKIP  No .psarc found")
 		return
 
-	var bridge: Object = ClassDB.instantiate("RocksmithBridge")
+	var bridge: Object = ClassDB.instantiate("RSAPI_SNG")
 	if not bridge.load_psarc(ProjectSettings.globalize_path(psarc_path)):
 		printerr("  SKIP  Could not load PSARC for field validation")
 		return
@@ -212,8 +214,8 @@ func _test_audio_engine() -> void:
 		printerr("  SKIP  AudioEngine not available")
 		return
 
-	if not ClassDB.class_exists("RocksmithBridge"):
-		printerr("  SKIP  RocksmithBridge not available")
+	if not ClassDB.class_exists("RSAPI_SNG"):
+		printerr("  SKIP  RSAPI_SNG not available")
 		return
 
 	var psarc_path: String = _find_first_psarc()
@@ -221,7 +223,7 @@ func _test_audio_engine() -> void:
 		printerr("  SKIP  No .psarc found")
 		return
 
-	var bridge: Object = ClassDB.instantiate("RocksmithBridge")
+	var bridge: Object = ClassDB.instantiate("RSAPI_SNG")
 	if not bridge.load_psarc(ProjectSettings.globalize_path(psarc_path)):
 		printerr("  SKIP  Could not load PSARC for audio test")
 		return

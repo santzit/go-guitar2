@@ -22,12 +22,12 @@ use godot::prelude::*;
 #[class(base = Object)]
 pub struct AudioEngine {
     #[base]
-    base:        Base<Object>,
-    channels:    i32,
+    base: Base<Object>,
+    channels: i32,
     sample_rate: i32,
-    pcm_ready:   bool,
+    pcm_ready: bool,
     // Decoded PCM-16 bytes (interleaved channels, little-endian).
-    pcm_buf:     Vec<u8>,
+    pcm_buf: Vec<u8>,
 }
 
 #[godot_api]
@@ -35,10 +35,10 @@ impl IObject for AudioEngine {
     fn init(base: Base<Object>) -> Self {
         Self {
             base,
-            channels:    0,
+            channels: 0,
             sample_rate: 0,
-            pcm_ready:   false,
-            pcm_buf:     Vec::new(),
+            pcm_ready: false,
+            pcm_buf: Vec::new(),
         }
     }
 }
@@ -49,9 +49,9 @@ impl AudioEngine {
     /// Returns `true` on success; subsequent calls replace any previous data.
     #[func]
     pub fn open(&mut self, data: PackedByteArray) -> bool {
-        self.pcm_ready  = false;
-        self.pcm_buf    = Vec::new();
-        self.channels   = 0;
+        self.pcm_ready = false;
+        self.pcm_buf = Vec::new();
+        self.channels = 0;
         self.sample_rate = 0;
 
         let raw: Vec<u8> = data.to_vec();
@@ -65,15 +65,15 @@ impl AudioEngine {
         {
             match ffi::decode_wem(raw) {
                 Ok(result) => {
-                    self.channels    = result.channels;
+                    self.channels = result.channels;
                     self.sample_rate = result.sample_rate;
-                    self.pcm_buf     = result.pcm_bytes;
+                    self.pcm_buf = result.pcm_bytes;
                     if self.channels > 2 {
                         // AudioStreamWAV only supports mono/stereo.
                         // Keep channel metadata clamped for Godot playback expectations.
                         self.channels = 2;
                     }
-                    self.pcm_ready   = true;
+                    self.pcm_ready = true;
                     godot_print!(
                         "AudioEngine: decoded {} WEM bytes → {} PCM bytes \
                          ({} ch, {} Hz)",
@@ -93,9 +93,7 @@ impl AudioEngine {
 
         #[cfg(not(any(target_os = "linux", target_os = "windows")))]
         {
-            godot_warn!(
-                "AudioEngine: vgmstream WEM decoding is not supported on this platform."
-            );
+            godot_warn!("AudioEngine: vgmstream WEM decoding is not supported on this platform.");
             false
         }
     }
@@ -130,44 +128,34 @@ impl AudioEngine {
 
     /// Legacy mixer API retained for script compatibility.
     #[func]
-    pub fn set_music_gain_db(&mut self, _gain_db: f32) {
-    }
+    pub fn set_music_gain_db(&mut self, _gain_db: f32) {}
 
     #[func]
-    pub fn set_lead_guitar_gain_db(&mut self, _gain_db: f32) {
-    }
+    pub fn set_lead_guitar_gain_db(&mut self, _gain_db: f32) {}
 
     #[func]
-    pub fn set_rhythm_guitar_gain_db(&mut self, _gain_db: f32) {
-    }
+    pub fn set_rhythm_guitar_gain_db(&mut self, _gain_db: f32) {}
 
     #[func]
-    pub fn set_bass_gain_db(&mut self, _gain_db: f32) {
-    }
+    pub fn set_bass_gain_db(&mut self, _gain_db: f32) {}
 
     #[func]
-    pub fn set_master_gain_db(&mut self, _gain_db: f32) {
-    }
+    pub fn set_master_gain_db(&mut self, _gain_db: f32) {}
 
     #[func]
-    pub fn set_music_mute(&mut self, _mute: bool) {
-    }
+    pub fn set_music_mute(&mut self, _mute: bool) {}
 
     #[func]
-    pub fn set_lead_guitar_mute(&mut self, _mute: bool) {
-    }
+    pub fn set_lead_guitar_mute(&mut self, _mute: bool) {}
 
     #[func]
-    pub fn set_rhythm_guitar_mute(&mut self, _mute: bool) {
-    }
+    pub fn set_rhythm_guitar_mute(&mut self, _mute: bool) {}
 
     #[func]
-    pub fn set_bass_mute(&mut self, _mute: bool) {
-    }
+    pub fn set_bass_mute(&mut self, _mute: bool) {}
 
     #[func]
-    pub fn set_master_mute(&mut self, _mute: bool) {
-    }
+    pub fn set_master_mute(&mut self, _mute: bool) {}
 }
 
 // ── vgmstream FFI (Linux and Windows) ────────────────────────────────────────
@@ -187,11 +175,11 @@ mod ffi {
     #[repr(C)]
     pub struct LibStreamFile {
         pub user_data: *mut c_void,
-        pub read:      Option<unsafe extern "C" fn(*mut c_void, *mut u8, i64, c_int) -> c_int>,
-        pub get_size:  Option<unsafe extern "C" fn(*mut c_void) -> i64>,
-        pub get_name:  Option<unsafe extern "C" fn(*mut c_void) -> *const i8>,
-        pub open:      Option<unsafe extern "C" fn(*mut c_void, *const i8) -> *mut LibStreamFile>,
-        pub close:     Option<unsafe extern "C" fn(*mut LibStreamFile)>,
+        pub read: Option<unsafe extern "C" fn(*mut c_void, *mut u8, i64, c_int) -> c_int>,
+        pub get_size: Option<unsafe extern "C" fn(*mut c_void) -> i64>,
+        pub get_name: Option<unsafe extern "C" fn(*mut c_void) -> *const i8>,
+        pub open: Option<unsafe extern "C" fn(*mut c_void, *const i8) -> *mut LibStreamFile>,
+        pub close: Option<unsafe extern "C" fn(*mut LibStreamFile)>,
     }
 
     /// Mirrors `libvgmstream_format_t` — first four fields used; rest is opaque.
@@ -199,27 +187,27 @@ mod ffi {
     /// sample_format(+8), sample_size(+12).
     #[repr(C)]
     pub struct LibVgmstreamFormat {
-        pub channels:      c_int,  // +0
-        pub sample_rate:   c_int,  // +4
-        pub sample_format: c_int,  // +8  (libvgmstream_sfmt_t: 1=PCM16, 4=float)
-        pub sample_size:   c_int,  // +12 (bytes per sample: 2 for PCM16, 4 for float)
-        // rest of the struct is not accessed
+        pub channels: c_int,      // +0
+        pub sample_rate: c_int,   // +4
+        pub sample_format: c_int, // +8  (libvgmstream_sfmt_t: 1=PCM16, 4=float)
+        pub sample_size: c_int,   // +12 (bytes per sample: 2 for PCM16, 4 for float)
+                                  // rest of the struct is not accessed
     }
 
     /// Mirrors `libvgmstream_decoder_t`
     #[repr(C)]
     pub struct LibVgmstreamDecoder {
-        pub buf:         *mut c_void,
+        pub buf: *mut c_void,
         pub buf_samples: c_int,
-        pub buf_bytes:   c_int,
-        pub done:        bool,
+        pub buf_bytes: c_int,
+        pub done: bool,
     }
 
     /// Mirrors `libvgmstream_t`
     #[repr(C)]
     pub struct LibVgmstream {
-        pub priv_:   *mut c_void,
-        pub format:  *const LibVgmstreamFormat,
+        pub priv_: *mut c_void,
+        pub format: *const LibVgmstreamFormat,
         pub decoder: *mut LibVgmstreamDecoder,
     }
 
@@ -231,21 +219,21 @@ mod ffi {
     ///   pad    +44..+47 → total 48 bytes.
     #[repr(C)]
     struct LibVgmstreamConfig {
-        disable_config_override:  bool,     // +0
-        allow_play_forever:       bool,     // +1
-        play_forever:             bool,     // +2
-        ignore_loop:              bool,     // +3
-        force_loop:               bool,     // +4
-        really_force_loop:        bool,     // +5
-        ignore_fade:              bool,     // +6
-        _pad0:                    u8,       // +7  (align f64 to 8)
-        loop_count:               f64,      // +8
-        fade_time:                f64,      // +16
-        fade_delay:               f64,      // +24
-        stereo_track:             c_int,    // +32
-        auto_downmix_channels:    c_int,    // +36
-        force_sfmt:               c_int,    // +40 (1 = LIBVGMSTREAM_SFMT_PCM16)
-        _pad1:                    [u8; 4],  // +44 (pad to 48)
+        disable_config_override: bool, // +0
+        allow_play_forever: bool,      // +1
+        play_forever: bool,            // +2
+        ignore_loop: bool,             // +3
+        force_loop: bool,              // +4
+        really_force_loop: bool,       // +5
+        ignore_fade: bool,             // +6
+        _pad0: u8,                     // +7  (align f64 to 8)
+        loop_count: f64,               // +8
+        fade_time: f64,                // +16
+        fade_delay: f64,               // +24
+        stereo_track: c_int,           // +32
+        auto_downmix_channels: c_int,  // +36
+        force_sfmt: c_int,             // +40 (1 = LIBVGMSTREAM_SFMT_PCM16)
+        _pad1: [u8; 4],                // +44 (pad to 48)
     }
 
     extern "C" {
@@ -253,8 +241,8 @@ mod ffi {
         fn libvgmstream_free(lib: *mut LibVgmstream);
         fn libvgmstream_setup(lib: *mut LibVgmstream, cfg: *const LibVgmstreamConfig);
         fn libvgmstream_open_stream(
-            lib:     *mut LibVgmstream,
-            libsf:   *mut LibStreamFile,
+            lib: *mut LibVgmstream,
+            libsf: *mut LibStreamFile,
             subsong: c_int,
         ) -> c_int;
         fn libvgmstream_render(lib: *mut LibVgmstream) -> c_int;
@@ -270,20 +258,20 @@ mod ffi {
     }
 
     unsafe extern "C" fn msf_read(
-        ud:     *mut c_void,
-        dst:    *mut u8,
+        ud: *mut c_void,
+        dst: *mut u8,
         offset: i64,
         length: c_int,
     ) -> c_int {
-        let state  = &*(ud as *const MemSfState);
-        let data   = &*state.data;
+        let state = &*(ud as *const MemSfState);
+        let data = &*state.data;
         let offset = offset as usize;
         let length = length as usize;
         if offset >= data.len() {
             return 0;
         }
         let available = data.len() - offset;
-        let to_copy   = available.min(length);
+        let to_copy = available.min(length);
         std::ptr::copy_nonoverlapping(data[offset..].as_ptr(), dst, to_copy);
         to_copy as c_int
     }
@@ -298,24 +286,21 @@ mod ffi {
         state.name.as_ptr()
     }
 
-    unsafe extern "C" fn msf_open(
-        ud:       *mut c_void,
-        _filename: *const i8,
-    ) -> *mut LibStreamFile {
+    unsafe extern "C" fn msf_open(ud: *mut c_void, _filename: *const i8) -> *mut LibStreamFile {
         // vgmstream may call open() to "reopen" the same stream or companion files.
         // We always return a new SF backed by the same Arc<Vec<u8>>.
-        let state    = &*(ud as *const MemSfState);
+        let state = &*(ud as *const MemSfState);
         let new_state = Box::new(MemSfState {
             data: Arc::clone(&state.data),
             name: state.name.clone(),
         });
         let sf = Box::new(LibStreamFile {
             user_data: Box::into_raw(new_state) as *mut c_void,
-            read:      Some(msf_read),
-            get_size:  Some(msf_get_size),
-            get_name:  Some(msf_get_name),
-            open:      Some(msf_open),
-            close:     Some(msf_close),
+            read: Some(msf_read),
+            get_size: Some(msf_get_size),
+            get_name: Some(msf_get_name),
+            open: Some(msf_open),
+            close: Some(msf_close),
         });
         Box::into_raw(sf)
     }
@@ -339,20 +324,20 @@ mod ffi {
         });
         Box::new(LibStreamFile {
             user_data: Box::into_raw(state) as *mut c_void,
-            read:      Some(msf_read),
-            get_size:  Some(msf_get_size),
-            get_name:  Some(msf_get_name),
-            open:      Some(msf_open),
-            close:     Some(msf_close),
+            read: Some(msf_read),
+            get_size: Some(msf_get_size),
+            get_name: Some(msf_get_name),
+            open: Some(msf_open),
+            close: Some(msf_close),
         })
     }
 
     // ── Decode ───────────────────────────────────────────────────────────────
 
     pub struct DecodeResult {
-        pub channels:    i32,
+        pub channels: i32,
         pub sample_rate: i32,
-        pub pcm_bytes:   Vec<u8>,
+        pub pcm_bytes: Vec<u8>,
     }
 
     /// Decode WEM bytes to interleaved PCM-16 LE.
@@ -371,21 +356,21 @@ mod ffi {
             //    tells vgmstream to convert to signed 16-bit LE before filling the
             //    decode buffer — no game-side conversion needed.
             let cfg = LibVgmstreamConfig {
-                disable_config_override:  false,
-                allow_play_forever:       false,
-                play_forever:             false,
-                ignore_loop:              true,  // play through without looping
-                force_loop:               false,
-                really_force_loop:        false,
-                ignore_fade:              true,  // no fade-out at loop end
-                _pad0:                    0,
-                loop_count:               0.0,
-                fade_time:                0.0,
-                fade_delay:               0.0,
-                stereo_track:             0,
-                auto_downmix_channels:    0,
-                force_sfmt:               LIBVGMSTREAM_SFMT_PCM16,
-                _pad1:                    [0u8; 4],
+                disable_config_override: false,
+                allow_play_forever: false,
+                play_forever: false,
+                ignore_loop: true, // play through without looping
+                force_loop: false,
+                really_force_loop: false,
+                ignore_fade: true, // no fade-out at loop end
+                _pad0: 0,
+                loop_count: 0.0,
+                fade_time: 0.0,
+                fade_delay: 0.0,
+                stereo_track: 0,
+                auto_downmix_channels: 0,
+                force_sfmt: LIBVGMSTREAM_SFMT_PCM16,
+                _pad1: [0u8; 4],
             };
             libvgmstream_setup(lib, &cfg as *const LibVgmstreamConfig);
 
@@ -414,7 +399,7 @@ mod ffi {
                 libvgmstream_free(lib);
                 return Err("libvgmstream format/decoder pointer is NULL after open".into());
             }
-            let channels    = (*(*lib).format).channels;
+            let channels = (*(*lib).format).channels;
             let sample_rate = (*(*lib).format).sample_rate;
             if channels <= 0 || sample_rate <= 0 {
                 libvgmstream_free(lib);
@@ -450,9 +435,9 @@ mod ffi {
             libvgmstream_free(lib);
 
             Ok(DecodeResult {
-                channels:    channels as i32,
+                channels: channels as i32,
                 sample_rate: sample_rate as i32,
-                pcm_bytes:   all_pcm,
+                pcm_bytes: all_pcm,
             })
         }
     }

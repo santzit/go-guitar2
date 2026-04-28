@@ -17,7 +17,7 @@ No .NET/CLR bridge is required.
 
 ## Structures used by gameplay
 
-From `RocksmithBridge` output (GDScript dictionaries/arrays):
+From `RSAPI_SNG` output (GDScript dictionaries/arrays):
 
 - Note entries:
   - `time: float`
@@ -39,6 +39,6 @@ From `RocksmithBridge` output (GDScript dictionaries/arrays):
 
 ## GoGuitar2 integration points
 
-- Rust: `gdextension/src/rsapi.rs`, `gdextension/src/goguitar_bridge.rs`
+- Rust: `gdextension/rsapi/src/rsapi.rs`, `gdextension/rsapi/src/rsapi_sng.rs`
 - Godot wrapper: `scripts/goguitar_bridge.gd`
 - Gameplay consumer: `scripts/music_play.gd`

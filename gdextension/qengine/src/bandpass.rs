@@ -25,12 +25,12 @@
 /// `(min_hz, max_hz)` per string.
 /// Index 0 = String 6 (low E2), index 5 = String 1 (high e4).
 pub const STRING_RANGES: [(f32, f32); 6] = [
-    ( 73.4,  350.0),  // String 6 — E2  (low E)  : 82.4 Hz open, safety margin below + above
-    ( 98.0,  470.0),  // String 5 — A2            : 110.0 Hz open
-    (130.8,  620.0),  // String 4 — D3            : 146.8 Hz open
-    (174.6,  830.0),  // String 3 — G3            : 196.0 Hz open
-    (220.0, 1050.0),  // String 2 — B3            : 246.9 Hz open
-    (293.7, 1400.0),  // String 1 — E4  (high e)  : 329.6 Hz open
+    (73.4, 350.0),   // String 6 — E2  (low E)  : 82.4 Hz open, safety margin below + above
+    (98.0, 470.0),   // String 5 — A2            : 110.0 Hz open
+    (130.8, 620.0),  // String 4 — D3            : 146.8 Hz open
+    (174.6, 830.0),  // String 3 — G3            : 196.0 Hz open
+    (220.0, 1050.0), // String 2 — B3            : 246.9 Hz open
+    (293.7, 1400.0), // String 1 — E4  (high e)  : 329.6 Hz open
 ];
 
 /// Open-string note names, index 0 = String 6.
@@ -54,7 +54,7 @@ pub const OPEN_FREQS: [f32; 6] = [82.41, 110.00, 146.83, 196.00, 246.94, 329.63]
 /// (B1 = 0 for this bandpass topology)
 pub struct BiquadBandpass {
     b0: f32,
-    b2: f32,    // b1 is always 0 for this bandpass topology
+    b2: f32, // b1 is always 0 for this bandpass topology
     a1: f32,
     a2: f32,
     x1: f32,
@@ -75,24 +75,26 @@ impl BiquadBandpass {
     /// ```
     pub fn new(center_hz: f32, bw_hz: f32, sample_rate: u32) -> Self {
         use std::f32::consts::PI;
-        let fs    = sample_rate as f32;
-        let w0    = 2.0 * PI * center_hz / fs;
-        let q     = (center_hz / bw_hz).max(0.1);   // guard against zero bandwidth
+        let fs = sample_rate as f32;
+        let w0 = 2.0 * PI * center_hz / fs;
+        let q = (center_hz / bw_hz).max(0.1); // guard against zero bandwidth
         let alpha = w0.sin() / (2.0 * q);
 
-        let b0_raw =  w0.sin() * 0.5;
+        let b0_raw = w0.sin() * 0.5;
         let b2_raw = -w0.sin() * 0.5;
-        let a0_raw =  1.0 + alpha;
+        let a0_raw = 1.0 + alpha;
         let a1_raw = -2.0 * w0.cos();
-        let a2_raw =  1.0 - alpha;
+        let a2_raw = 1.0 - alpha;
 
         Self {
             b0: b0_raw / a0_raw,
             b2: b2_raw / a0_raw,
             a1: a1_raw / a0_raw,
             a2: a2_raw / a0_raw,
-            x1: 0.0, x2: 0.0,
-            y1: 0.0, y2: 0.0,
+            x1: 0.0,
+            x2: 0.0,
+            y1: 0.0,
+            y2: 0.0,
         }
     }
 
@@ -100,17 +102,14 @@ impl BiquadBandpass {
     /// Centre is the geometric mean; bandwidth is `max − min`.
     pub fn for_string(min_hz: f32, max_hz: f32, sample_rate: u32) -> Self {
         let center = (min_hz * max_hz).sqrt();
-        let bw     = max_hz - min_hz;
+        let bw = max_hz - min_hz;
         Self::new(center, bw, sample_rate)
     }
 
     /// Process one sample through the filter.
     #[inline]
     pub fn process(&mut self, x: f32) -> f32 {
-        let y = self.b0 * x
-              + self.b2 * self.x2
-              - self.a1 * self.y1
-              - self.a2 * self.y2;
+        let y = self.b0 * x + self.b2 * self.x2 - self.a1 * self.y1 - self.a2 * self.y2;
         self.x2 = self.x1;
         self.x1 = x;
         self.y2 = self.y1;

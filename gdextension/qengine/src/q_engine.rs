@@ -6,17 +6,17 @@ const DEFAULT_RING_CAPACITY: usize = 2048;
 #[derive(Clone, Debug, Default)]
 struct DetectionEvent {
     timestamp_sec: f64,
-    string_num:    i64,
-    frequency:     f32,
-    periodicity:   f32,
+    string_num: i64,
+    frequency: f32,
+    periodicity: f32,
 }
 
 #[derive(Debug)]
 struct SpscDetectionRing {
-    buf:   Vec<DetectionEvent>,
-    read:  usize,
+    buf: Vec<DetectionEvent>,
+    read: usize,
     write: usize,
-    len:   usize,
+    len: usize,
 }
 
 impl SpscDetectionRing {

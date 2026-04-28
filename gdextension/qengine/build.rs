@@ -1,11 +1,9 @@
 fn main() {
-    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
-        .expect("CARGO_MANIFEST_DIR not set");
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set");
 
     println!("cargo::rustc-check-cfg=cfg(q_available)");
 
-    let target_os = std::env::var("CARGO_CFG_TARGET_OS")
-        .unwrap_or_default();
+    let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
 
     if target_os == "windows" {
         if let Ok(output) = std::process::Command::new("x86_64-w64-mingw32-g++")
@@ -24,7 +22,7 @@ fn main() {
         println!("cargo:rustc-link-lib=dylib=m");
     }
 
-    let root_dir = format!("{manifest_dir}/../gdextension");
+    let root_dir = format!("{manifest_dir}/..");
 
     let q_lib_dir = match target_os.as_str() {
         "linux" => format!("{root_dir}/lib/linux"),
@@ -36,8 +34,7 @@ fn main() {
     } else {
         format!("{q_lib_dir}/libq_bridge.a")
     };
-    let has_prebuilt_q = !q_lib_path.is_empty()
-        && std::path::Path::new(&q_lib_path).exists();
+    let has_prebuilt_q = !q_lib_path.is_empty() && std::path::Path::new(&q_lib_path).exists();
 
     let q_include_repo = format!("{root_dir}/include");
     let q_include_new = format!("{root_dir}/extern/q/q_lib/include");
@@ -52,8 +49,8 @@ fn main() {
         q_include_old.clone()
     };
 
-    let has_q_headers = std::path::Path::new(&q_include).exists()
-        && std::path::Path::new(&infra_include).exists();
+    let has_q_headers =
+        std::path::Path::new(&q_include).exists() && std::path::Path::new(&infra_include).exists();
 
     if has_prebuilt_q || has_q_headers {
         println!("cargo:rustc-cfg=q_available");
