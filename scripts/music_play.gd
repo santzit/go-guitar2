@@ -37,10 +37,14 @@ const CAMERA_Y          : float = 4
 ## Fretboard strings are at Z=0 (strum/arrival side); notes spawn at Z=-20.
 ## Z=10 gives a good overview angle similar to ChartPlayer's default.
 const CAMERA_Z          : float = 8
+const CAMERA_Z_MIN      : float = 6.0
+const CAMERA_Z_MAX      : float = 18.0
 ## Look-at target Z — aimed one-third into the highway depth for a natural rake.
 const CAMERA_LOOK_AT_Z  : float = -7.0
 const CAMERA_LERP_SPEED : float = 1.0    # units/s for smooth pan
+const CAMERA_Z_LERP_SPEED : float = 1.25
 const CAMERA_EVENT_LOOKBACK : float = 0.35
+const CAMERA_FRAME_PADDING : float = 1.2
 ## Camera X clamp — keeps the camera from tracking to the highway edges.
 const CAMERA_X_MIN      : float = 1.75
 const CAMERA_X_MAX      : float = FRET_WORLD_WIDTH
@@ -95,6 +99,9 @@ var _playing             : bool     = false
 var _shot_idx            : int      = 0
 var _start_wall_ms       : int      = 0
 var _camera_target_x    : float    = 0.0
+var _camera_target_z    : float    = CAMERA_Z
+var _camera_look_at_z   : float    = CAMERA_LOOK_AT_Z
+var _camera_target_look_at_z: float = CAMERA_LOOK_AT_Z
 var _warmup_timer        : float    = WARMUP_SECS  # counts down to 0.0, then audio+notes start
 
 ## Cached volume_db sent to the AudioStreamPlayer last frame.  -999 = first frame.
@@ -241,11 +248,14 @@ func _ready() -> void:
 		push_warning("MusicPlay: FRET_COUNT should be evenly divisible by LANE_COUNT for lane mapping.")
 	if _camera:
 		_camera_target_x = clampf(ChartCommon.fret_separator_world_x(FRET_COUNT / 2), CAMERA_X_MIN, CAMERA_X_MAX)  # integer division: 24/2=12
+		_camera_target_z = CAMERA_Z
+		_camera_look_at_z = CAMERA_LOOK_AT_Z
+		_camera_target_look_at_z = CAMERA_LOOK_AT_Z
 		_camera.position.x = _camera_target_x
 		_camera.position.y = CAMERA_Y
-		_camera.position.z = CAMERA_Z
+		_camera.position.z = _camera_target_z
 		_camera.fov        = CAM_FOV
-		_camera.look_at(Vector3(_camera.position.x, 0.0, CAMERA_LOOK_AT_Z), Vector3.UP)
+		_camera.look_at(Vector3(_camera.position.x, 0.0, _camera_look_at_z), Vector3.UP)
 
 	# Start warmup countdown.  _process() will count down WARMUP_SECS real
 	# seconds showing only the empty highway, then start both audio and note
@@ -346,16 +356,17 @@ func _process(delta: float) -> void:
 		)
 		_next_event_idx += 1
 
-	_update_camera_target_from_visible_events()
+	_update_camera_targets_from_visible_events()
 
 	# Camera follows the center of all notes currently visible on the highway.
 	if _camera:
 		var cam_pos  := _camera.position
 		cam_pos.x = lerp(cam_pos.x, _camera_target_x, CAMERA_LERP_SPEED * minf(delta, MAX_DELTA))
+		cam_pos.z = lerp(cam_pos.z, _camera_target_z, CAMERA_Z_LERP_SPEED * minf(delta, MAX_DELTA))
+		_camera_look_at_z = lerp(_camera_look_at_z, _camera_target_look_at_z, CAMERA_Z_LERP_SPEED * minf(delta, MAX_DELTA))
 		cam_pos.y = CAMERA_Y
-		cam_pos.z = CAMERA_Z
 		_camera.position = cam_pos
-		_camera.look_at(Vector3(cam_pos.x, 0.0, CAMERA_LOOK_AT_Z), Vector3.UP)
+		_camera.look_at(Vector3(cam_pos.x, 0.0, _camera_look_at_z), Vector3.UP)
 
 	# Screenshots based on real wall-clock time to avoid timer batching on slow renderers.
 	if _shot_idx < SCREENSHOT_TIMES.size():
@@ -544,9 +555,11 @@ func _update_fret_range_visuals() -> void:
 	_highway.call("set_lane_intensities", _lane_glow)
 
 
-func _update_camera_target_from_visible_events() -> void:
+func _update_camera_targets_from_visible_events() -> void:
 	var min_x: float = INF
 	var max_x: float = -INF
+	var min_z: float = INF
+	var max_z: float = -INF
 	var has_visible_note: bool = false
 
 	var i: int = _debug_strum_event_idx
@@ -563,15 +576,34 @@ func _update_camera_target_from_visible_events() -> void:
 			if fret < 1 or fret > FRET_COUNT:
 				continue
 			var note_x: float = ChartCommon.fret_mid_world_x(fret - 1)
+			var note_z: float = ChartCommon.note_world_z(event_time, _song_time, 0.0)
 			min_x = minf(min_x, note_x)
 			max_x = maxf(max_x, note_x)
+			min_z = minf(min_z, note_z)
+			max_z = maxf(max_z, note_z)
 			has_visible_note = true
 		i += 1
 
 	if has_visible_note:
-		_camera_target_x = clampf((min_x + max_x) * 0.5, CAMERA_X_MIN, CAMERA_X_MAX)
+		var center_x: float = (min_x + max_x) * 0.5
+		var center_z: float = (min_z + max_z) * 0.5
+		var half_x: float = maxf((max_x - min_x) * 0.5 * CAMERA_FRAME_PADDING, 0.5)
+		var half_z: float = maxf((max_z - min_z) * 0.5 * CAMERA_FRAME_PADDING, 0.5)
+		var viewport_size: Vector2 = get_viewport().get_visible_rect().size
+		var aspect: float = viewport_size.x / maxf(viewport_size.y, 1.0)
+		var vfov: float = deg_to_rad(CAM_FOV)
+		var hfov: float = 2.0 * atan(tan(vfov * 0.5) * aspect)
+		var distance_for_x: float = half_x / maxf(tan(hfov * 0.5), 0.001)
+		var distance_for_z: float = half_z / maxf(tan(vfov * 0.5), 0.001)
+		var required_distance: float = maxf(distance_for_x, distance_for_z)
+
+		_camera_target_x = clampf(center_x, CAMERA_X_MIN, CAMERA_X_MAX)
+		_camera_target_z = clampf(center_z + required_distance, CAMERA_Z_MIN, CAMERA_Z_MAX)
+		_camera_target_look_at_z = center_z
 	else:
 		_camera_target_x = clampf(ChartCommon.fret_separator_world_x(FRET_COUNT / 2), CAMERA_X_MIN, CAMERA_X_MAX)
+		_camera_target_z = CAMERA_Z
+		_camera_target_look_at_z = CAMERA_LOOK_AT_Z
 
 
 func _zero_lane_array() -> Array[float]:
