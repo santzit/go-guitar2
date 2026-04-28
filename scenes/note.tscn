@@ -1,11 +1,12 @@
 [gd_scene load_steps=3 format=3 uid="uid://cnotescn0001"]
 
 [ext_resource type="Script" path="res://scripts/note.gd" id="1_notescript"]
-[ext_resource type="ArrayMesh" path="res://assets/models/note.obj" id="2_note_mesh"]
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_note_marker"]
+size = Vector2(0.5, 0.5)
 
 [node name="Note" type="Node3D"]
 script = ExtResource("1_notescript")
 
 [node name="NoteMarker" type="MeshInstance3D" parent="."]
-transform = Transform3D(-4.37114e-08, 0, 1, 0, 1, 0, -1, 0, -4.37114e-08, 0, -0.1, 0)
-mesh = ExtResource("2_note_mesh")
+mesh = SubResource("PlaneMesh_note_marker")
