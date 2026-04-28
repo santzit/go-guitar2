@@ -1,7 +1,7 @@
-## goguitar_bridge.gd  –  GDScript wrapper around the RocksmithBridge GDExtension.
+## goguitar_bridge.gd  –  GDScript wrapper around the RSAPI_SNG GDExtension.
 ##
 ## Build the native library first (see gdextension/README.md), then the
-## "RocksmithBridge" class will be available and this wrapper will delegate
+## "RSAPI_SNG" class will be available and this wrapper will delegate
 ## to it.  When the extension is absent the wrapper silently no-ops so that
 ## the rest of the game still runs (demo-mode notes are used instead).
 ##
@@ -13,15 +13,15 @@
 extends RefCounted
 class_name GoGuitarBridge
 
-var _ext: Object = null   # native RocksmithBridge instance (may be null)
+var _ext: Object = null   # native RSAPI_SNG instance (may be null)
 
 
 func _init() -> void:
-	if ClassDB.class_exists("RocksmithBridge"):
-		_ext = ClassDB.instantiate("RocksmithBridge")
+	if ClassDB.class_exists("RSAPI_SNG"):
+		_ext = ClassDB.instantiate("RSAPI_SNG")
 	else:
 		push_warning(
-			"GoGuitarBridge: RocksmithBridge GDExtension not loaded. " +
+			"GoGuitarBridge: RSAPI_SNG GDExtension not loaded. " +
 			"Build the extension from gdextension/ and copy the binary to " +
 			"gdextension/bin/.  Running in demo-note mode."
 		)
@@ -53,18 +53,29 @@ func load_psarc_abs(abs_path: String) -> bool:
 
 
 ## Returns notes as an Array of Dictionaries:
-##   { "time": float, "fret": int, "string": int, "duration": float }
+##   {
+##     "time": float,
+##     "fret": int,
+##     "string": int,
+##     "duration": float,
+##     "hand_shape_id": int,
+##     "hand_shape_chord_id": int,
+##     "hand_shape_min_fret": int,
+##     "hand_shape_max_fret": int,
+##     "hand_shape_min_string": int,
+##     "hand_shape_max_string": int,
+##   }
 func get_notes() -> Array:
 	if _ext == null:
 		return []
 	return _ext.get_notes()
 
 
-## Returns raw OGG bytes from the song (CDLC only).
-func get_audio_bytes() -> PackedByteArray:
-	if _ext == null:
-		return PackedByteArray()
-	return _ext.get_audio_bytes()
+## Returns prebuilt unified events from Rust (single + chord events).
+func get_play_events() -> Array:
+	if _ext == null or not _ext.has_method("get_play_events"):
+		return []
+	return _ext.get_play_events()
 
 
 ## Returns raw preview WEM bytes from the song (official DLC — short clip).
@@ -122,6 +133,13 @@ func get_sng_info() -> Dictionary:
 	return _ext.get_sng_info()
 
 
+## Returns parsed song metadata extracted from the currently loaded PSARC.
+func get_song_metadata() -> Dictionary:
+	if _ext == null or not _ext.has_method("get_song_metadata"):
+		return {}
+	return _ext.get_song_metadata()
+
+
 ## Decode WEM bytes into an AudioStreamWAV via the AudioEngine GDExtension.
 ## Returns null when the AudioEngine class is absent or decoding fails.
 func _decode_wem_to_stream(wem: PackedByteArray) -> AudioStream:
@@ -154,11 +172,11 @@ func _decode_wem_to_stream(wem: PackedByteArray) -> AudioStream:
 	return stream
 
 
-## Convenience: create an AudioStream from the embedded audio data, or null.
+## Convenience: create an AudioStream from the WEM audio data, or null.
+## All audio comes from WEM bytes decoded to PCM-16 WAV via AudioEngine.
 ## Priority:
 ##   1. MAIN WEM (full-length backing track) decoded via AudioEngine.
 ##   2. PREVIEW WEM used as fallback gameplay audio when no MAIN WEM is found.
-##   3. OGG raw bytes (CDLC fallback).
 func get_audio_stream() -> AudioStream:
 	# ── 1. Try MAIN WEM (official DLC — full-length backing track) ────────────
 	var wem := get_wem_bytes()
@@ -181,11 +199,5 @@ func get_audio_stream() -> AudioStream:
 		if stream:
 			return stream
 
-	# ── 3. OGG (CDLC) ─────────────────────────────────────────────────────────
-	var raw := get_audio_bytes()
-	print("GoGuitarBridge: OGG fallback — raw bytes: %d" % raw.size())
-	if not raw.is_empty():
-		return AudioStreamOggVorbis.load_from_buffer(raw)
-
-	push_warning("GoGuitarBridge: no audio stream available (no WEM decoded, no OGG).")
+	push_warning("GoGuitarBridge: no audio stream available (no WEM found or decode failed).")
 	return null

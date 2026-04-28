@@ -54,3 +54,36 @@ theme_override_colors/font_color = Color(1, 1, 0.4, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
 theme_override_constants/outline_size = 3
 text = ""
+
+[node name="PauseOverlay" type="CanvasLayer" parent="."]
+layer = 30
+
+[node name="Dimmer" type="ColorRect" parent="PauseOverlay"]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 0.45)
+
+[node name="PausePanel" type="PanelContainer" parent="PauseOverlay"]
+visible = false
+anchors_preset = 8
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -420.0
+offset_top = -90.0
+offset_right = -20.0
+offset_bottom = -20.0
+
+[node name="Buttons" type="HBoxContainer" parent="PauseOverlay/PausePanel"]
+theme_override_constants/separation = 10
+
+[node name="ResumeButton" type="Button" parent="PauseOverlay/PausePanel/Buttons"]
+custom_minimum_size = Vector2(190, 48)
+text = "Resume"
+
+[node name="QuitButton" type="Button" parent="PauseOverlay/PausePanel/Buttons"]
+custom_minimum_size = Vector2(190, 48)
+text = "Quit"

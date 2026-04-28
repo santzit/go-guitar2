@@ -56,10 +56,10 @@ func _probe_gdextension() -> void:
 	# Verify the Rust GDExtension classes needed by gameplay are loaded.
 	# We do NOT crash if it is missing — gameplay will simply run without live
 	# pitch detection (demo / song-playback mode).
-	if ClassDB.class_exists("RocksmithBridge"):
-		print("Boot: RocksmithBridge GDExtension — OK.")
+	if ClassDB.class_exists("RSAPI_SNG"):
+		print("Boot: RSAPI_SNG GDExtension — OK.")
 	else:
-		push_warning("Boot: RocksmithBridge GDExtension not found — running without it.")
+		push_warning("Boot: RSAPI_SNG GDExtension not found — running without it.")
 
 	if ClassDB.class_exists("PitchDetector"):
 		print("Boot: PitchDetector GDExtension — OK.")
@@ -75,4 +75,4 @@ func _probe_gdextension() -> void:
 func _go_to_menu() -> void:
 	set_process(false)
 	boot_finished.emit()
-	get_tree().change_scene_to_file(MENU_SCENE)
+	SceneManager.goto_main_menu()

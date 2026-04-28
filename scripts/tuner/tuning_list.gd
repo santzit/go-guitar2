@@ -39,7 +39,7 @@ func _on_start_button_pressed() -> void:
 
 
 func _on_back_button_pressed() -> void:
-	get_tree().change_scene_to_file("res://scenes/settings/settings.tscn")
+	SceneManager.goto_settings()
 
 
 func _start_tuner(index: int) -> void:
@@ -52,7 +52,7 @@ func _start_tuner(index: int) -> void:
 		notes_typed.append(String(n))
 	_GameStateScript.selected_tuning_name = String(preset.get("name", "E Standard"))
 	_GameStateScript.selected_tuning_notes = notes_typed
-	get_tree().change_scene_to_file("res://scenes/tuner/tuner_3d.tscn")
+	SceneManager.goto_tuner()
 
 
 func _update_notes_preview(index: int) -> void:
