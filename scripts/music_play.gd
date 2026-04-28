@@ -40,6 +40,7 @@ const CAMERA_Z          : float = 8
 ## Look-at target Z — aimed one-third into the highway depth for a natural rake.
 const CAMERA_LOOK_AT_Z  : float = -7.0
 const CAMERA_LERP_SPEED : float = 1.0    # units/s for smooth pan
+const CAMERA_EVENT_LOOKBACK : float = 0.35
 ## Camera X clamp — keeps the camera from tracking to the highway edges.
 const CAMERA_X_MIN      : float = 1.75
 const CAMERA_X_MAX      : float = FRET_WORLD_WIDTH
@@ -93,8 +94,7 @@ var _song_time           : float    = 0.0
 var _playing             : bool     = false
 var _shot_idx            : int      = 0
 var _start_wall_ms       : int      = 0
-var _camera_target_min_fret : int   = FRET_COUNT / 2
-var _camera_target_max_fret : int   = FRET_COUNT / 2
+var _camera_target_x    : float    = 0.0
 var _warmup_timer        : float    = WARMUP_SECS  # counts down to 0.0, then audio+notes start
 
 ## Cached volume_db sent to the AudioStreamPlayer last frame.  -999 = first frame.
@@ -240,7 +240,8 @@ func _ready() -> void:
 	if FRET_COUNT % LANE_COUNT != 0:
 		push_warning("MusicPlay: FRET_COUNT should be evenly divisible by LANE_COUNT for lane mapping.")
 	if _camera:
-		_camera.position.x = clampf(ChartCommon.fret_separator_world_x(FRET_COUNT / 2), CAMERA_X_MIN, CAMERA_X_MAX)  # integer division: 24/2=12
+		_camera_target_x = clampf(ChartCommon.fret_separator_world_x(FRET_COUNT / 2), CAMERA_X_MIN, CAMERA_X_MAX)  # integer division: 24/2=12
+		_camera.position.x = _camera_target_x
 		_camera.position.y = CAMERA_Y
 		_camera.position.z = CAMERA_Z
 		_camera.fov        = CAM_FOV
@@ -345,16 +346,12 @@ func _process(delta: float) -> void:
 		)
 		_next_event_idx += 1
 
-	# Camera follows the center of the active fret range.
+	_update_camera_target_from_visible_events()
+
+	# Camera follows the center of all notes currently visible on the highway.
 	if _camera:
-		var focus_fret: float
-		if _camera_target_max_fret >= _camera_target_min_fret:
-			focus_fret = (_camera_target_min_fret + _camera_target_max_fret) * 0.5
-		else:
-			focus_fret = DEFAULT_CAMERA_FRET
-		var target_x := clampf(ChartCommon.fret_separator_world_x(int(round(focus_fret))), CAMERA_X_MIN, CAMERA_X_MAX)
 		var cam_pos  := _camera.position
-		cam_pos.x = lerp(cam_pos.x, target_x, CAMERA_LERP_SPEED * minf(delta, MAX_DELTA))
+		cam_pos.x = lerp(cam_pos.x, _camera_target_x, CAMERA_LERP_SPEED * minf(delta, MAX_DELTA))
 		cam_pos.y = CAMERA_Y
 		cam_pos.z = CAMERA_Z
 		_camera.position = cam_pos
@@ -524,10 +521,6 @@ func _update_fret_range_visuals() -> void:
 	var targets: Array[float] = _zero_lane_array()
 
 	if range_min_fret >= 1 and range_max_fret >= range_min_fret:
-		# Set camera target to the centre of the active hand range.
-		_camera_target_min_fret = range_min_fret
-		_camera_target_max_fret = range_max_fret
-
 		# Highlight lanes that overlap with the 4-fret range
 		for lane in LANE_COUNT:
 			var lane_min: int = 1 + lane * FRETS_PER_LANE
@@ -542,8 +535,6 @@ func _update_fret_range_visuals() -> void:
 	else:
 		# No upcoming notes - dim the highway
 		_highway.call("set_active_fret_range", 0, -1)
-		_camera_target_min_fret = FRET_COUNT / 2
-		_camera_target_max_fret = FRET_COUNT / 2
 		_active_window_min_fret = -1
 		_active_window_max_fret = -1
 
@@ -551,6 +542,36 @@ func _update_fret_range_visuals() -> void:
 	for lane in LANE_COUNT:
 		_lane_glow[lane] = lerpf(_lane_glow[lane], targets[lane], 0.15)
 	_highway.call("set_lane_intensities", _lane_glow)
+
+
+func _update_camera_target_from_visible_events() -> void:
+	var min_x: float = INF
+	var max_x: float = -INF
+	var has_visible_note: bool = false
+
+	var i: int = _debug_strum_event_idx
+	while i < _events.size():
+		var ev: Dictionary = _events[i]
+		var event_time: float = float(ev.get("time_start", -1.0))
+		if event_time < _song_time - CAMERA_EVENT_LOOKBACK:
+			i += 1
+			continue
+		if event_time > _song_time + LEAD_TIME:
+			break
+		for n in ev.get("notes", []):
+			var fret: int = int(n.get("fret", -1))
+			if fret < 1 or fret > FRET_COUNT:
+				continue
+			var note_x: float = ChartCommon.fret_mid_world_x(fret - 1)
+			min_x = minf(min_x, note_x)
+			max_x = maxf(max_x, note_x)
+			has_visible_note = true
+		i += 1
+
+	if has_visible_note:
+		_camera_target_x = clampf((min_x + max_x) * 0.5, CAMERA_X_MIN, CAMERA_X_MAX)
+	else:
+		_camera_target_x = clampf(ChartCommon.fret_separator_world_x(FRET_COUNT / 2), CAMERA_X_MIN, CAMERA_X_MAX)
 
 
 func _zero_lane_array() -> Array[float]:
