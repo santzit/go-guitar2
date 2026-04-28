@@ -13,7 +13,7 @@ jobs:
   copilot-setup-steps:
     runs-on: ubuntu-latest
     env:
-      GODOT_VERSION: 4.4.1-stable
+      GODOT_VERSION: 4.5.2-stable
     permissions:
       contents: read
     steps:
@@ -45,7 +45,7 @@ jobs:
 
       - name: Download and install Godot
         run: |
-          GODOT_VERSION="${GODOT_VERSION:-4.4.1-stable}"
+          GODOT_VERSION="${GODOT_VERSION:-4.5.2-stable}"
           GODOT_ZIP="Godot_v${GODOT_VERSION}_linux.x86_64.zip"
           GODOT_EXE="Godot_v${GODOT_VERSION}_linux.x86_64"
           GODOT_DIR="$RUNNER_TEMP/godot"
@@ -71,8 +71,8 @@ jobs:
 
           echo "GODOT_BIN=$GODOT_DIR/$GODOT_EXE" >> "$GITHUB_ENV"
           echo "PATH=$GODOT_DIR:$PATH" >> "$GITHUB_ENV"
-          # Godot --version outputs e.g. "4.4.1.stable.official.49a5bc7b6"
-          # GODOT_VERSION uses hyphens (e.g. "4.4.1-stable"); normalise to dots for comparison
+          # Godot --version outputs e.g. "4.5.2.stable.official.49a5bc7b6"
+          # GODOT_VERSION uses hyphens (e.g. "4.5.2-stable"); normalise to dots for comparison
           GODOT_VER_CHECK="${GODOT_VERSION//-/.}"
           GODOT_BIN_VERSION="$("$GODOT_DIR/$GODOT_EXE" --version)"
           GODOT_WS_VERSION="$("$GITHUB_WORKSPACE/$GODOT_EXE" --version)"

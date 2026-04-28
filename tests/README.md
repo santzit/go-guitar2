@@ -8,7 +8,7 @@ Tests live in `tests/` and use Godot's `SceneTree`-based headless runner.
 
 ```bash
 # From the project root:
-GODOT="./Godot_v4.4.1-stable_linux.x86_64"
+GODOT="./Godot_v4.5.2-stable_linux.x86_64"
 
 # One-time: import the project so GDExtension classes are registered.
 # This generates .godot/extension_list.cfg (already committed) and any

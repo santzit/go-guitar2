@@ -2,12 +2,12 @@
 
 ## Project Overview
 
-A Rocksmith 2014-style guitar game built in **Godot 4.4.1** 
+A Rocksmith 2014-style guitar game built in **Godot 4.5.2** 
 
 ## Architecture
 
 ```
-Godot 4.4.1 (GDScript)
+Godot 4.5.2 (GDScript)
   └─ Rust GDExtension  (libgodot_goguitar_rs.so / godot_goguitar_rs.dll)
        ├─ Pure-Rust PSARC/SNG parsing
        │    ├─ rocksmith2014-psarc   (Rust crate — PSARC extraction)
@@ -17,7 +17,7 @@ Godot 4.4.1 (GDScript)
 ```
 **Key principle:** 
 
-- Use Godot Game Engine 4.4.1
+- Use Godot Game Engine 4.5.2
 - Use cpal for Audio DI (input)
 - Use vgmstream for Wwise(.WEM) audio 
 - Use Rust for GDExtension (Godot Extension)
@@ -89,15 +89,15 @@ cp target/x86_64-pc-windows-gnu/release/godot_goguitar_rs.dll bin/
 ### Run the Game (Linux with xvfb)
 
 ```bash
-# Install display server and Godot 4.4.1
+# Install display server and Godot 4.5.2
 sudo apt-get install -y xvfb libgl1-mesa-dri libgles2 mesa-vulkan-drivers
-wget -q https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_linux.x86_64.zip
-unzip -q Godot_v4.4.1-stable_linux.x86_64.zip
-chmod +x Godot_v4.4.1-stable_linux.x86_64
+wget -q https://github.com/godotengine/godot/releases/download/4.5.2-stable/Godot_v4.5.2-stable_linux.x86_64.zip
+unzip -q Godot_v4.5.2-stable_linux.x86_64.zip
+chmod +x Godot_v4.5.2-stable_linux.x86_64
 
 # Start virtual display and run the game
 Xvfb :99 -screen 0 1280x720x24 &
-DISPLAY=:99 ./Godot_v4.4.1-stable_linux.x86_64 \
+DISPLAY=:99 ./Godot_v4.5.2-stable_linux.x86_64 \
   --path /path/to/go-guitar2 \
   --scene scenes/music_play_demo.tscn &
 # Screenshots are saved automatically to user://screenshots/
@@ -130,4 +130,3 @@ After making changes, always:
    - `RocksmithBridge: parsed N notes via Rocksmith2014.rs`
    - `RsBridge: AudioEngine.open() returned: true`
 3. Check the 5 auto-saved screenshots in `user://screenshots/`.
-

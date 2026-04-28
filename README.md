@@ -1,10 +1,10 @@
 # go-guitar2
-Rocksmith 2014 like Guitar 3D Game built with **Godot 4.4**.
+Rocksmith 2014 like Guitar 3D Game built with **Godot 4.5.2**.
 
 ## Project structure
 
 ```
-project.godot          – Godot 4.4 project entry-point (main scene: game_menu.tscn)
+project.godot          – Godot 4.5.2 project entry-point (main scene: game_menu.tscn)
 scenes/
   game_menu.tscn       – Main menu with Song List, Mixer, and Settings options
   settings/settings.tscn – Settings screen (includes Tuner entry)
@@ -65,5 +65,5 @@ Libraries / Projects used:
 
 ## Quick start
 
-1. Open the project in **Godot 4.4** - https://github.com/godotengine/godot/releases/tag/4.4.1-stable.
+1. Open the project in **Godot 4.5.2** - https://github.com/godotengine/godot/releases/tag/4.5.2-stable.
 2. Open the game menu, click **Song list**, then select a song and press **Play**.

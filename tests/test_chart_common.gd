@@ -1,7 +1,7 @@
 ## test_chart_common.gd — validates fret X-coordinate math in ChartCommon.
 ##
 ## Run headless from the project root:
-##   Godot_v4.4.1-stable_linux.x86_64 --headless --path . --script tests/test_chart_common.gd
+##   Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script tests/test_chart_common.gd
 
 extends SceneTree
 

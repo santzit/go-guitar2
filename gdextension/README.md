@@ -12,7 +12,7 @@ no .NET runtime, no external DLLs required.
 | Tool | Version |
 |------|---------|
 | [Rust toolchain](https://rustup.rs) | stable ≥ 1.75 |
-| [Godot Game Engine](https://github.com/godotengine/godot) | 4.4.1 |
+| [Godot Game Engine](https://github.com/godotengine/godot) | 4.5.2 |
 
 ---
 
@@ -39,7 +39,7 @@ cp target/release/godot_goguitar_rs.dll ../bin/
 cp target/release/libgodot_goguitar_rs.dylib bin/
 ```
 
-Then open the project in Godot 4.4. The `RSAPI_SNG` and `QEngine` classes become
+Then open the project in Godot 4.5.2. The `RSAPI_SNG` and `QEngine` classes become
 available in GDScript and are used by gameplay scenes.
 
 ---
