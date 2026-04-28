@@ -41,10 +41,10 @@ const CAMERA_Z_MIN      : float = 6.0
 const CAMERA_Z_MAX      : float = 18.0
 ## Look-at target Z — aimed one-third into the highway depth for a natural rake.
 const CAMERA_LOOK_AT_Z  : float = -7.0
-const CAMERA_LERP_SPEED : float = 1.0    # units/s for smooth pan
-const CAMERA_Z_LERP_SPEED : float = 1.25
+const CAMERA_LERP_SPEED : float = 0.5    # slower pan for cinematic drift
+const CAMERA_Z_LERP_SPEED : float = 0.65
 const CAMERA_EVENT_LOOKBACK : float = 0.35
-const CAMERA_FRAME_PADDING : float = 1.2
+const CAMERA_FRAME_PADDING : float = 1.45
 ## Camera X clamp — keeps the camera from tracking to the highway edges.
 const CAMERA_X_MIN      : float = 1.75
 const CAMERA_X_MAX      : float = FRET_WORLD_WIDTH
