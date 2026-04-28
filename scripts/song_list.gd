@@ -39,8 +39,9 @@ func _reload_song_list() -> void:
 	for i in _songs_meta.size():
 		var row = _SongListItemScene.instantiate()
 		row.row_pressed.connect(_on_row_pressed)
-		row.setup(i, _songs_meta[i], i == 0)
+		row.focus_entered.connect(_on_row_focus_entered.bind(i))
 		_songs_container.add_child(row)
+		row.setup(i, _songs_meta[i], i == 0)
 		_rows.append(row)
 
 	_set_selected(0)
@@ -83,13 +84,14 @@ func _build_song_metadata(path: String) -> Dictionary:
 		title = path.get_file().get_basename()
 	if artist.is_empty():
 		artist = "Unknown Artist"
+	if year <= 0:
+		year = _guess_year(path)
 	if arrangements.is_empty():
 		arrangements = ["Lead"]
 
 	var details_parts: Array[String] = []
 	details_parts.append(_format_duration(duration_sec))
-	if year > 0:
-		details_parts.append(str(year))
+	details_parts.append(str(year) if year > 0 else "----")
 	details_parts.append(tuning_text)
 
 	return {
@@ -144,6 +146,16 @@ func _format_duration(sec: float) -> String:
 	return "%02d:%02d" % [mm, ss]
 
 
+func _guess_year(text: String) -> int:
+	var r := RegEx.new()
+	if r.compile("(19[0-9]{2}|20[0-9]{2}|2100)") != OK:
+		return 0
+	var m: RegExMatch = r.search(text)
+	if m == null:
+		return 0
+	return int(m.get_string(1))
+
+
 func _clear_rows() -> void:
 	for row in _rows:
 		if is_instance_valid(row):
@@ -151,12 +163,16 @@ func _clear_rows() -> void:
 	_rows.clear()
 
 
-func _set_selected(index: int) -> void:
+func _set_selected(index: int, focus_row: bool = true) -> void:
 	if index < 0 or index >= _songs_meta.size():
+		return
+	if _selected_idx == index and not focus_row:
 		return
 	_selected_idx = index
 	for i in _rows.size():
 		_rows[i].set_focused(i == _selected_idx)
+	if focus_row and _selected_idx >= 0 and _selected_idx < _rows.size():
+		_rows[_selected_idx].grab_focus()
 	_preview_idx = index
 	_stop_preview()
 	_preview_timer.start()
@@ -165,6 +181,25 @@ func _set_selected(index: int) -> void:
 func _on_row_pressed(index: int) -> void:
 	_set_selected(index)
 	_status_label.text = "Select a song and press Play."
+
+
+func _on_row_focus_entered(index: int) -> void:
+	_set_selected(index, false)
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if _songs_meta.is_empty():
+		return
+	if event.is_action_pressed("ui_down"):
+		_set_selected(mini(_selected_idx + 1, _songs_meta.size() - 1))
+		_status_label.text = "Select a song and press Play."
+		get_viewport().set_input_as_handled()
+		return
+	if event.is_action_pressed("ui_up"):
+		_set_selected(maxi(_selected_idx - 1, 0))
+		_status_label.text = "Select a song and press Play."
+		get_viewport().set_input_as_handled()
+		return
 
 
 func _on_back_button_pressed() -> void:

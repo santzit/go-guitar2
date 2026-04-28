@@ -704,7 +704,11 @@ fn extract_hsan_metadata(
         ],
     )
     .unwrap_or_default();
-    let year = find_first_i32(&json, &["AlbumYear", "albumYear", "Year", "year"]).unwrap_or(0);
+    let year = find_first_i32(
+        &json,
+        &["AlbumYear", "albumYear", "SongYear", "songYear", "Year", "year"],
+    )
+    .unwrap_or(0);
 
     (title, artist, year)
 }
@@ -740,6 +744,9 @@ fn find_first_i32(v: &Value, keys: &[&str]) -> Option<i32> {
                 if keys.iter().any(|needle| k.eq_ignore_ascii_case(needle)) {
                     if let Some(n) = val.as_i64() {
                         return i32::try_from(n).ok();
+                    }
+                    if let Some(n) = val.as_f64() {
+                        return Some(n.round() as i32);
                     }
                     if let Some(s) = val.as_str() {
                         if let Ok(n) = s.parse::<i32>() {
