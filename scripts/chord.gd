@@ -35,14 +35,14 @@ uniform vec4 edge_glow_color : source_color = vec4(0.55, 0.85, 1.0, 1.0);
 uniform float edge_glow_strength : hint_range(0.0, 8.0) = 2.4;
 uniform float corner_boost : hint_range(0.0, 4.0) = 1.6;
 void fragment() {
-	float top = smoothstep(1.0 - border_v, 1.0, UV.y);
+	float top = 1.0 - smoothstep(border_v, border_v * 1.8, UV.y);
 	float left = 1.0 - smoothstep(border_u, border_u * 1.8, UV.x);
 	float right = smoothstep(1.0 - border_u * 1.8, 1.0 - border_u, UV.x);
-	float side_region = smoothstep(side_fade_start, 1.0, UV.y);
+	float side_region = 1.0 - smoothstep(0.0, side_fade_start, UV.y);
 	float side = max(left, right) * side_region;
 
-	vec2 top_left_n = vec2(UV.x / corner_u, (1.0 - UV.y) / corner_v);
-	vec2 top_right_n = vec2((1.0 - UV.x) / corner_u, (1.0 - UV.y) / corner_v);
+	vec2 top_left_n = vec2(UV.x / corner_u, UV.y / corner_v);
+	vec2 top_right_n = vec2((1.0 - UV.x) / corner_u, UV.y / corner_v);
 	float corner_left = pow(clamp(1.0 - length(top_left_n), 0.0, 1.0), 1.4);
 	float corner_right = pow(clamp(1.0 - length(top_right_n), 0.0, 1.0), 1.4);
 	float corners = max(corner_left, corner_right);
