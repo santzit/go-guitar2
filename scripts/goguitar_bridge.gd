@@ -78,19 +78,6 @@ func get_play_events() -> Array:
 	return _ext.get_play_events()
 
 
-## Returns raw OGG bytes from the song (CDLC only).
-## NOTE: RSAPI_SNG does not expose a get_audio_bytes() method — this always
-## returns an empty array. The OGG CDLC fallback in get_audio_stream() is
-## therefore currently inactive. To restore CDLC OGG support, expose the
-## raw OGG bytes from the Rust layer as get_audio_bytes().
-func get_audio_bytes() -> PackedByteArray:
-	if _ext == null:
-		return PackedByteArray()
-	if _ext.has_method("get_audio_bytes"):
-		return _ext.get_audio_bytes()
-	return PackedByteArray()
-
-
 ## Returns raw preview WEM bytes from the song (official DLC — short clip).
 func get_preview_wem_bytes() -> PackedByteArray:
 	if _ext == null:
@@ -185,11 +172,11 @@ func _decode_wem_to_stream(wem: PackedByteArray) -> AudioStream:
 	return stream
 
 
-## Convenience: create an AudioStream from the embedded audio data, or null.
+## Convenience: create an AudioStream from the WEM audio data, or null.
+## All audio comes from WEM bytes decoded to PCM-16 WAV via AudioEngine.
 ## Priority:
 ##   1. MAIN WEM (full-length backing track) decoded via AudioEngine.
 ##   2. PREVIEW WEM used as fallback gameplay audio when no MAIN WEM is found.
-##   3. OGG raw bytes (CDLC fallback).
 func get_audio_stream() -> AudioStream:
 	# ── 1. Try MAIN WEM (official DLC — full-length backing track) ────────────
 	var wem := get_wem_bytes()
@@ -212,11 +199,5 @@ func get_audio_stream() -> AudioStream:
 		if stream:
 			return stream
 
-	# ── 3. OGG (CDLC) ─────────────────────────────────────────────────────────
-	var raw := get_audio_bytes()
-	print("GoGuitarBridge: OGG fallback — raw bytes: %d" % raw.size())
-	if not raw.is_empty():
-		return AudioStreamOggVorbis.load_from_buffer(raw)
-
-	push_warning("GoGuitarBridge: no audio stream available (no WEM decoded, no OGG).")
+	push_warning("GoGuitarBridge: no audio stream available (no WEM found or decode failed).")
 	return null

@@ -237,7 +237,7 @@ func _ready() -> void:
 				var first_note_time: float = _notes[0]["time"]
 				print("MusicPlay: first note at t=%.2fs — starting playback from beginning" % first_note_time)
 		else:
-			push_warning("MusicPlay: audio stream not available (no WEM/OGG in PSARC).")
+			push_warning("MusicPlay: audio stream not available (no WEM found or decode failed).")
 	else:
 		push_error("MusicPlay: failed to load psarc — place a valid .psarc in the DLC/ folder.")
 	DirAccess.make_dir_recursive_absolute(
