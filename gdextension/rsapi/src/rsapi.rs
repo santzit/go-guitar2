@@ -2,7 +2,7 @@
 ///
 /// Uses `rocksmith2014-psarc` and `rocksmith2014-sng` Rust crates directly —
 /// no .NET runtime, no NativeAOT shim, no CLR hosting required.
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
 
 use godot::prelude::godot_print;
@@ -102,6 +102,11 @@ pub struct PsarcData {
     /// Per-string tuning offsets in semitones from standard E-A-D-G-B-e tuning.
     /// An all-zero (or empty) vector means standard tuning.
     pub sng_tuning: Vec<i16>,
+    /// Count of linked difficulty levels referenced by phrase iterations.
+    /// `> 1` means Dynamic Difficulty is present.
+    pub sng_difficulty_count: i32,
+    /// True when the arrangement uses Dynamic Difficulty progression.
+    pub sng_is_dynamic_difficulty: bool,
     /// SNG-reported song length in seconds (fallback metadata).
     pub sng_song_length: f32,
     /// Song title extracted from PSARC metadata when available.
@@ -157,11 +162,14 @@ impl PsarcData {
             .iter()
             .filter(|n| n.ends_with(".sng") && !n.contains("vocals"))
             .max_by_key(|n| {
-                if n.contains("lead") {
+                let lc = n.to_ascii_lowercase();
+                if lc.ends_with("_lead.sng") {
+                    4
+                } else if lc.contains("lead") {
                     3
-                } else if n.contains("rhythm") {
+                } else if lc.contains("rhythm") {
                     2
-                } else if n.contains("bass") {
+                } else if lc.contains("bass") {
                     1
                 } else {
                     0
@@ -180,6 +188,8 @@ impl PsarcData {
             sng_difficulty,
             sng_capo,
             sng_tuning,
+            sng_difficulty_count,
+            sng_is_dynamic_difficulty,
             sng_song_length,
         ) = if let Some(ref name) = sng_name {
             let encrypted = psarc
@@ -278,9 +288,30 @@ impl PsarcData {
             let total_phrase_iters = sng.phrase_iterations.len();
             let diff_band = difficulty_band.min(2); // clamp to valid band index
 
+            let (difficulty_count, is_dynamic_difficulty) = if !sng.phrase_iterations.is_empty() {
+                let mut linked_levels: HashSet<i32> = HashSet::new();
+                for pi in &sng.phrase_iterations {
+                    for &linked in &pi.difficulty {
+                        if linked >= 0 {
+                            linked_levels.insert(linked);
+                        }
+                    }
+                }
+                let count = linked_levels.len() as i32;
+                let count = if count > 0 { count } else { 1 };
+                (count, count > 1)
+            } else {
+                (1, false)
+            };
+
             godot_print!(
-                "rsapi: SNG levels={} phrase_iters={} difficulty_band={} max_difficulty_meta={}",
-                total_levels, total_phrase_iters, diff_band, max_diff
+                "rsapi: SNG levels={} phrase_iters={} difficulty_band={} max_difficulty_meta={} difficulty_count={} is_dynamic_difficulty={}",
+                total_levels,
+                total_phrase_iters,
+                diff_band,
+                max_diff,
+                difficulty_count,
+                is_dynamic_difficulty
             );
 
             // Helper closure: push one SNG note event into `entries`.
@@ -411,7 +442,7 @@ impl PsarcData {
                     }
                 };
 
-            if !sng.phrase_iterations.is_empty() {
+            if !sng.phrase_iterations.is_empty() && is_dynamic_difficulty {
                 // ── Phrase-iteration assembly (primary path) ─────────────────────
                 let mut selected_difficulty = 0i32;
                 for pi in &sng.phrase_iterations {
@@ -449,25 +480,36 @@ impl PsarcData {
                     selected_difficulty,
                     capo,
                     tuning,
+                    difficulty_count,
+                    is_dynamic_difficulty,
                     song_length,
                 )
-            } else {
-                // ── Fallback: flat level with most note events ───────────────────
-                // Used for malformed/non-DDC SNG files that have no phraseIterations.
-                godot_warn!("rsapi: no phraseIterations — falling back to flat max-note level");
-                let best = sng.levels.iter().max_by(|a, b| {
-                    a.notes
-                        .len()
-                        .cmp(&b.notes.len())
-                        .then_with(|| a.difficulty.cmp(&b.difficulty))
-                });
-                match best {
+            } else if !sng.phrase_iterations.is_empty() {
+                // ── Static arrangement with phraseIterations ─────────────────────
+                // Some "normal" files keep phrase iterations but link every phrase
+                // to the same difficulty. Building phrase-by-phrase can over-count
+                // when phrase windows overlap, so load the linked level once.
+                let selected_difficulty = sng
+                    .phrase_iterations
+                    .iter()
+                    .map(|pi| pi.difficulty[diff_band])
+                    .filter(|d| *d >= 0)
+                    .max()
+                    .unwrap_or(max_diff);
+
+                let linked_level = sng
+                    .levels
+                    .iter()
+                    .find(|l| l.difficulty == selected_difficulty)
+                    .or_else(|| sng.levels.iter().max_by_key(|l| l.notes.len()));
+
+                match linked_level {
                     Some(lvl) => {
                         for n in &lvl.notes {
                             push_note(&mut entries, n, &sng.chords, &lvl.hand_shapes);
                         }
                         godot_print!(
-                            "rsapi: fallback level {} — {} note_events",
+                            "rsapi: static arrangement level {} — {} note_events",
                             lvl.difficulty,
                             entries.len()
                         );
@@ -482,6 +524,69 @@ impl PsarcData {
                             lvl.difficulty,
                             capo,
                             tuning,
+                            difficulty_count,
+                            is_dynamic_difficulty,
+                            song_length,
+                        )
+                    }
+                    None => {
+                        godot_warn!("rsapi: static SNG has no levels at all");
+                        (
+                            Vec::new(),
+                            chord_templates,
+                            hand_shapes,
+                            phrases,
+                            phrase_iterations,
+                            levels,
+                            start_time,
+                            max_diff,
+                            capo,
+                            tuning,
+                            difficulty_count,
+                            is_dynamic_difficulty,
+                            song_length,
+                        )
+                    }
+                }
+            } else {
+                // ── No phraseIterations: pick a level by difficulty index ────────
+                // Avoid "max-note" heuristics: they can inflate note/chord counts.
+                // We instead select the level closest to the requested difficulty band.
+                let desired_difficulty = match diff_band {
+                    0 => 0,
+                    1 => (max_diff / 2).max(0),
+                    _ => max_diff,
+                };
+                let selected = sng
+                    .levels
+                    .iter()
+                    .min_by_key(|lvl| {
+                        let dist = (lvl.difficulty - desired_difficulty).abs();
+                        (dist, -lvl.difficulty)
+                    });
+                match selected {
+                    Some(lvl) => {
+                        for n in &lvl.notes {
+                            push_note(&mut entries, n, &sng.chords, &lvl.hand_shapes);
+                        }
+                        godot_warn!(
+                            "rsapi: no phraseIterations — using difficulty-indexed level {} (target={})",
+                            lvl.difficulty,
+                            desired_difficulty
+                        );
+                        (
+                            entries,
+                            chord_templates,
+                            hand_shapes,
+                            phrases,
+                            phrase_iterations,
+                            levels,
+                            start_time,
+                            lvl.difficulty,
+                            capo,
+                            tuning,
+                            difficulty_count,
+                            is_dynamic_difficulty,
                             song_length,
                         )
                     }
@@ -498,6 +603,8 @@ impl PsarcData {
                             max_diff,
                             capo,
                             tuning,
+                            difficulty_count,
+                            is_dynamic_difficulty,
                             song_length,
                         )
                     }
@@ -515,6 +622,8 @@ impl PsarcData {
                 -1i32,
                 0i8,
                 vec![],
+                1i32,
+                false,
                 0.0f32,
             )
         };
@@ -620,6 +729,8 @@ impl PsarcData {
             sng_difficulty,
             sng_capo,
             sng_tuning,
+            sng_difficulty_count,
+            sng_is_dynamic_difficulty,
             sng_song_length,
             song_title,
             song_artist,

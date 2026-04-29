@@ -60,6 +60,8 @@ pub struct RSAPI_SNG {
     sng_difficulty: i32,
     sng_capo: i8,
     sng_tuning: Vec<i16>,
+    sng_difficulty_count: i32,
+    sng_is_dynamic_difficulty: bool,
     sng_song_length: f32,
     song_title: String,
     song_artist: String,
@@ -88,6 +90,8 @@ impl IObject for RSAPI_SNG {
             sng_difficulty: -1,
             sng_capo: 0,
             sng_tuning: vec![],
+            sng_difficulty_count: 1,
+            sng_is_dynamic_difficulty: false,
             sng_song_length: 0.0,
             song_title: String::new(),
             song_artist: String::new(),
@@ -280,6 +284,14 @@ impl RSAPI_SNG {
         dict.set(&GString::from("start_time"), self.sng_start_time);
         dict.set(&GString::from("difficulty"), self.sng_difficulty);
         dict.set(&GString::from("capo"), self.sng_capo as i32);
+        dict.set(
+            &GString::from("difficulty_count"),
+            self.sng_difficulty_count,
+        );
+        dict.set(
+            &GString::from("is_dynamic_difficulty"),
+            self.sng_is_dynamic_difficulty,
+        );
         let mut tuning_arr: Array<Variant> = Array::new();
         for &t in &self.sng_tuning {
             tuning_arr.push(&Variant::from(t as i32));
@@ -323,6 +335,8 @@ impl RSAPI_SNG {
         self.sng_difficulty = -1;
         self.sng_capo = 0;
         self.sng_tuning.clear();
+        self.sng_difficulty_count = 1;
+        self.sng_is_dynamic_difficulty = false;
         self.sng_song_length = 0.0;
         self.song_title = String::new();
         self.song_artist = String::new();
@@ -338,6 +352,8 @@ impl RSAPI_SNG {
         self.sng_difficulty = data.sng_difficulty;
         self.sng_capo = data.sng_capo;
         self.sng_tuning = data.sng_tuning;
+        self.sng_difficulty_count = data.sng_difficulty_count;
+        self.sng_is_dynamic_difficulty = data.sng_is_dynamic_difficulty;
         self.sng_song_length = data.sng_song_length;
         self.song_title = data.song_title;
         self.song_artist = data.song_artist;
