@@ -3,7 +3,7 @@
 /// Uses `rocksmith2014-psarc` and `rocksmith2014-sng` Rust crates directly —
 /// no .NET runtime, no NativeAOT shim, no CLR hosting required.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
 
 pub use rocksmith2014_sng::Platform;
@@ -40,6 +40,11 @@ pub struct PsarcData {
     /// Per-string tuning offsets in semitones from standard E-A-D-G-B-e tuning.
     /// An all-zero (or empty) vector means standard tuning.
     pub sng_tuning:        Vec<i16>,
+    /// Count of linked difficulty levels referenced by phrase iterations.
+    /// `> 1` means Dynamic Difficulty is present.
+    pub sng_difficulty_count: i32,
+    /// True when the arrangement uses Dynamic Difficulty progression.
+    pub sng_is_dynamic_difficulty: bool,
 }
 
 impl PsarcData {
@@ -78,7 +83,7 @@ impl PsarcData {
             })
             .cloned();
 
-        let (notes, sng_start_time, sng_difficulty, sng_capo, sng_tuning) = if let Some(ref name) = sng_name {
+        let (notes, sng_start_time, sng_difficulty, sng_capo, sng_tuning, sng_difficulty_count, sng_is_dynamic_difficulty) = if let Some(ref name) = sng_name {
             let encrypted = psarc.inflate_file(name)
                 .map_err(|e| format!("Failed to inflate SNG '{}': {}", name, e))?;
 
@@ -119,9 +124,30 @@ impl PsarcData {
             let total_phrase_iters = sng.phrase_iterations.len();
             let diff_band        = difficulty_band.min(2);   // clamp to valid band index
 
+            let (difficulty_count, is_dynamic_difficulty) = if !sng.phrase_iterations.is_empty() {
+                let mut linked_levels: HashSet<i32> = HashSet::new();
+                for pi in &sng.phrase_iterations {
+                    for &linked in &pi.difficulty {
+                        if linked >= 0 {
+                            linked_levels.insert(linked);
+                        }
+                    }
+                }
+                let count = linked_levels.len() as i32;
+                let count = if count > 0 { count } else { 1 };
+                (count, count > 1)
+            } else {
+                (1, false)
+            };
+
             eprintln!(
-                "rsapi: SNG levels={} phrase_iters={} difficulty_band={} max_difficulty_meta={}",
-                total_levels, total_phrase_iters, diff_band, max_diff
+                "rsapi: SNG levels={} phrase_iters={} difficulty_band={} max_difficulty_meta={} difficulty_count={} is_dynamic_difficulty={}",
+                total_levels,
+                total_phrase_iters,
+                diff_band,
+                max_diff,
+                difficulty_count,
+                is_dynamic_difficulty
             );
 
             // Helper closure: push one SNG note event into `entries`.
@@ -186,7 +212,15 @@ impl PsarcData {
                     "rsapi: phrase-assembly complete — {} note_events (max band_d={})",
                     entries.len(), selected_difficulty
                 );
-                (entries, start_time, selected_difficulty, capo, tuning)
+                (
+                    entries,
+                    start_time,
+                    selected_difficulty,
+                    capo,
+                    tuning,
+                    difficulty_count,
+                    is_dynamic_difficulty,
+                )
             } else {
                 // ── Fallback: flat level with most note events ───────────────────
                 // Used for malformed/non-DDC SNG files that have no phraseIterations.
@@ -202,16 +236,32 @@ impl PsarcData {
                             push_note(&mut entries, n, &sng.chords);
                         }
                         eprintln!("rsapi: fallback level {} — {} note_events", lvl.difficulty, entries.len());
-                        (entries, start_time, lvl.difficulty, capo, tuning)
+                        (
+                            entries,
+                            start_time,
+                            lvl.difficulty,
+                            capo,
+                            tuning,
+                            difficulty_count,
+                            is_dynamic_difficulty,
+                        )
                     }
                     None => {
                         eprintln!("rsapi: SNG has no levels at all");
-                        (Vec::new(), start_time, max_diff, capo, tuning)
+                        (
+                            Vec::new(),
+                            start_time,
+                            max_diff,
+                            capo,
+                            tuning,
+                            difficulty_count,
+                            is_dynamic_difficulty,
+                        )
                     }
                 }
             }
         } else {
-            (Vec::new(), 0.0f32, -1i32, 0i8, vec![])
+            (Vec::new(), 0.0f32, -1i32, 0i8, vec![], 1i32, false)
         };
 
         // ── Build WEM ID → role map from Wwise SoundBank (.bnk) files ─────────
@@ -300,7 +350,17 @@ impl PsarcData {
             None => preview_wem_bytes.clone(),  // use preview as MAIN fallback
         };
 
-        Ok(PsarcData { notes, wem_bytes, preview_wem_bytes, sng_start_time, sng_difficulty, sng_capo, sng_tuning })
+        Ok(PsarcData {
+            notes,
+            wem_bytes,
+            preview_wem_bytes,
+            sng_start_time,
+            sng_difficulty,
+            sng_capo,
+            sng_tuning,
+            sng_difficulty_count,
+            sng_is_dynamic_difficulty,
+        })
     }
 }
 
