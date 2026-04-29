@@ -29,6 +29,13 @@ From `RSAPI_SNG` output (GDScript dictionaries/arrays):
   - `start_time`
   - `capo`
   - `tuning` (per-string semitone offsets)
+  - `difficulty_count`
+  - `is_dynamic_difficulty`
+- Tone mapping payloads:
+  - `get_mapped_tone_preset_json()` -> canonical Rustortion preset JSON
+  - `get_tone_mapping_report_json()` -> mapping coverage/catalog report
+  - `get_raw_tone_summary_json()` -> raw tone/effect summary
+  - `get_tone_changes()` -> `[time, tone_id, tone_name]` timeline
 
 ## Reading timing, notes, chords, levels
 
