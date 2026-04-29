@@ -39,6 +39,8 @@ pub struct RocksmithBridge {
                              // -1 = unset/invalid, 0 = no capo, >0 = frets already physical/baked.
                              // Fret values are ALWAYS physical — no offset is ever applied.
     sng_tuning:       Vec<i16>, // per-string semitone offsets from standard tuning
+    sng_difficulty_count: i32,  // linked SNG difficulty levels; >1 means dynamic
+    sng_is_dynamic_difficulty: bool,
     /// DDC difficulty band: 0=Easy, 1=Medium, 2=Hard/100% (default).
     /// Set via `set_difficulty(percent)` before calling `load_psarc`.
     difficulty_band:  usize,
@@ -56,6 +58,8 @@ impl IObject for RocksmithBridge {
             sng_difficulty:   -1,
             sng_capo:         0,
             sng_tuning:       vec![],
+            sng_difficulty_count: 1,
+            sng_is_dynamic_difficulty: false,
             difficulty_band:  2,   // default: Hard / 100%
         }
     }
@@ -91,6 +95,12 @@ impl RocksmithBridge {
         self.notes.clear();
         self.wem_data         = None;
         self.preview_wem_data = None;
+        self.sng_start_time = 0.0;
+        self.sng_difficulty = -1;
+        self.sng_capo = 0;
+        self.sng_tuning.clear();
+        self.sng_difficulty_count = 1;
+        self.sng_is_dynamic_difficulty = false;
 
         let path_str = path.to_string();
         godot_print!("RocksmithBridge: loading '{}'", path_str);
@@ -147,7 +157,8 @@ impl RocksmithBridge {
     }
 
     /// Returns a Dictionary with SNG diagnostic fields:
-    ///   `{ "start_time": float, "difficulty": int, "capo": int, "tuning": Array[int] }`
+    ///   `{ "start_time": float, "difficulty": int, "capo": int, "tuning": Array[int],
+    ///      "difficulty_count": int, "is_dynamic_difficulty": bool }`
     /// - `start_time`: when the arrangement begins in the WEM audio (seconds from WEM t=0).
     ///   Note times in `get_notes()` are already absolute from WEM t=0, so no offset
     ///   needs to be applied — this value is purely for diagnostic logging.
@@ -164,6 +175,8 @@ impl RocksmithBridge {
         dict.set(&GString::from("start_time"), self.sng_start_time);
         dict.set(&GString::from("difficulty"),  self.sng_difficulty);
         dict.set(&GString::from("capo"),        self.sng_capo as i32);
+        dict.set(&GString::from("difficulty_count"), self.sng_difficulty_count);
+        dict.set(&GString::from("is_dynamic_difficulty"), self.sng_is_dynamic_difficulty);
         let mut tuning_arr: Array<Variant> = Array::new();
         for &t in &self.sng_tuning {
             tuning_arr.push(&Variant::from(t as i32));
@@ -184,13 +197,17 @@ impl RocksmithBridge {
         self.sng_difficulty = data.sng_difficulty;
         self.sng_capo       = data.sng_capo;
         self.sng_tuning     = data.sng_tuning;   // move — data.sng_tuning no longer needed
+        self.sng_difficulty_count = data.sng_difficulty_count;
+        self.sng_is_dynamic_difficulty = data.sng_is_dynamic_difficulty;
 
         let tuning_str: Vec<String> = self.sng_tuning.iter().map(|t| t.to_string()).collect();
         godot_print!(
-            "RocksmithBridge: SNG difficulty={}  start_time={:.3}s  capo={}  tuning=[{}]",
+            "RocksmithBridge: SNG difficulty={}  start_time={:.3}s  capo={}  difficulty_count={}  is_dynamic_difficulty={}  tuning=[{}]",
             self.sng_difficulty,
             self.sng_start_time,
             self.sng_capo,
+            self.sng_difficulty_count,
+            self.sng_is_dynamic_difficulty,
             tuning_str.join(", "),
         );
 
