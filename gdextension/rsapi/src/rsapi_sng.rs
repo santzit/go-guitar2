@@ -1,5 +1,6 @@
 use crate::rsapi::{
     ChordTemplateEntry, HandShapeEntry, LevelEntry, PhraseEntry, PhraseIterationEntry, PsarcData,
+    ToneChangeEntry,
 };
 use godot::prelude::*;
 
@@ -69,6 +70,10 @@ pub struct RSAPI_SNG {
     has_lead: bool,
     has_rhythm: bool,
     has_bass: bool,
+    mapped_tone_preset_json: String,
+    tone_mapping_report_json: String,
+    raw_tone_summary_json: String,
+    tone_changes: Vec<ToneChangeEntry>,
     difficulty_band: usize,
 }
 
@@ -99,6 +104,10 @@ impl IObject for RSAPI_SNG {
             has_lead: false,
             has_rhythm: false,
             has_bass: false,
+            mapped_tone_preset_json: String::new(),
+            tone_mapping_report_json: String::new(),
+            raw_tone_summary_json: String::new(),
+            tone_changes: Vec::new(),
             difficulty_band: 2,
         }
     }
@@ -318,6 +327,37 @@ impl RSAPI_SNG {
         d.set(&GString::from("has_bass"), self.has_bass);
         d
     }
+
+    #[func]
+    fn get_mapped_tone_preset_json(&self) -> GString {
+        GString::from(self.mapped_tone_preset_json.as_str())
+    }
+
+    #[func]
+    fn get_tone_mapping_report_json(&self) -> GString {
+        GString::from(self.tone_mapping_report_json.as_str())
+    }
+
+    #[func]
+    fn get_raw_tone_summary_json(&self) -> GString {
+        GString::from(self.raw_tone_summary_json.as_str())
+    }
+
+    #[func]
+    fn get_tone_changes(&self) -> Array<Variant> {
+        let mut arr: Array<Variant> = Array::new();
+        for tc in &self.tone_changes {
+            let mut d: Dictionary<GString, Variant> = Dictionary::new();
+            d.set(&GString::from("time"), tc.time);
+            d.set(&GString::from("tone_id"), tc.tone_id);
+            d.set(
+                &GString::from("tone_name"),
+                &Variant::from(tc.tone_name.as_str()),
+            );
+            arr.push(&d.to_variant());
+        }
+        arr
+    }
 }
 
 impl RSAPI_SNG {
@@ -344,6 +384,10 @@ impl RSAPI_SNG {
         self.has_lead = false;
         self.has_rhythm = false;
         self.has_bass = false;
+        self.mapped_tone_preset_json = String::new();
+        self.tone_mapping_report_json = String::new();
+        self.raw_tone_summary_json = String::new();
+        self.tone_changes.clear();
     }
 
     fn parse_psarc(&mut self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -361,6 +405,10 @@ impl RSAPI_SNG {
         self.has_lead = data.has_lead;
         self.has_rhythm = data.has_rhythm;
         self.has_bass = data.has_bass;
+        self.mapped_tone_preset_json = data.mapped_tone_preset_json;
+        self.tone_mapping_report_json = data.tone_mapping_report_json;
+        self.raw_tone_summary_json = data.raw_tone_summary_json;
+        self.tone_changes = data.tone_changes;
         self.chord_templates = data.chord_templates;
         self.hand_shapes = data.hand_shapes;
         self.phrases = data.phrases;

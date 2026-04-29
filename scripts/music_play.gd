@@ -81,6 +81,7 @@ const DEBUG_CHORD_WINDOW : float = 0.25
 const CHORD_GROUP_THRESHOLD : float = 0.02
 const QENGINE_CAPTURE_BUS   : StringName = &"Player 1"
 const QENGINE_NOISE_GATE    : float = 0.02
+const TONE_TOAST_DURATION_SECS : float = 1.0
 
 # -- Scene references --------------------------------------------------------
 @onready var _chord_pool  : Node3D            = $ChordPool
@@ -89,6 +90,7 @@ const QENGINE_NOISE_GATE    : float = 0.02
 @onready var _player      : AudioStreamPlayer = $AudioStreamPlayer
 @onready var _camera      : Camera3D          = $Camera3D
 @onready var _debug_label : Label             = $DebugOverlay/DebugLabel
+@onready var _tone_toast_label : Label        = $ToneOverlay/ToneToastLabel
 @onready var _pause_dimmer : ColorRect        = $PauseOverlay/Dimmer
 @onready var _pause_panel  : PanelContainer   = $PauseOverlay/PausePanel
 @onready var _resume_button: Button           = $PauseOverlay/PausePanel/Buttons/ResumeButton
@@ -143,6 +145,9 @@ var _capture_player  : AudioStreamPlayer  = null
 var _capture_bus_idx : int                = -1
 var _pause_menu_visible: bool              = false
 var _was_playing_before_pause: bool        = false
+var _tone_changes: Array                   = []
+var _next_tone_change_idx: int             = 0
+var _tone_toast_timer: float               = 0.0
 
 
 func _ready() -> void:
@@ -154,6 +159,9 @@ func _ready() -> void:
 	_quit_button.pressed.connect(_on_quit_button_pressed)
 	_pause_dimmer.visible = false
 	_pause_panel.visible = false
+	if _tone_toast_label:
+		_tone_toast_label.visible = false
+		_tone_toast_label.text = ""
 
 	var selected_psarc_path: String = _GameStateScript.selected_psarc_path
 	print("MusicPlay: RSAPI_SNG GDExtension loaded: %s" % str(ClassDB.class_exists("RSAPI_SNG")))
@@ -176,6 +184,15 @@ func _ready() -> void:
 			_events = _build_play_events(_notes)
 		print("MusicPlay: %d notes loaded, requesting audio stream..." % _notes.size())
 		print("MusicPlay: %d unified events built (single + chord)." % _events.size())
+		_tone_changes = _bridge.get_tone_changes()
+		_next_tone_change_idx = 0
+		if not _tone_changes.is_empty():
+			var first_tone_name: String = String(_tone_changes[0].get("tone_name", "Tone"))
+			_show_tone_toast("Tone Applied: %s" % first_tone_name)
+			_next_tone_change_idx = 1
+		var mapping_report_json: String = _bridge.get_tone_mapping_report_json()
+		if not mapping_report_json.is_empty():
+			print("MusicPlay: tone mapping report loaded (%d bytes)." % mapping_report_json.length())
 		# ── Initialise the scorer from the event list ──────────────────────────
 		_scorer = NoteScorer.new()
 		_scorer.setup(_events)
@@ -278,6 +295,8 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	_update_tone_toast(delta)
+
 	if _pause_menu_visible:
 		return
 
@@ -326,6 +345,8 @@ func _process(delta: float) -> void:
 	else:
 		# Wall-clock fallback when audio isn't playing.
 		_song_time = float(Time.get_ticks_msec() - _start_wall_ms) / 1000.0
+
+	_process_tone_changes()
 
 	# Push the authoritative audio time to all active notes/chords so their Z
 	# positions are computed directly from the audio clock (not accumulated delta).
@@ -405,6 +426,34 @@ func _process(delta: float) -> void:
 
 	# Update debug info overlay.
 	_update_debug_info()
+
+
+func _show_tone_toast(message: String) -> void:
+	if _tone_toast_label == null:
+		return
+	_tone_toast_label.text = message
+	_tone_toast_label.visible = true
+	_tone_toast_timer = TONE_TOAST_DURATION_SECS
+
+
+func _update_tone_toast(delta: float) -> void:
+	if _tone_toast_timer <= 0.0:
+		return
+	_tone_toast_timer -= delta
+	if _tone_toast_timer <= 0.0 and _tone_toast_label != null:
+		_tone_toast_timer = 0.0
+		_tone_toast_label.visible = false
+
+
+func _process_tone_changes() -> void:
+	while _next_tone_change_idx < _tone_changes.size():
+		var change: Dictionary = _tone_changes[_next_tone_change_idx]
+		var t: float = float(change.get("time", 0.0))
+		if _song_time < t:
+			break
+		var tone_name: String = String(change.get("tone_name", "Tone"))
+		_show_tone_toast("Tone/Effect: %s" % tone_name)
+		_next_tone_change_idx += 1
 
 
 func _unhandled_input(event: InputEvent) -> void:

@@ -55,6 +55,25 @@ theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
 theme_override_constants/outline_size = 3
 text = ""
 
+[node name="ToneOverlay" type="CanvasLayer" parent="."]
+layer = 20
+
+[node name="ToneToastLabel" type="Label" parent="ToneOverlay"]
+visible = false
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -430.0
+offset_top = 16.0
+offset_right = -24.0
+offset_bottom = 48.0
+horizontal_alignment = 2
+theme_override_font_sizes/font_size = 18
+theme_override_colors/font_color = Color(0.95, 1, 0.8, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.9)
+theme_override_constants/outline_size = 4
+text = ""
+
 [node name="PauseOverlay" type="CanvasLayer" parent="."]
 layer = 30
 

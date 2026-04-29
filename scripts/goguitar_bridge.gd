@@ -140,6 +140,34 @@ func get_song_metadata() -> Dictionary:
 	return _ext.get_song_metadata()
 
 
+## Returns the canonical mapped Rustortion preset JSON for the active tone.
+func get_mapped_tone_preset_json() -> String:
+	if _ext == null or not _ext.has_method("get_mapped_tone_preset_json"):
+		return ""
+	return String(_ext.get_mapped_tone_preset_json())
+
+
+## Returns mapping report JSON with catalog and coverage info.
+func get_tone_mapping_report_json() -> String:
+	if _ext == null or not _ext.has_method("get_tone_mapping_report_json"):
+		return ""
+	return String(_ext.get_tone_mapping_report_json())
+
+
+## Returns raw tone/effect summary JSON extracted from song metadata.
+func get_raw_tone_summary_json() -> String:
+	if _ext == null or not _ext.has_method("get_raw_tone_summary_json"):
+		return ""
+	return String(_ext.get_raw_tone_summary_json())
+
+
+## Returns tone change events as [{"time": float, "tone_id": int, "tone_name": String}, ...].
+func get_tone_changes() -> Array:
+	if _ext == null or not _ext.has_method("get_tone_changes"):
+		return []
+	return _ext.get_tone_changes()
+
+
 ## Decode WEM bytes into an AudioStreamWAV via the AudioEngine GDExtension.
 ## Returns null when the AudioEngine class is absent or decoding fails.
 func _decode_wem_to_stream(wem: PackedByteArray) -> AudioStream:

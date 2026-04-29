@@ -2,14 +2,14 @@
 ///
 /// Uses `rocksmith2014-psarc` and `rocksmith2014-sng` Rust crates directly —
 /// no .NET runtime, no NativeAOT shim, no CLR hosting required.
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fs::File;
 
 use godot::prelude::godot_print;
 use godot::prelude::godot_warn;
 use rocksmith2014_sng::NoteMask;
 pub use rocksmith2014_sng::Platform;
-use serde_json::Value;
+use serde_json::{json, Value};
 
 /// A parsed note extracted from the SNG arrangement.
 #[derive(Clone, Debug)]
@@ -75,6 +75,13 @@ pub struct LevelEntry {
     pub anchors_count: i32,
 }
 
+#[derive(Clone, Debug)]
+pub struct ToneChangeEntry {
+    pub time: f32,
+    pub tone_id: i32,
+    pub tone_name: String,
+}
+
 /// Parsed PSARC contents: notes from the lead (or highest-difficulty) arrangement,
 /// the full-length MAIN WEM for gameplay, and the short PREVIEW WEM for the song list.
 pub struct PsarcData {
@@ -119,6 +126,14 @@ pub struct PsarcData {
     pub has_lead: bool,
     pub has_rhythm: bool,
     pub has_bass: bool,
+    /// Canonical mapped Rustortion preset JSON for the active tone.
+    pub mapped_tone_preset_json: String,
+    /// Mapping details: catalogs, coverage, and per-key status.
+    pub tone_mapping_report_json: String,
+    /// Raw tone/effect summary extracted from RS metadata.
+    pub raw_tone_summary_json: String,
+    /// Time-ordered tone changes from SNG tone events.
+    pub tone_changes: Vec<ToneChangeEntry>,
 }
 
 impl PsarcData {
@@ -154,7 +169,14 @@ impl PsarcData {
             .iter()
             .any(|n| n.ends_with(".sng") && n.contains("bass") && !n.contains("vocals"));
 
-        let (song_title, song_artist, song_year) = extract_hsan_metadata(&mut psarc, &manifest);
+        let hsan_json = extract_hsan_json(&mut psarc, &manifest);
+        let (song_title, song_artist, song_year) = extract_hsan_metadata(hsan_json.as_ref());
+        let (
+            mapped_tone_preset_json,
+            tone_mapping_report_json,
+            raw_tone_summary_json,
+            tone_names,
+        ) = build_tone_mapping_payloads(hsan_json.as_ref());
 
         // ── Find SNG arrangement ──────────────────────────────────────────────
         // Preference: lead > rhythm > bass > any non-vocals SNG
@@ -191,6 +213,7 @@ impl PsarcData {
             sng_difficulty_count,
             sng_is_dynamic_difficulty,
             sng_song_length,
+            tone_changes,
         ) = if let Some(ref name) = sng_name {
             let encrypted = psarc
                 .inflate_file(name)
@@ -442,6 +465,8 @@ impl PsarcData {
                     }
                 };
 
+            let tone_changes = build_tone_changes(&sng.tones, &tone_names);
+
             if !sng.phrase_iterations.is_empty() && is_dynamic_difficulty {
                 // ── Phrase-iteration assembly (primary path) ─────────────────────
                 let mut selected_difficulty = 0i32;
@@ -483,6 +508,7 @@ impl PsarcData {
                     difficulty_count,
                     is_dynamic_difficulty,
                     song_length,
+                    tone_changes,
                 )
             } else if !sng.phrase_iterations.is_empty() {
                 // ── Static arrangement with phraseIterations ─────────────────────
@@ -527,6 +553,7 @@ impl PsarcData {
                             difficulty_count,
                             is_dynamic_difficulty,
                             song_length,
+                            tone_changes,
                         )
                     }
                     None => {
@@ -545,6 +572,7 @@ impl PsarcData {
                             difficulty_count,
                             is_dynamic_difficulty,
                             song_length,
+                            tone_changes,
                         )
                     }
                 }
@@ -588,6 +616,7 @@ impl PsarcData {
                             difficulty_count,
                             is_dynamic_difficulty,
                             song_length,
+                            tone_changes,
                         )
                     }
                     None => {
@@ -606,6 +635,7 @@ impl PsarcData {
                             difficulty_count,
                             is_dynamic_difficulty,
                             song_length,
+                            tone_changes,
                         )
                     }
                 }
@@ -625,6 +655,7 @@ impl PsarcData {
                 1i32,
                 false,
                 0.0f32,
+                vec![],
             )
         };
 
@@ -738,6 +769,10 @@ impl PsarcData {
             has_lead,
             has_rhythm,
             has_bass,
+            mapped_tone_preset_json,
+            tone_mapping_report_json,
+            raw_tone_summary_json,
+            tone_changes,
         })
     }
 }
@@ -779,34 +814,48 @@ fn is_preview_wem_name(name: &str) -> bool {
     name.contains("PREVIEW")
 }
 
-fn extract_hsan_metadata(
+#[derive(Clone, Debug, Default)]
+struct RawGearItem {
+    slot: String,
+    key: String,
+    pedal_type: String,
+    knobs: HashMap<String, f32>,
+}
+
+#[derive(Clone, Debug, Default)]
+struct RawTone {
+    name: String,
+    key: String,
+    descriptors: Vec<String>,
+    amp_key: String,
+    cabinet_key: String,
+    gear_items: Vec<RawGearItem>,
+}
+
+fn extract_hsan_json(
     psarc: &mut rocksmith2014_psarc::Psarc<File>,
     manifest: &[String],
-) -> (String, String, i32) {
+) -> Option<Value> {
     let hsan_name = manifest
         .iter()
-        .find(|n| n.to_ascii_lowercase().ends_with(".hsan"));
-    let Some(hsan_name) = hsan_name else {
-        return (String::new(), String::new(), 0);
-    };
+        .find(|n| n.to_ascii_lowercase().ends_with(".hsan"))?;
+    let bytes = psarc.inflate_file(hsan_name).ok()?;
+    let text = String::from_utf8(bytes).ok()?;
+    serde_json::from_str::<Value>(&text).ok()
+}
 
-    let Ok(bytes) = psarc.inflate_file(hsan_name) else {
-        return (String::new(), String::new(), 0);
-    };
-    let Ok(text) = String::from_utf8(bytes) else {
-        return (String::new(), String::new(), 0);
-    };
-    let Ok(json) = serde_json::from_str::<Value>(&text) else {
+fn extract_hsan_metadata(json: Option<&Value>) -> (String, String, i32) {
+    let Some(json) = json else {
         return (String::new(), String::new(), 0);
     };
 
     let title = find_first_string(
-        &json,
+        json,
         &["SongName", "Title", "songName", "title", "name", "Name"],
     )
     .unwrap_or_default();
     let artist = find_first_string(
-        &json,
+        json,
         &[
             "ArtistName",
             "artistName",
@@ -818,12 +867,527 @@ fn extract_hsan_metadata(
     )
     .unwrap_or_default();
     let year = find_first_i32(
-        &json,
+        json,
         &["AlbumYear", "albumYear", "SongYear", "songYear", "Year", "year"],
     )
     .unwrap_or(0);
 
     (title, artist, year)
+}
+
+fn build_tone_changes(
+    sng_tones: &[rocksmith2014_sng::Tone],
+    tone_names: &[String],
+) -> Vec<ToneChangeEntry> {
+    if sng_tones.is_empty() {
+        if tone_names.is_empty() {
+            return vec![];
+        }
+        return vec![ToneChangeEntry {
+            time: 0.0,
+            tone_id: 0,
+            tone_name: tone_names[0].clone(),
+        }];
+    }
+
+    let mut out: Vec<ToneChangeEntry> = sng_tones
+        .iter()
+        .map(|t| {
+            let name = tone_names
+                .get(t.tone_id.max(0) as usize)
+                .cloned()
+                .unwrap_or_else(|| format!("Tone {}", t.tone_id));
+            ToneChangeEntry {
+                time: t.time,
+                tone_id: t.tone_id,
+                tone_name: name,
+            }
+        })
+        .collect();
+    out.sort_by(|a, b| a.time.partial_cmp(&b.time).unwrap_or(std::cmp::Ordering::Equal));
+    out
+}
+
+fn build_tone_mapping_payloads(
+    json: Option<&Value>,
+) -> (String, String, String, Vec<String>) {
+    const RUSTORTION_STAGE_CATALOG: [&str; 10] = [
+        "Preamp",
+        "Compressor",
+        "ToneStack",
+        "PowerAmp",
+        "Level",
+        "NoiseGate",
+        "MultibandSaturator",
+        "Delay",
+        "Reverb",
+        "Eq",
+    ];
+
+    let tones = json.map(collect_raw_tones).unwrap_or_default();
+    let tone_names: Vec<String> = tones
+        .iter()
+        .map(|t| {
+            if !t.name.is_empty() {
+                t.name.clone()
+            } else if !t.key.is_empty() {
+                t.key.clone()
+            } else {
+                String::from("Unnamed Tone")
+            }
+        })
+        .collect();
+
+    let Some(active_tone) = tones.first() else {
+        let empty_preset = json!({
+            "schema": "rustortion-preset-v1",
+            "source": "rocksmith-tone2014",
+            "tone_name": "Default",
+            "stages": [],
+        });
+        let empty_report = json!({
+            "rs_gear_catalog": [],
+            "rustortion_stage_catalog": RUSTORTION_STAGE_CATALOG,
+            "mapping_rules_catalog": [],
+            "coverage_matrix": {"exact": 0, "approx": 0, "unmapped": 0},
+            "entries": [],
+        });
+        let empty_summary = json!({"tone_count": 0, "tones": []});
+        return (
+            serde_json::to_string(&empty_preset).unwrap_or_else(|_| String::from("{}")),
+            serde_json::to_string(&empty_report).unwrap_or_else(|_| String::from("{}")),
+            serde_json::to_string(&empty_summary).unwrap_or_else(|_| String::from("{}")),
+            tone_names,
+        );
+    };
+
+    let mut rs_gear_catalog: BTreeSet<String> = BTreeSet::new();
+    let mut report_entries: Vec<Value> = Vec::new();
+    let mut stages: Vec<Value> = Vec::new();
+    let mut split_pedals: Vec<Value> = Vec::new();
+    let mut split_effects: Vec<Value> = Vec::new();
+    let mut split_amp = json!({});
+    let mut exact = 0;
+    let mut approx = 0;
+    let mut unmapped = 0;
+
+    for item in &active_tone.gear_items {
+        if !item.key.is_empty() {
+            rs_gear_catalog.insert(item.key.clone());
+        }
+        let decision = map_gear_to_stage(&item.key, &item.slot, &item.pedal_type);
+        let target_stage = decision.stage.as_str();
+        let status = decision.status;
+        let confidence = decision.confidence;
+        if target_stage.is_empty() {
+            unmapped += 1;
+            report_entries.push(json!({
+                "tone": active_tone.name,
+                "slot": item.slot,
+                "pedal_type": item.pedal_type,
+                "key": item.key,
+                "status": "unmapped",
+                "confidence": confidence,
+                "rule": decision.rule,
+            }));
+            continue;
+        }
+
+        let stage = build_stage_payload(target_stage, item);
+        if status == "exact" {
+            exact += 1;
+        } else {
+            approx += 1;
+        }
+        report_entries.push(json!({
+            "tone": active_tone.name,
+            "slot": item.slot,
+            "pedal_type": item.pedal_type,
+            "key": item.key,
+            "target_stage": target_stage,
+            "status": status,
+            "confidence": confidence,
+            "rule": decision.rule,
+        }));
+
+        if item.slot.eq_ignore_ascii_case("amp") {
+            split_amp = stage.clone();
+        } else if item.slot.to_ascii_lowercase().starts_with("prepedal") {
+            split_pedals.push(stage.clone());
+        } else {
+            split_effects.push(stage.clone());
+        }
+
+        stages.push(stage);
+    }
+
+    let mapping_rules = vec![
+        json!({"rule": "slot=amp or key starts amp_", "target_stage": "Preamp", "status": "exact"}),
+        json!({"rule": "slot=cabinet or key starts cabinet_", "target_stage": "ToneStack", "status": "exact"}),
+        json!({"rule": "key/type has comp|compressor|limiter|sustain", "target_stage": "Compressor", "status": "exact"}),
+        json!({"rule": "key/type has gate|noise gate", "target_stage": "NoiseGate", "status": "exact"}),
+        json!({"rule": "key/type has delay|echo|slap|tape", "target_stage": "Delay", "status": "exact"}),
+        json!({"rule": "key/type has reverb|verb|hall|room|plate|spring", "target_stage": "Reverb", "status": "exact"}),
+        json!({"rule": "key/type has eq|graphic|parametric", "target_stage": "Eq", "status": "exact"}),
+        json!({"rule": "key/type has wah|filter|talk", "target_stage": "Eq", "status": "approx"}),
+        json!({"rule": "key/type has drive|dist|fuzz|boost|od", "target_stage": "MultibandSaturator", "status": "exact"}),
+        json!({"rule": "key/type has chorus|phaser|flange|vibrato|trem|rotary", "target_stage": "Delay", "status": "approx"}),
+        json!({"rule": "fallback pre-pedal slot", "target_stage": "MultibandSaturator", "status": "approx"}),
+        json!({"rule": "fallback post/rack slot", "target_stage": "Level", "status": "approx"}),
+    ];
+
+    let preset = json!({
+        "schema": "rustortion-preset-v1",
+        "source": "rocksmith-tone2014",
+        "tone_name": if active_tone.name.is_empty() { active_tone.key.clone() } else { active_tone.name.clone() },
+        "stages": stages,
+    });
+    let report = json!({
+        "rs_gear_catalog": rs_gear_catalog.into_iter().collect::<Vec<String>>(),
+        "rustortion_stage_catalog": RUSTORTION_STAGE_CATALOG,
+        "mapping_rules_catalog": mapping_rules,
+        "coverage_matrix": {"exact": exact, "approx": approx, "unmapped": unmapped},
+        "entries": report_entries,
+    });
+    let summary = json!({
+        "tone_count": tone_names.len(),
+        "tones": tones.iter().map(|t| {
+            json!({
+                "name": t.name,
+                "key": t.key,
+                "descriptors": t.descriptors,
+                "amp_key": t.amp_key,
+                "cabinet_key": t.cabinet_key,
+            })
+        }).collect::<Vec<Value>>(),
+        "split_json": {
+            "amp": split_amp,
+            "pedals": split_pedals,
+            "effects": split_effects,
+        },
+    });
+
+    (
+        serde_json::to_string(&preset).unwrap_or_else(|_| String::from("{}")),
+        serde_json::to_string(&report).unwrap_or_else(|_| String::from("{}")),
+        serde_json::to_string(&summary).unwrap_or_else(|_| String::from("{}")),
+        tone_names,
+    )
+}
+
+fn collect_raw_tones(root: &Value) -> Vec<RawTone> {
+    fn walk(v: &Value, out: &mut Vec<RawTone>, seen: &mut HashSet<String>) {
+        match v {
+            Value::Object(map) => {
+                if map.keys().any(|k| k.eq_ignore_ascii_case("GearList")) {
+                    if let Some(tone) = parse_tone_object(map) {
+                        let sig = format!("{}::{}", tone.key, tone.name);
+                        if seen.insert(sig) {
+                            out.push(tone);
+                        }
+                    }
+                }
+                for value in map.values() {
+                    walk(value, out, seen);
+                }
+            }
+            Value::Array(arr) => {
+                for value in arr {
+                    walk(value, out, seen);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let mut out = Vec::new();
+    let mut seen = HashSet::new();
+    walk(root, &mut out, &mut seen);
+    out
+}
+
+fn parse_tone_object(map: &serde_json::Map<String, Value>) -> Option<RawTone> {
+    let gear = get_object_ci(map, "GearList")?;
+    let name = get_string_ci(map, &["Name", "name"]).unwrap_or_default();
+    let key = get_string_ci(map, &["Key", "key"]).unwrap_or_default();
+    let descriptors = get_array_string_ci(map, "ToneDescriptors");
+
+    let mut tone = RawTone {
+        name,
+        key,
+        descriptors,
+        ..RawTone::default()
+    };
+
+    for slot in [
+        "Amp",
+        "Cabinet",
+        "PrePedal1",
+        "PrePedal2",
+        "PrePedal3",
+        "PrePedal4",
+        "PostPedal1",
+        "PostPedal2",
+        "PostPedal3",
+        "PostPedal4",
+        "Rack1",
+        "Rack2",
+        "Rack3",
+        "Rack4",
+    ] {
+        if let Some(item) = parse_gear_slot(gear, slot) {
+            if slot.eq_ignore_ascii_case("Amp") {
+                tone.amp_key = item.key.clone();
+            }
+            if slot.eq_ignore_ascii_case("Cabinet") {
+                tone.cabinet_key = item.key.clone();
+            }
+            tone.gear_items.push(item);
+        }
+    }
+
+    Some(tone)
+}
+
+fn parse_gear_slot(gear: &serde_json::Map<String, Value>, slot: &str) -> Option<RawGearItem> {
+    let obj = get_object_ci(gear, slot)?;
+    let key = get_string_ci(obj, &["PedalKey", "Key", "key"]).unwrap_or_default();
+    let pedal_type = get_string_ci(obj, &["Type", "PedalType", "type"]).unwrap_or_default();
+    let knobs = get_knob_values_ci(obj);
+    if key.is_empty() && knobs.is_empty() && pedal_type.is_empty() {
+        return None;
+    }
+    Some(RawGearItem {
+        slot: slot.to_string(),
+        key,
+        pedal_type,
+        knobs,
+    })
+}
+
+fn get_object_ci<'a>(
+    map: &'a serde_json::Map<String, Value>,
+    key: &str,
+) -> Option<&'a serde_json::Map<String, Value>> {
+    let value = map
+        .iter()
+        .find(|(k, _)| k.eq_ignore_ascii_case(key))
+        .map(|(_, v)| v)?;
+    value.as_object()
+}
+
+fn get_string_ci(map: &serde_json::Map<String, Value>, keys: &[&str]) -> Option<String> {
+    for (k, v) in map {
+        if keys.iter().any(|wanted| k.eq_ignore_ascii_case(wanted)) {
+            if let Some(s) = v.as_str() {
+                let trimmed = s.trim();
+                if !trimmed.is_empty() {
+                    return Some(trimmed.to_string());
+                }
+            }
+        }
+    }
+    None
+}
+
+fn get_array_string_ci(map: &serde_json::Map<String, Value>, key: &str) -> Vec<String> {
+    let Some(value) = map
+        .iter()
+        .find(|(k, _)| k.eq_ignore_ascii_case(key))
+        .map(|(_, v)| v)
+    else {
+        return vec![];
+    };
+    value
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect::<Vec<String>>()
+        })
+        .unwrap_or_default()
+}
+
+fn get_knob_values_ci(map: &serde_json::Map<String, Value>) -> HashMap<String, f32> {
+    let mut out = HashMap::new();
+    let Some(value) = map
+        .iter()
+        .find(|(k, _)| k.eq_ignore_ascii_case("KnobValues"))
+        .map(|(_, v)| v)
+    else {
+        return out;
+    };
+
+    if let Some(obj) = value.as_object() {
+        for (k, v) in obj {
+            if let Some(n) = v.as_f64() {
+                out.insert(k.clone(), n as f32);
+            }
+        }
+        return out;
+    }
+
+    if let Some(arr) = value.as_array() {
+        for kv in arr {
+            if let Some(kv_obj) = kv.as_object() {
+                let k = get_string_ci(kv_obj, &["Key", "key"]).unwrap_or_default();
+                let v = kv_obj
+                    .iter()
+                    .find(|(name, _)| name.eq_ignore_ascii_case("Value"))
+                    .and_then(|(_, val)| val.as_f64())
+                    .map(|x| x as f32)
+                    .unwrap_or(0.0);
+                if !k.is_empty() {
+                    out.insert(k, v);
+                }
+            }
+        }
+    }
+
+    out
+}
+
+#[derive(Clone, Debug)]
+struct MappingDecision {
+    stage: String,
+    status: &'static str,
+    confidence: f32,
+    rule: &'static str,
+}
+
+fn map_gear_to_stage(key: &str, slot: &str, pedal_type: &str) -> MappingDecision {
+    let key_lc = key.to_ascii_lowercase();
+    let slot_lc = slot.to_ascii_lowercase();
+    let type_lc = pedal_type.to_ascii_lowercase();
+    let combined = format!("{} {}", key_lc, type_lc);
+
+    let has_any = |needles: &[&str]| -> bool {
+        needles.iter().any(|n| combined.contains(n))
+    };
+
+    if slot_lc == "amp" || key_lc.contains("amp_") {
+        return MappingDecision {
+            stage: String::from("Preamp"),
+            status: "exact",
+            confidence: 0.98,
+            rule: "slot=amp or key starts amp_",
+        };
+    }
+    if slot_lc == "cabinet" || key_lc.contains("cabinet_") || key_lc.contains("cab_") {
+        return MappingDecision {
+            stage: String::from("ToneStack"),
+            status: "exact",
+            confidence: 0.9,
+            rule: "slot=cabinet or key starts cabinet_",
+        };
+    }
+    if has_any(&["compressor", "comp", "limiter", "sustain"]) {
+        return MappingDecision {
+            stage: String::from("Compressor"),
+            status: "exact",
+            confidence: 0.92,
+            rule: "key/type has comp|compressor|limiter|sustain",
+        };
+    }
+    if has_any(&["noisegate", "noise_gate", "gate"]) {
+        return MappingDecision {
+            stage: String::from("NoiseGate"),
+            status: "exact",
+            confidence: 0.9,
+            rule: "key/type has gate|noise gate",
+        };
+    }
+    if has_any(&["delay", "echo", "slap", "tape"]) {
+        return MappingDecision {
+            stage: String::from("Delay"),
+            status: "exact",
+            confidence: 0.92,
+            rule: "key/type has delay|echo|slap|tape",
+        };
+    }
+    if has_any(&["reverb", "verb", "hall", "room", "plate", "spring"]) {
+        return MappingDecision {
+            stage: String::from("Reverb"),
+            status: "exact",
+            confidence: 0.9,
+            rule: "key/type has reverb|verb|hall|room|plate|spring",
+        };
+    }
+    if has_any(&["eq", "graphic", "parametric"]) {
+        return MappingDecision {
+            stage: String::from("Eq"),
+            status: "exact",
+            confidence: 0.88,
+            rule: "key/type has eq|graphic|parametric",
+        };
+    }
+    if has_any(&["wah", "filter", "talk"]) {
+        return MappingDecision {
+            stage: String::from("Eq"),
+            status: "approx",
+            confidence: 0.62,
+            rule: "key/type has wah|filter|talk",
+        };
+    }
+    if has_any(&[
+        "dist", "drive", "fuzz", "overdrive", "od", "boost", "metal",
+    ]) {
+        return MappingDecision {
+            stage: String::from("MultibandSaturator"),
+            status: "exact",
+            confidence: 0.86,
+            rule: "key/type has drive|dist|fuzz|boost|od",
+        };
+    }
+    if has_any(&["chorus", "phaser", "phase", "flange", "vibrato", "trem", "rotary"]) {
+        return MappingDecision {
+            stage: String::from("Delay"),
+            status: "approx",
+            confidence: 0.5,
+            rule: "key/type has chorus|phaser|flange|vibrato|trem|rotary",
+        };
+    }
+
+    if slot_lc.starts_with("prepedal") {
+        return MappingDecision {
+            stage: String::from("MultibandSaturator"),
+            status: "approx",
+            confidence: 0.4,
+            rule: "fallback pre-pedal slot",
+        };
+    }
+    if slot_lc.starts_with("postpedal") || slot_lc.starts_with("rack") {
+        return MappingDecision {
+            stage: String::from("Level"),
+            status: "approx",
+            confidence: 0.35,
+            rule: "fallback post/rack slot",
+        };
+    }
+
+    MappingDecision {
+        stage: String::new(),
+        status: "unmapped",
+        confidence: 0.0,
+        rule: "no rule matched",
+    }
+}
+
+fn build_stage_payload(stage_type: &str, item: &RawGearItem) -> Value {
+    let mut knobs = serde_json::Map::new();
+    for (k, v) in &item.knobs {
+        knobs.insert(k.clone(), json!(*v));
+    }
+
+    json!({
+        "type": stage_type,
+        "source_slot": item.slot,
+        "source_pedal_type": item.pedal_type,
+        "source_key": item.key,
+        "params": {
+            "knobs": knobs,
+        },
+    })
 }
 
 fn find_first_string(v: &Value, keys: &[&str]) -> Option<String> {
