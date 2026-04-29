@@ -1,7 +1,7 @@
 ## test_gdextension.gd — validates the GoGuitar2 GDExtension at runtime.
 ##
 ## Run headless from the project root:
-##   Godot_v4.4.1-stable_linux.x86_64 --headless --path . --script tests/test_gdextension.gd
+##   Godot_v4.5.2-stable_linux.x86_64 --headless --path . --script tests/test_gdextension.gd
 ##
 ## Exit code  0 → all tests passed
 ## Exit code  1 → one or more tests failed

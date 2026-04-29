@@ -1,13 +1,13 @@
 ## Tuner3D — 3D scene root for the live tuner.
 ##
-## The gauge is a SubViewport (pitch_gauge.gd) textured onto a 3D QuadMesh plane.
+## The tuner indicator is a TU300-style LED bar built from small 3D meshes
+## that light up left/center/right for pitch guidance.
 ## The fretboard is the real scenes/fretboard.tscn (MeshInstance3D cylinders with
 ## string_glow.gdshader) instanced directly in the 3D world.
 ## Text labels (note name, Hz, guidance, etc.) stay in a CanvasLayer overlay.
 extends Node3D
 
 const _GameStateScript = preload("res://scripts/game_state.gd")
-const _PitchGaugeScript = preload("res://scripts/tuner/pitch_gauge.gd")
 
 const DEFAULT_TUNING_NAME: String = "E Standard"
 const DEFAULT_TUNING_NOTES: Array[String] = ["E2", "A2", "D3", "G3", "B3", "E4"]
@@ -24,19 +24,37 @@ const CAMERA_FOV_DEGREES: float = 32.0
 const FRETBOARD_RIG_POSITION: Vector3 = Vector3(0.0, -8.8, -12.0)
 const FRETBOARD_RIG_ROTATION: Vector3 = Vector3(0.0, -45.0, -15.0)
 const FRETBOARD_OFFSET: Vector3 = Vector3(-24.0, -1.5, 0.0)
-const GAUGE_PLANE_POSITION: Vector3 = Vector3(0.0, 10.0, -4.0)
-const GAUGE_PLANE_SCALE: Vector3 = Vector3(7.2, 7.2, 1.0)
+const INDICATOR_RIG_POSITION: Vector3 = Vector3(0.0, 9.2, -6.5)
+const INDICATOR_RIG_ROTATION: Vector3 = Vector3(-10.0, 0.0, 0.0)
+const INDICATOR_LABEL_OFFSET: Vector3 = Vector3(0.0, -0.82, 0.35)
+
+const INDICATOR_SEGMENT_COUNT: int = 13
+const INDICATOR_SEGMENT_SIZE: Vector3 = Vector3(0.7, 0.18, 0.24)
+const INDICATOR_SEGMENT_GAP: float = 0.16
+const INDICATOR_BASE_PADDING: Vector3 = Vector3(1.2, 0.22, 0.8)
+const INDICATOR_MIN_CENTS: float = -50.0
+const INDICATOR_MAX_CENTS: float = 50.0
+
+const INDICATOR_BASE_COLOR: Color = Color(0.07, 0.09, 0.13)
+const INDICATOR_DIM_COLOR: Color = Color(0.08, 0.12, 0.16)
+const INDICATOR_LOW_COLOR: Color = Color(0.45, 0.75, 1.0)
+const INDICATOR_CENTER_COLOR: Color = Color(0.4, 1.0, 0.5)
+const INDICATOR_HIGH_COLOR: Color = Color(1.0, 0.55, 0.35)
+const INDICATOR_DIM_EMISSION: float = 0.25
+const INDICATOR_ACTIVE_EMISSION: float = 1.6
+const INDICATOR_PEAK_EMISSION: float = 2.4
+const INDICATOR_LABEL_TEXT: String = "← too low | center | too high →"
 
 const NOTE_NAMES: PackedStringArray = [
 	"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"
 ]
 
 # ── 3D scene nodes ─────────────────────────────────────────────────────────────
-@onready var _gauge_viewport: SubViewport    = $GaugeViewport
-@onready var _gauge_plane: MeshInstance3D    = $GaugePlane
-@onready var _gauge_meter: _PitchGaugeScript = $GaugeViewport/GaugeMeter
 @onready var _fretboard_rig: Node3D          = $FretboardRig
 @onready var _fretboard_3d                   = $FretboardRig/Fretboard
+@onready var _indicator_rig: Node3D          = $IndicatorRig
+@onready var _indicator_segments_root: Node3D = $IndicatorRig/IndicatorSegments
+@onready var _indicator_label: Label3D       = $IndicatorRig/IndicatorLabel
 
 # ── CanvasLayer text nodes ─────────────────────────────────────────────────────
 @onready var _tuning_name_label: Label     = $UIOverlay/MarginContainer/VBoxRoot/TopMeta/TuningNameLabel
@@ -61,10 +79,15 @@ var _smoothed_cents:   float = 0.0
 var _has_detection:    bool  = false
 var _last_detection_ms: int  = 0
 
+var _indicator_segments: Array[MeshInstance3D] = []
+var _indicator_materials: Array[StandardMaterial3D] = []
+var _indicator_center_idx: int = 0
+
 
 func _ready() -> void:
-	# Build 3D atmosphere (Camera, WorldEnvironment, light) and wire gauge texture.
+	# Build 3D atmosphere (Camera, WorldEnvironment, light) and the LED indicator.
 	_build_3d_environment()
+	_build_indicator_meshes()
 	_apply_3d_layout()
 
 	_target_notes = _GameStateScript.selected_tuning_notes.duplicate()
@@ -80,7 +103,6 @@ func _ready() -> void:
 	_selected_string_label.text = "Selected string: Auto (closest target note)"
 	_target_freqs = _build_target_freqs(_target_notes)
 
-	_gauge_meter.set_meter_value(0.0, false, false)
 	_set_waiting_ui()
 
 	if ClassDB.class_exists("PitchDetector"):
@@ -120,7 +142,7 @@ func _build_3d_environment() -> void:
 	add_child(env_node)
 
 	# Perspective framing keeps the full-scale fretboard readable after the
-	# requested rotation and preserves depth between the gauge plane and strings.
+	# requested rotation and preserves depth between the indicator bar and strings.
 	_camera = Camera3D.new()
 	_camera.current = true
 	_camera.fov = CAMERA_FOV_DEGREES
@@ -135,19 +157,65 @@ func _build_3d_environment() -> void:
 	key_light.light_energy     = 0.7
 	add_child(key_light)
 
-	# Wire the SubViewport gauge texture onto the 3D quad plane (transparent bg
-	# so only the arc, ticks and needle float over the 3D scene).
-	_gauge_viewport.transparent_bg = true
-	var mat := StandardMaterial3D.new()
-	mat.albedo_texture            = _gauge_viewport.get_texture()
-	mat.shading_mode              = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.transparency              = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.cull_mode                 = BaseMaterial3D.CULL_DISABLED
-	mat.billboard_mode            = BaseMaterial3D.BILLBOARD_DISABLED
-	_gauge_plane.material_override = mat
+func _build_indicator_meshes() -> void:
+	if _indicator_segments_root == null:
+		return
+	for child in _indicator_segments_root.get_children():
+		child.queue_free()
+	_indicator_segments.clear()
+	_indicator_materials.clear()
+
+	_indicator_center_idx = int(floor(float(INDICATOR_SEGMENT_COUNT) * 0.5))
+	var segment_mesh := BoxMesh.new()
+	segment_mesh.size = INDICATOR_SEGMENT_SIZE
+	var total_width: float = INDICATOR_SEGMENT_SIZE.x * float(INDICATOR_SEGMENT_COUNT) \
+			+ INDICATOR_SEGMENT_GAP * float(INDICATOR_SEGMENT_COUNT - 1)
+
+	var base_mesh := BoxMesh.new()
+	base_mesh.size = Vector3(
+		total_width + INDICATOR_BASE_PADDING.x,
+		INDICATOR_SEGMENT_SIZE.y + INDICATOR_BASE_PADDING.y,
+		INDICATOR_SEGMENT_SIZE.z + INDICATOR_BASE_PADDING.z
+	)
+	var base := MeshInstance3D.new()
+	base.mesh = base_mesh
+	var base_mat := StandardMaterial3D.new()
+	base_mat.albedo_color = INDICATOR_BASE_COLOR
+	base_mat.roughness = 0.42
+	base_mat.metallic = 0.1
+	base.material_override = base_mat
+	base.position = Vector3(0.0, -INDICATOR_BASE_PADDING.y * 0.35, 0.0)
+	_indicator_segments_root.add_child(base)
+
+	var left_edge: float = -total_width * 0.5 + INDICATOR_SEGMENT_SIZE.x * 0.5
+	for i in range(INDICATOR_SEGMENT_COUNT):
+		var segment := MeshInstance3D.new()
+		segment.mesh = segment_mesh
+		segment.position = Vector3(
+			left_edge + float(i) * (INDICATOR_SEGMENT_SIZE.x + INDICATOR_SEGMENT_GAP),
+			0.0,
+			0.0
+		)
+		var mat := StandardMaterial3D.new()
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.emission_enabled = true
+		_set_indicator_material(mat, INDICATOR_DIM_COLOR, INDICATOR_DIM_EMISSION)
+		segment.material_override = mat
+		_indicator_segments_root.add_child(segment)
+		_indicator_segments.append(segment)
+		_indicator_materials.append(mat)
+
+	if _indicator_label != null:
+		_indicator_label.text = INDICATOR_LABEL_TEXT
+		_indicator_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		_indicator_label.pixel_size = 0.007
+		_indicator_label.font_size = 24
+		_indicator_label.modulate = Color(0.85, 0.88, 0.92, 1.0)
+		_indicator_label.outline_size = 6
+		_indicator_label.outline_modulate = Color(0.0, 0.0, 0.0, 0.9)
 
 func _apply_3d_layout() -> void:
-	if _fretboard_rig == null or _fretboard_3d == null or _gauge_plane == null:
+	if _fretboard_rig == null or _fretboard_3d == null or _indicator_rig == null:
 		return
 
 	# Center the real fretboard scene on the rig before applying the requested
@@ -156,8 +224,10 @@ func _apply_3d_layout() -> void:
 	_fretboard_rig.rotation_degrees = FRETBOARD_RIG_ROTATION
 	_fretboard_3d.position = FRETBOARD_OFFSET
 
-	_gauge_plane.position = GAUGE_PLANE_POSITION
-	_gauge_plane.scale = GAUGE_PLANE_SCALE
+	_indicator_rig.position = INDICATOR_RIG_POSITION
+	_indicator_rig.rotation_degrees = INDICATOR_RIG_ROTATION
+	if _indicator_label != null:
+		_indicator_label.position = INDICATOR_LABEL_OFFSET
 
 
 # ── Game loop ─────────────────────────────────────────────────────────────────
@@ -240,7 +310,7 @@ func _apply_live_ui(target_idx: int) -> void:
 	_frequency_label.text     = "%.2f Hz" % _smoothed_freq_hz
 	_cents_label.text         = "Offset: %+0.1f cents vs %s (%.2f Hz)" % \
 			[_smoothed_cents, _target_notes[target_idx], target_hz]
-	_gauge_meter.set_meter_value(_smoothed_cents, true, is_in_tune)
+	_set_indicator_state(_smoothed_cents, true, is_in_tune)
 	_update_side_note_labels(note_name)
 
 	# Clear all string glows, then light the active string
@@ -271,10 +341,47 @@ func _set_waiting_ui() -> void:
 	_right_note_label.text    = "--"
 	_guidance_label.text      = "Waiting for signal..."
 	_guidance_label.modulate  = Color(1.0, 1.0, 1.0)
-	_gauge_meter.set_meter_value(0.0, false, false)
+	_set_indicator_state(0.0, false, false)
 	# Extinguish all strings while waiting for audio
 	for i in _target_freqs.size():
 		_fretboard_3d.set_string_glow(i, 0.0)
+
+
+func _set_indicator_state(cents: float, has_signal: bool, is_in_tune: bool) -> void:
+	if _indicator_materials.is_empty():
+		return
+	for mat in _indicator_materials:
+		_set_indicator_material(mat, INDICATOR_DIM_COLOR, INDICATOR_DIM_EMISSION)
+
+	if not has_signal:
+		return
+
+	var center_idx: int = _indicator_center_idx
+	var clamped: float = clampf(cents, INDICATOR_MIN_CENTS, INDICATOR_MAX_CENTS)
+	if is_in_tune:
+		_set_indicator_material(_indicator_materials[center_idx], INDICATOR_CENTER_COLOR, INDICATOR_PEAK_EMISSION)
+		return
+
+	var t: float = (clamped - INDICATOR_MIN_CENTS) / (INDICATOR_MAX_CENTS - INDICATOR_MIN_CENTS)
+	var target_idx: int = int(round(t * float(INDICATOR_SEGMENT_COUNT - 1)))
+	var color: Color = INDICATOR_LOW_COLOR if clamped < 0.0 else INDICATOR_HIGH_COLOR
+	var step: int = 1 if target_idx >= center_idx else -1
+	var distance: int = max(1, abs(target_idx - center_idx))
+	var i: int = center_idx
+	var step_idx: int = 0
+	while true:
+		var intensity: float = lerpf(INDICATOR_ACTIVE_EMISSION, INDICATOR_PEAK_EMISSION, float(step_idx) / float(distance))
+		_set_indicator_material(_indicator_materials[i], color, intensity)
+		if i == target_idx:
+			break
+		i += step
+		step_idx += 1
+
+
+func _set_indicator_material(mat: StandardMaterial3D, color: Color, emission: float) -> void:
+	mat.albedo_color = color
+	mat.emission = color
+	mat.emission_energy_multiplier = emission
 
 
 # ── Pitch math helpers ────────────────────────────────────────────────────────

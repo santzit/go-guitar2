@@ -1,7 +1,6 @@
-[gd_scene load_steps=8 format=3 uid="uid://tuner3d"]
+[gd_scene load_steps=6 format=3 uid="uid://tuner3d"]
 
 [ext_resource type="Script" path="res://scripts/tuner/tuner_3d.gd" id="1"]
-[ext_resource type="Script" path="res://scripts/tuner/pitch_gauge.gd" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/fretboard.tscn" id="3_fretboard"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_circle"]
@@ -25,31 +24,18 @@ corner_radius_top_right = 18
 corner_radius_bottom_right = 18
 corner_radius_bottom_left = 18
 
-[sub_resource type="QuadMesh" id="QuadMesh_gauge"]
-size = Vector2(2.1, 1.05)
-
 [node name="TunerScene" type="Node3D"]
 script = ExtResource("1")
-
-[node name="GaugeViewport" type="SubViewport" parent="."]
-size = Vector2i(800, 400)
-render_target_update_mode = 4
-
-[node name="GaugeMeter" type="Control" parent="GaugeViewport"]
-layout_mode = 3
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-script = ExtResource("2")
-
-[node name="GaugePlane" type="MeshInstance3D" parent="."]
-mesh = SubResource("QuadMesh_gauge")
 
 [node name="FretboardRig" type="Node3D" parent="."]
 
 [node name="Fretboard" parent="FretboardRig" instance=ExtResource("3_fretboard")]
+
+[node name="IndicatorRig" type="Node3D" parent="."]
+
+[node name="IndicatorSegments" type="Node3D" parent="IndicatorRig"]
+
+[node name="IndicatorLabel" type="Label3D" parent="IndicatorRig"]
 
 [node name="UIOverlay" type="CanvasLayer" parent="."]
 layer = 1
