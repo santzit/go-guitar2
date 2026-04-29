@@ -8,11 +8,11 @@ Tests live in `tests/` and use Godot's `SceneTree`-based headless runner.
 
 ```bash
 # From the project root:
-GODOT="./Godot_v4.4.1-stable_linux.x86_64"
+GODOT="./Godot_v4.5.2-stable_linux.x86_64"
 
 # One-time: import the project so GDExtension classes are registered.
 # This generates .godot/extension_list.cfg (already committed) and any
-# missing imported asset data.  Required for RocksmithBridge / AudioEngine
+# missing imported asset data.  Required for RSAPI_SNG / AudioEngine
 # to appear in ClassDB when running headless.
 Xvfb :99 -screen 0 1280x720x24 &
 DISPLAY=:99 $GODOT --headless --path . --import

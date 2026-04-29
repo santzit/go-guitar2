@@ -1,0 +1,12 @@
+[submodule "gdextension/extern/q"]
+	path = gdextension/extern/q
+	url = https://github.com/cycfi/q.git
+	branch = master
+
+[submodule "gdextension/extern/infra"]
+	path = gdextension/extern/infra
+	url = https://github.com/cycfi/infra.git
+	branch = master
+[submodule "gdextension/extern/Rocksmith2014.rs"]
+	path = gdextension/extern/Rocksmith2014.rs
+	url = https://github.com/santzit/Rocksmith2014.rs.git

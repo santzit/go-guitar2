@@ -8,14 +8,19 @@ static var selected_psarc_path: String = ""
 ## Maps to DDC bands: 0–33=Easy, 34–66=Medium, 67–100=Hard.
 static var difficulty_percent: float = 100.0
 
+## Tuner state (shared between tuning list and live tuner scenes).
+static var selected_tuning_name: String = "E Standard"
+## 6-note array from low string to high string (e.g. ["E2","A2","D3","G3","B3","E4"]).
+static var selected_tuning_notes: Array[String] = ["E2", "A2", "D3", "G3", "B3", "E4"]
+
 ## ── Mixer settings (persisted to user://mixer_settings.cfg) ─────────────────
 
 const BUS_COUNT: int = 9
 
-## Display names for each bus (index matches BusId in gg-mixer / RtEngine).
+## Display names for each bus.
 const BUS_NAMES: Array = [
 	"UI", "Music", "Lead Guitar", "Rhythm Guitar", "Bass",
-	"Player Instrument", "Master", "Metronome", "Mic Room"
+	"Player 1", "Master", "Metronome", "Mic Room"
 ]
 
 ## Per-bus gain in dB.  Range: -60.0 to +6.0.  Default: 0.0 (unity gain).
@@ -42,15 +47,6 @@ static func load_mixer_settings() -> void:
 	for i in BUS_COUNT:
 		bus_gains_db[i] = cfg.get_value("mixer", "gain_db_%d" % i, 0.0)
 		bus_mutes[i]    = cfg.get_value("mixer", "mute_%d" % i,    false)
-
-
-## Apply the current mixer settings to a running RtEngine GDExtension object.
-static func apply_mixer_to_rt_engine(rt: Object) -> void:
-	if rt == null:
-		return
-	for i in BUS_COUNT:
-		rt.set_bus_gain_db(i, bus_gains_db[i])
-		rt.set_bus_mute(i,    bus_mutes[i])
 
 
 ## Return sorted absolute PSARC paths from known DLC folders.

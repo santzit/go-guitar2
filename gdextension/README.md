@@ -12,7 +12,7 @@ no .NET runtime, no external DLLs required.
 | Tool | Version |
 |------|---------|
 | [Rust toolchain](https://rustup.rs) | stable ≥ 1.75 |
-| [Godot Game Engine](https://github.com/godotengine/godot) | 4.4.1 |
+| [Godot Game Engine](https://github.com/godotengine/godot) | 4.5.2 |
 
 ---
 
@@ -20,7 +20,8 @@ no .NET runtime, no external DLLs required.
 
 ```bash
 cd gdextension
-cargo build --release
+cargo build --release -p godot_goguitar_rs
+cargo build --release -p godot_qengine_rs
 ```
 
 Copy the compiled library to `bin/`:
@@ -28,6 +29,7 @@ Copy the compiled library to `bin/`:
 ```bash
 # Linux
 cp target/release/libgodot_goguitar_rs.so bin/
+cp target/release/libgodot_qengine_rs.so bin/
 
 # Windows
 cp target/release/godot_goguitar_rs.dll bin/
@@ -37,8 +39,8 @@ cp target/release/godot_goguitar_rs.dll ../bin/
 cp target/release/libgodot_goguitar_rs.dylib bin/
 ```
 
-Then open the project in Godot 4.4. The `RocksmithBridge` class becomes
-available in GDScript and is used automatically by `scripts/rs_bridge.gd`.
+Then open the project in Godot 4.5.2. The `RSAPI_SNG` and `QEngine` classes become
+available in GDScript and are used by gameplay scenes.
 
 ---
 
@@ -48,7 +50,7 @@ available in GDScript and is used automatically by `scripts/rs_bridge.gd`.
 |--------|-----------|-------------|
 | `load_psarc` | `(path: String) -> bool` | Open and parse a `.psarc` file (absolute path) |
 | `get_notes` | `() -> Array[Dictionary]` | Notes with keys `time`, `fret`, `string`, `duration` |
-| `get_audio_bytes` | `() -> PackedByteArray` | Raw OGG audio bytes from the song |
+| `get_play_events` | `() -> Array[Dictionary]` | Unified single/chord gameplay events |
 
 ---
 

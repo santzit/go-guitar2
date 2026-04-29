@@ -71,12 +71,18 @@ var _indicators    : Array          = []
 ## p_chord_name:   String — displayed only on first/changed occurrence
 ## p_show_details: bool   — true = label visible (chords only)
 ## p_event_kind:   String — "single" or "chord"
+## p_force_outline: bool  — true = render outline even for single-note arpeggios in a handShape
 func setup(
 		p_notes: Array,
 		p_time: float,
 		p_chord_name: String,
 		p_show_details: bool,
-		p_event_kind: String
+		p_event_kind: String,
+		p_force_outline: bool = false,
+		p_outline_min_fret: int = -1,
+		p_outline_max_fret: int = -1,
+		p_outline_min_string: int = -1,
+		p_outline_max_string: int = -1
 ) -> void:
 	time_offset = p_time
 	is_active   = true
@@ -99,6 +105,14 @@ func setup(
 	if min_fret == 999 or min_string == 999:
 		return
 
+	if p_force_outline:
+		if p_outline_min_fret >= 1 and p_outline_max_fret >= p_outline_min_fret:
+			min_fret = p_outline_min_fret
+			max_fret = p_outline_max_fret
+		if p_outline_min_string >= 0 and p_outline_max_string >= p_outline_min_string:
+			min_string = p_outline_min_string
+			max_string = p_outline_max_string
+
 	# ── Container world position (for border / label anchor) ──────────────────
 	# Both edges are computed directly from fret_separator_world_x so they land
 	# on exactly the same separator line positions drawn by fretboard.gd and
@@ -119,8 +133,8 @@ func setup(
 	var center_y : float = (top_y + bot_y) * 0.5
 	position = Vector3(center_x, center_y, START_Z)
 
-	var show_outline : bool = not is_single_event
-	var show_label   : bool = p_show_details and not is_single_event
+	var show_outline : bool = p_force_outline or not is_single_event
+	var show_label   : bool = p_show_details and (p_force_outline or not is_single_event)
 
 	# ── Border box ─────────────────────────────────────────────────────────────
 	if show_outline:

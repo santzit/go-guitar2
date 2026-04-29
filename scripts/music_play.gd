@@ -7,7 +7,7 @@ const _GoGuitarBridgeScript = preload("res://scripts/goguitar_bridge.gd")
 const _GameStateScript = preload("res://scripts/game_state.gd")
 const ChartCommon = preload("res://scripts/common.gd")
 
-# -- Mixer bus indices (must match GameState.BUS_NAMES / gg-mixer BusId) ------
+# -- Mixer bus indices (must match GameState.BUS_NAMES) -----------------------
 const BUS_MUSIC  : int = 1   # Music bus
 const BUS_MASTER : int = 6   # Master bus
 
@@ -37,9 +37,16 @@ const CAMERA_Y          : float = 4
 ## Fretboard strings are at Z=0 (strum/arrival side); notes spawn at Z=-20.
 ## Z=10 gives a good overview angle similar to ChartPlayer's default.
 const CAMERA_Z          : float = 8
+const CAMERA_Z_MIN      : float = 6.0
+const CAMERA_Z_MAX      : float = 18.0
 ## Look-at target Z — aimed one-third into the highway depth for a natural rake.
 const CAMERA_LOOK_AT_Z  : float = -7.0
-const CAMERA_LERP_SPEED : float = 1.0    # units/s for smooth pan
+const CAMERA_LERP_SPEED : float = 0.5    # slower pan for cinematic drift
+const CAMERA_Z_LERP_SPEED : float = 0.65
+const CAMERA_EVENT_LOOKBACK : float = 0.35
+const CAMERA_FRAME_PADDING : float = 1.45
+const CAMERA_X_DEADZONE    : float = 0.45
+const CAMERA_Z_DEADZONE    : float = 0.6
 ## Camera X clamp — keeps the camera from tracking to the highway edges.
 const CAMERA_X_MIN      : float = 1.75
 const CAMERA_X_MAX      : float = FRET_WORLD_WIDTH
@@ -72,6 +79,8 @@ const NOTE_NAMES      : Array[String] = ["C","C#","D","D#","E","F","F#","G","G#"
 const DEBUG_CHORD_WINDOW : float = 0.25
 ## Maximum timestamp difference between notes to be considered part of the same chord.
 const CHORD_GROUP_THRESHOLD : float = 0.02
+const QENGINE_CAPTURE_BUS   : StringName = &"Player 1"
+const QENGINE_NOISE_GATE    : float = 0.02
 
 # -- Scene references --------------------------------------------------------
 @onready var _chord_pool  : Node3D            = $ChordPool
@@ -80,6 +89,10 @@ const CHORD_GROUP_THRESHOLD : float = 0.02
 @onready var _player      : AudioStreamPlayer = $AudioStreamPlayer
 @onready var _camera      : Camera3D          = $Camera3D
 @onready var _debug_label : Label             = $DebugOverlay/DebugLabel
+@onready var _pause_dimmer : ColorRect        = $PauseOverlay/Dimmer
+@onready var _pause_panel  : PanelContainer   = $PauseOverlay/PausePanel
+@onready var _resume_button: Button           = $PauseOverlay/PausePanel/Buttons/ResumeButton
+@onready var _quit_button  : Button           = $PauseOverlay/PausePanel/Buttons/QuitButton
 
 # -- State -------------------------------------------------------------------
 var _bridge              = null  # GoGuitarBridge instance (no static type — avoids parse errors when class is not yet registered)
@@ -91,8 +104,10 @@ var _song_time           : float    = 0.0
 var _playing             : bool     = false
 var _shot_idx            : int      = 0
 var _start_wall_ms       : int      = 0
-var _camera_target_min_fret : int   = FRET_COUNT / 2
-var _camera_target_max_fret : int   = FRET_COUNT / 2
+var _camera_target_x    : float    = 0.0
+var _camera_target_z    : float    = CAMERA_Z
+var _camera_look_at_z   : float    = CAMERA_LOOK_AT_Z
+var _camera_target_look_at_z: float = CAMERA_LOOK_AT_Z
 var _warmup_timer        : float    = WARMUP_SECS  # counts down to 0.0, then audio+notes start
 
 ## Cached volume_db sent to the AudioStreamPlayer last frame.  -999 = first frame.
@@ -117,15 +132,31 @@ var _active_window_max_fret : int = -1
 ## Empty string means no chord has been spawned yet.
 var _last_chord_sig: String = ""
 
+## ── Scoring (NoteScorer + QEngine) ───────────────────────────────────────────
+## NoteScorer evaluates live pitch detections against expected note events.
+## QEngine is the Rust GDExtension that receives AudioEffectCapture buffers,
+## runs cycfi/q pitch detection, and stores detections in its SPSC ring buffer.
+var _scorer          : NoteScorer          = null
+var _q_engine: QEngine                    = null
+var _capture_effect  : AudioEffectCapture = null
+var _capture_player  : AudioStreamPlayer  = null
+var _capture_bus_idx : int                = -1
+var _pause_menu_visible: bool              = false
+var _was_playing_before_pause: bool        = false
+
 
 func _ready() -> void:
 	_bridge = _GoGuitarBridgeScript.new()
 
 	# Load persisted mixer settings so volume/mute state is correct from the start.
 	_GameStateScript.load_mixer_settings()
+	_resume_button.pressed.connect(_on_resume_button_pressed)
+	_quit_button.pressed.connect(_on_quit_button_pressed)
+	_pause_dimmer.visible = false
+	_pause_panel.visible = false
 
 	var selected_psarc_path: String = _GameStateScript.selected_psarc_path
-	print("MusicPlay: RocksmithBridge GDExtension loaded: %s" % str(ClassDB.class_exists("RocksmithBridge")))
+	print("MusicPlay: RSAPI_SNG GDExtension loaded: %s" % str(ClassDB.class_exists("RSAPI_SNG")))
 	print("MusicPlay: AudioEngine GDExtension loaded: %s" % str(ClassDB.class_exists("AudioEngine")))
 
 	if selected_psarc_path == "":
@@ -140,9 +171,17 @@ func _ready() -> void:
 	if _bridge.load_psarc_abs(selected_psarc_path):
 		_notes = _bridge.get_notes()
 		_last_chord_sig = ""
-		_events = _build_play_events(_notes)
+		_events = _bridge.get_play_events()
+		if _events.is_empty():
+			_events = _build_play_events(_notes)
 		print("MusicPlay: %d notes loaded, requesting audio stream..." % _notes.size())
 		print("MusicPlay: %d unified events built (single + chord)." % _events.size())
+		# ── Initialise the scorer from the event list ──────────────────────────
+		_scorer = NoteScorer.new()
+		_scorer.setup(_events)
+		_scorer.note_scored.connect(_on_note_scored)
+		print("MusicPlay: NoteScorer ready — %d note events, %d chord events." % [
+			_scorer._note_events.size(), _scorer._chord_events.size()])
 		# -- Diagnostic: SNG info (difficulty level, start_time, capo, tuning).
 		var sng_info : Dictionary = _bridge.get_sng_info()
 		if not sng_info.is_empty():
@@ -198,12 +237,23 @@ func _ready() -> void:
 				var first_note_time: float = _notes[0]["time"]
 				print("MusicPlay: first note at t=%.2fs — starting playback from beginning" % first_note_time)
 		else:
-			push_warning("MusicPlay: audio stream not available (no WEM/OGG in PSARC).")
+			push_warning("MusicPlay: audio stream not available (no WEM found or decode failed).")
 	else:
 		push_error("MusicPlay: failed to load psarc — place a valid .psarc in the DLC/ folder.")
 	DirAccess.make_dir_recursive_absolute(
 		ProjectSettings.globalize_path(SCREENSHOT_DIR)
 	)
+
+	# ── Initialise QEngine (AudioEffectCapture -> cycfi/q) ───────────────────
+	_q_engine = QEngine.new()
+	var sr : int = AudioServer.get_mix_rate()
+	if _q_engine.start(sr):
+		_q_engine.set_noise_gate(QENGINE_NOISE_GATE)
+		_open_qengine_capture_bus()
+		print("MusicPlay: QEngine started — %d Hz" % sr)
+	else:
+		push_warning("MusicPlay: QEngine.start() failed — cycfi/q may not be linked.")
+		_q_engine = null
 
 	# Snap camera to the centre of the highway on startup; enable zoom FOV.
 	_lane_glow = _zero_lane_array()
@@ -211,11 +261,15 @@ func _ready() -> void:
 	if FRET_COUNT % LANE_COUNT != 0:
 		push_warning("MusicPlay: FRET_COUNT should be evenly divisible by LANE_COUNT for lane mapping.")
 	if _camera:
-		_camera.position.x = clampf(ChartCommon.fret_separator_world_x(FRET_COUNT / 2), CAMERA_X_MIN, CAMERA_X_MAX)  # integer division: 24/2=12
+		_camera_target_x = clampf(ChartCommon.fret_separator_world_x(FRET_COUNT / 2), CAMERA_X_MIN, CAMERA_X_MAX)  # integer division: 24/2=12
+		_camera_target_z = CAMERA_Z
+		_camera_look_at_z = CAMERA_LOOK_AT_Z
+		_camera_target_look_at_z = CAMERA_LOOK_AT_Z
+		_camera.position.x = _camera_target_x
 		_camera.position.y = CAMERA_Y
-		_camera.position.z = CAMERA_Z
+		_camera.position.z = _camera_target_z
 		_camera.fov        = CAM_FOV
-		_camera.look_at(Vector3(_camera.position.x, 0.0, CAMERA_LOOK_AT_Z), Vector3.UP)
+		_camera.look_at(Vector3(_camera.position.x, 0.0, _camera_look_at_z), Vector3.UP)
 
 	# Start warmup countdown.  _process() will count down WARMUP_SECS real
 	# seconds showing only the empty highway, then start both audio and note
@@ -224,6 +278,9 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if _pause_menu_visible:
+		return
+
 	# Warmup phase: show the empty highway for WARMUP_SECS real seconds,
 	# then start audio and note spawning simultaneously.
 	if _warmup_timer > 0.0:
@@ -274,6 +331,20 @@ func _process(delta: float) -> void:
 	# positions are computed directly from the audio clock (not accumulated delta).
 	_chord_pool.tick(_song_time)
 
+	# ── Pitch detection + scoring ─────────────────────────────────────────────
+	_poll_qengine(_song_time)
+	if _q_engine != null and _scorer != null:
+		var detections : Array = _q_engine.pop_detections(256)
+		for det in detections:
+			_scorer.add_detection(
+				float(det.get("timestamp", _song_time)),
+				int(det.get("string",      1)),
+				float(det.get("frequency",  0.0)),
+				float(det.get("periodicity", 0.0))
+			)
+	if _scorer != null:
+		_scorer.tick(_song_time)
+
 	# ── Strum-line debug print ─────────────────────────────────────────────────
 	# Print each chord group the moment it crosses the strum line (song_time >= note.time).
 	while _debug_strum_event_idx < _events.size():
@@ -298,24 +369,26 @@ func _process(delta: float) -> void:
 			t0,
 			String(ev.get("chord_name", "")),
 			bool(ev.get("show_details", false)),
-			String(ev.get("kind", "chord"))
+			String(ev.get("kind", "chord")),
+			bool(ev.get("force_outline", false)),
+			int(ev.get("outline_min_fret", -1)),
+			int(ev.get("outline_max_fret", -1)),
+			int(ev.get("outline_min_string", -1)),
+			int(ev.get("outline_max_string", -1))
 		)
 		_next_event_idx += 1
 
-	# Camera follows the center of the active fret range.
+	_update_camera_targets_from_visible_events()
+
+	# Camera follows the center of all notes currently visible on the highway.
 	if _camera:
-		var focus_fret: float
-		if _camera_target_max_fret >= _camera_target_min_fret:
-			focus_fret = (_camera_target_min_fret + _camera_target_max_fret) * 0.5
-		else:
-			focus_fret = DEFAULT_CAMERA_FRET
-		var target_x := clampf(ChartCommon.fret_separator_world_x(int(round(focus_fret))), CAMERA_X_MIN, CAMERA_X_MAX)
 		var cam_pos  := _camera.position
-		cam_pos.x = lerp(cam_pos.x, target_x, CAMERA_LERP_SPEED * minf(delta, MAX_DELTA))
+		cam_pos.x = lerp(cam_pos.x, _camera_target_x, CAMERA_LERP_SPEED * minf(delta, MAX_DELTA))
+		cam_pos.z = lerp(cam_pos.z, _camera_target_z, CAMERA_Z_LERP_SPEED * minf(delta, MAX_DELTA))
+		_camera_look_at_z = lerp(_camera_look_at_z, _camera_target_look_at_z, CAMERA_Z_LERP_SPEED * minf(delta, MAX_DELTA))
 		cam_pos.y = CAMERA_Y
-		cam_pos.z = CAMERA_Z
 		_camera.position = cam_pos
-		_camera.look_at(Vector3(cam_pos.x, 0.0, CAMERA_LOOK_AT_Z), Vector3.UP)
+		_camera.look_at(Vector3(cam_pos.x, 0.0, _camera_look_at_z), Vector3.UP)
 
 	# Screenshots based on real wall-clock time to avoid timer batching on slow renderers.
 	if _shot_idx < SCREENSHOT_TIMES.size():
@@ -332,6 +405,51 @@ func _process(delta: float) -> void:
 
 	# Update debug info overlay.
 	_update_debug_info()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel"):
+		_toggle_pause_menu()
+		get_viewport().set_input_as_handled()
+
+
+func _toggle_pause_menu() -> void:
+	if _pause_menu_visible:
+		_resume_gameplay()
+	else:
+		_show_pause_menu()
+
+
+func _show_pause_menu() -> void:
+	_pause_menu_visible = true
+	_pause_dimmer.visible = true
+	_pause_panel.visible = true
+	_was_playing_before_pause = _playing
+	if _player:
+		_player.stream_paused = true
+	_playing = false
+	if _resume_button:
+		_resume_button.grab_focus()
+
+
+func _resume_gameplay() -> void:
+	_pause_menu_visible = false
+	_pause_dimmer.visible = false
+	_pause_panel.visible = false
+	if _player:
+		_player.stream_paused = false
+	_playing = _was_playing_before_pause
+
+
+func _on_resume_button_pressed() -> void:
+	_resume_gameplay()
+
+
+func _on_quit_button_pressed() -> void:
+	if _player:
+		_player.stop()
+	_resume_gameplay()
+	call_deferred("_return_to_song_list")
 
 
 # -- Helpers -----------------------------------------------------------------
@@ -358,24 +476,69 @@ func _build_play_events(src_notes: Array) -> Array:
 		var valid_notes: Array = []
 		var max_duration: float = 0.0
 		var min_fret: int = 999
+		var has_hand_shape: bool = false
+		var outline_min_fret: int = 999
+		var outline_max_fret: int = -1
+		var outline_min_string: int = 999
+		var outline_max_string: int = -1
 		for gn in group:
 			var f: int = int(gn.get("fret", 0))
 			var s: int = int(gn.get("string", 0))
 			if f < 1 or f > FRET_COUNT or s < 0 or s > 5:
 				continue
 			var dur: float = maxf(float(gn.get("duration", 0.25)), 0.0)
-			valid_notes.append({"fret": f, "string": s, "duration": dur})
+			var hs_id: int = int(gn.get("hand_shape_id", -1))
+			var hs_chord_id: int = int(gn.get("hand_shape_chord_id", -1))
+			var hs_min_fret: int = int(gn.get("hand_shape_min_fret", -1))
+			var hs_max_fret: int = int(gn.get("hand_shape_max_fret", -1))
+			var hs_min_string: int = int(gn.get("hand_shape_min_string", -1))
+			var hs_max_string: int = int(gn.get("hand_shape_max_string", -1))
+			valid_notes.append({
+				"fret": f,
+				"string": s,
+				"duration": dur,
+				"hand_shape_id": hs_id,
+				"hand_shape_chord_id": hs_chord_id,
+				"hand_shape_min_fret": hs_min_fret,
+				"hand_shape_max_fret": hs_max_fret,
+				"hand_shape_min_string": hs_min_string,
+				"hand_shape_max_string": hs_max_string,
+			})
+			if hs_id >= 0:
+				has_hand_shape = true
+			if hs_min_fret >= 1 and hs_max_fret >= hs_min_fret:
+				outline_min_fret = mini(outline_min_fret, hs_min_fret)
+				outline_max_fret = maxi(outline_max_fret, hs_max_fret)
+			if hs_min_string >= 0 and hs_max_string >= hs_min_string:
+				outline_min_string = mini(outline_min_string, hs_min_string)
+				outline_max_string = maxi(outline_max_string, hs_max_string)
 			max_duration = maxf(max_duration, dur)
 			min_fret = mini(min_fret, f)
 
 		if not valid_notes.is_empty():
-			var event_kind: String = "single" if valid_notes.size() == 1 else "chord"
+			var event_kind: String = "single"
+			if valid_notes.size() > 1 or has_hand_shape:
+				event_kind = "chord"
 			var hand_start: int = maxi(min_fret - 1, 1)
 			var hand_end: int = mini(hand_start + 3, FRET_COUNT)
 			var chord_name: String = ""
 			var show_details: bool = false
+			var force_outline: bool = has_hand_shape
+			if outline_min_fret == 999:
+				outline_min_fret = -1
+			if outline_min_string == 999:
+				outline_min_string = -1
+			if force_outline and outline_min_fret >= 1 and outline_max_fret >= outline_min_fret:
+				hand_start = maxi(outline_min_fret - 1, 1)
+				hand_end = mini(outline_max_fret, FRET_COUNT)
 			if event_kind == "chord":
-				var sig := _chord_signature(valid_notes)
+				var sig: String
+				if force_outline:
+					var hs_sig_id: int = int(valid_notes[0].get("hand_shape_id", -1))
+					var hs_sig_chord_id: int = int(valid_notes[0].get("hand_shape_chord_id", -1))
+					sig = "hs:%d:%d" % [hs_sig_id, hs_sig_chord_id]
+				else:
+					sig = _chord_signature(valid_notes)
 				show_details = (sig != _last_chord_sig)
 				_last_chord_sig = sig
 				var root_f: int = int(valid_notes[0].get("fret", 0))
@@ -390,7 +553,12 @@ func _build_play_events(src_notes: Array) -> Array:
 				"notes": valid_notes,
 				"kind": event_kind,
 				"chord_name": chord_name,
-				"show_details": show_details
+				"show_details": show_details,
+				"force_outline": force_outline,
+				"outline_min_fret": outline_min_fret,
+				"outline_max_fret": outline_max_fret,
+				"outline_min_string": outline_min_string,
+				"outline_max_string": outline_max_string,
 			})
 
 		i = j
@@ -481,10 +649,6 @@ func _update_fret_range_visuals() -> void:
 	var targets: Array[float] = _zero_lane_array()
 
 	if range_min_fret >= 1 and range_max_fret >= range_min_fret:
-		# Set camera target to the centre of the active hand range.
-		_camera_target_min_fret = range_min_fret
-		_camera_target_max_fret = range_max_fret
-
 		# Highlight lanes that overlap with the 4-fret range
 		for lane in LANE_COUNT:
 			var lane_min: int = 1 + lane * FRETS_PER_LANE
@@ -499,8 +663,6 @@ func _update_fret_range_visuals() -> void:
 	else:
 		# No upcoming notes - dim the highway
 		_highway.call("set_active_fret_range", 0, -1)
-		_camera_target_min_fret = FRET_COUNT / 2
-		_camera_target_max_fret = FRET_COUNT / 2
 		_active_window_min_fret = -1
 		_active_window_max_fret = -1
 
@@ -508,6 +670,61 @@ func _update_fret_range_visuals() -> void:
 	for lane in LANE_COUNT:
 		_lane_glow[lane] = lerpf(_lane_glow[lane], targets[lane], 0.15)
 	_highway.call("set_lane_intensities", _lane_glow)
+
+
+func _update_camera_targets_from_visible_events() -> void:
+	var min_x: float = INF
+	var max_x: float = -INF
+	var min_z: float = INF
+	var max_z: float = -INF
+	var has_visible_note: bool = false
+
+	var i: int = _debug_strum_event_idx
+	while i < _events.size():
+		var ev: Dictionary = _events[i]
+		var event_time: float = float(ev.get("time_start", -1.0))
+		if event_time < _song_time - CAMERA_EVENT_LOOKBACK:
+			i += 1
+			continue
+		if event_time > _song_time + LEAD_TIME:
+			break
+		for n in ev.get("notes", []):
+			var fret: int = int(n.get("fret", -1))
+			if fret < 1 or fret > FRET_COUNT:
+				continue
+			var note_x: float = ChartCommon.fret_mid_world_x(fret - 1)
+			var note_z: float = ChartCommon.note_world_z(event_time, _song_time, 0.0)
+			min_x = minf(min_x, note_x)
+			max_x = maxf(max_x, note_x)
+			min_z = minf(min_z, note_z)
+			max_z = maxf(max_z, note_z)
+			has_visible_note = true
+		i += 1
+
+	if has_visible_note:
+		var center_x: float = (min_x + max_x) * 0.5
+		var center_z: float = (min_z + max_z) * 0.5
+		var half_x: float = maxf((max_x - min_x) * 0.5 * CAMERA_FRAME_PADDING, 0.5)
+		var half_z: float = maxf((max_z - min_z) * 0.5 * CAMERA_FRAME_PADDING, 0.5)
+		var viewport_size: Vector2 = get_viewport().get_visible_rect().size
+		var aspect: float = viewport_size.x / maxf(viewport_size.y, 1.0)
+		var vfov: float = deg_to_rad(CAM_FOV)
+		var hfov: float = 2.0 * atan(tan(vfov * 0.5) * aspect)
+		var distance_for_x: float = half_x / maxf(tan(hfov * 0.5), 0.001)
+		var distance_for_z: float = half_z / maxf(tan(vfov * 0.5), 0.001)
+		var required_distance: float = maxf(distance_for_x, distance_for_z)
+
+		var desired_x: float = clampf(center_x, CAMERA_X_MIN, CAMERA_X_MAX)
+		var desired_z: float = clampf(center_z + required_distance, CAMERA_Z_MIN, CAMERA_Z_MAX)
+		if absf(desired_x - _camera_target_x) > CAMERA_X_DEADZONE:
+			_camera_target_x = desired_x
+		if absf(desired_z - _camera_target_z) > CAMERA_Z_DEADZONE:
+			_camera_target_z = desired_z
+		_camera_target_look_at_z = center_z
+	else:
+		_camera_target_x = clampf(ChartCommon.fret_separator_world_x(FRET_COUNT / 2), CAMERA_X_MIN, CAMERA_X_MAX)
+		_camera_target_z = CAMERA_Z
+		_camera_target_look_at_z = CAMERA_LOOK_AT_Z
 
 
 func _zero_lane_array() -> Array[float]:
@@ -519,7 +736,11 @@ func _zero_lane_array() -> Array[float]:
 
 
 func _return_to_menu() -> void:
-	get_tree().change_scene_to_file("res://scenes/game_menu.tscn")
+	SceneManager.goto_main_menu()
+
+
+func _return_to_song_list() -> void:
+	SceneManager.goto_song_list()
 
 
 ## Compute the note name for a given fret + string index using standard tuning.
@@ -609,7 +830,79 @@ func _update_debug_info() -> void:
 		var root_name : String = _get_note_name(root_f, root_s)
 		chord_str = " - Note %s - %s" % [root_name, _chord_debug_str(best_chord)]
 
-	_debug_label.text = "%dms%s" % [time_ms, chord_str]
+	# ── Live score ───────────────────────────────────────────────────────────
+	var score_str : String = ""
+	if _scorer != null:
+		var sc := _scorer.get_score()
+		if sc.total > 0:
+			score_str = "\n%d/%d (%.0f%%)" % [sc.hits, sc.total, sc.pct]
+
+	_debug_label.text = "%dms%s%s" % [time_ms, chord_str, score_str]
+
+
+## Called by NoteScorer whenever a note or chord is evaluated.
+## Logs the result; the score counters are updated inside NoteScorer itself.
+func _on_note_scored(ev: Dictionary, result: String) -> void:
+	var t0   : float  = float(ev.get("time_start", 0.0))
+	var kind : String = ev.get("kind", "single")
+	var sc   := _scorer.get_score()
+	print("SCORE %s | %s @%.3fs | %d/%d (%.0f%%)" % [
+		result, kind, t0, sc.hits, sc.total, sc.pct])
+
+
+func _poll_qengine(song_time_sec: float) -> void:
+	if _q_engine == null or _capture_effect == null:
+		return
+	var frames : int = _capture_effect.get_frames_available()
+	if frames <= 0:
+		return
+	var stereo_buf : PackedVector2Array = _capture_effect.get_buffer(frames)
+	if stereo_buf.is_empty():
+		return
+	_q_engine.push_input_stereo(stereo_buf, song_time_sec)
+
+
+func _open_qengine_capture_bus() -> void:
+	var existing_idx : int = AudioServer.get_bus_index(QENGINE_CAPTURE_BUS)
+	if existing_idx == -1:
+		push_error("MusicPlay: required bus '%s' not found in default_bus_layout.tres." % QENGINE_CAPTURE_BUS)
+		return
+
+	_capture_bus_idx = existing_idx
+	for ei in AudioServer.get_bus_effect_count(_capture_bus_idx):
+		var fx = AudioServer.get_bus_effect(_capture_bus_idx, ei)
+		if fx is AudioEffectCapture:
+			_capture_effect = fx
+			break
+
+	if _capture_effect == null:
+		_capture_effect = AudioEffectCapture.new()
+		AudioServer.add_bus_effect(_capture_bus_idx, _capture_effect)
+
+	if _capture_player == null:
+		_capture_player = AudioStreamPlayer.new()
+		_capture_player.stream = AudioStreamMicrophone.new()
+		_capture_player.bus = QENGINE_CAPTURE_BUS
+		add_child(_capture_player)
+
+	if not _capture_player.playing:
+		_capture_player.play()
+
+
+func _close_qengine_capture_bus() -> void:
+	if _capture_player:
+		_capture_player.stop()
+		_capture_player.queue_free()
+		_capture_player = null
+	_capture_effect = null
+	_capture_bus_idx = -1
+
+
+func _exit_tree() -> void:
+	_close_qengine_capture_bus()
+	if _q_engine != null:
+		_q_engine.stop()
+		_q_engine = null
 
 
 func push_print(msg: String) -> void:

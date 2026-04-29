@@ -12,8 +12,20 @@ config_version=5
 
 config/name="GoGuitar2"
 config/description="Rocksmith 2014 like Guitar 3D Game"
-run/main_scene="res://scenes/game_menu.tscn"
-config/features=PackedStringArray("4.4", "Mobile")
+run/main_scene="res://scenes/boot.tscn"
+config/features=PackedStringArray("4.5", "Mobile")
+
+[audio]
+
+driver/enable_input=true
+driver/mix_rate=48000
+
+[autoload]
+
+AudioInput="*res://scripts/audio_input.gd"
+PlayerManager="*res://scripts/player_manager.gd"
+InputAudioManager="*res://scripts/input_audio_manager.gd"
+SceneManager="*res://scripts/scene_manager.gd"
 
 [gui]
 
