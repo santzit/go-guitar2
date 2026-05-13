@@ -12,8 +12,8 @@ This project uses a single shared coordinate source in:
 - String spacing: `0.5` world units
 - String margin (top/bottom): `0.25` world units
 - Fretboard/highway X length: `48.0` world units (`24 * 2.0`)
-- Highway depth: `20.0` world units (notes spawn at `-20` → strum at `0`)
-- Note lookahead: `2.0` seconds
+- Highway depth: `30.0` world units (notes spawn at `-30` -> strum at `0`)
+- Note lookahead: `3.0` seconds
 - Time depth scale: `10.0` world units = `1.0` second (`HIGHWAY_DEPTH / NOTE_LOOKAHEAD_SECS`)
 
 ## Position formulas

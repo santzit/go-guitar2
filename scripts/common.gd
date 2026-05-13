@@ -25,9 +25,9 @@ const FRET_SPACING       : float = 2.0
 const STRING_SPACING     : float = 0.5
 const STRING_MARGIN      : float = 0.25
 ## Z distance from note spawn to strum line (world units).
-const HIGHWAY_DEPTH      : float = 20.0
+const HIGHWAY_DEPTH      : float = 30.0
 ## Configurable lookahead window for spawning notes (seconds).
-const NOTE_LOOKAHEAD_SECS: float = 2.0
+const NOTE_LOOKAHEAD_SECS: float = 3.0
 ## Z-units per second so notes travel HIGHWAY_DEPTH in NOTE_LOOKAHEAD_SECS.
 const Z_UNITS_PER_SECOND : float = HIGHWAY_DEPTH / NOTE_LOOKAHEAD_SECS
 ## Total world-unit width of the highway (fret 0 = X 0, fret 24 = X 48).
