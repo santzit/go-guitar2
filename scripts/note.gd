@@ -11,16 +11,6 @@ const ChartCommon = preload("res://scripts/common.gd")
 ##   Z = ChartCommon.note_world_z(time_offset, song_time, STRUM_Z)
 ##       Notes spawn at Z = -ChartCommon.HIGHWAY_DEPTH and travel toward Z = 0.
 ##
-# ── Per-string note colors (string 0 top → string 5 bottom) ───────────────────
-const STRING_COLORS: Array[Color] = [
-	Color(0.98, 0.26, 0.22, 1.0), # red
-	Color(0.98, 0.78, 0.16, 1.0), # yellow
-	Color(0.20, 0.80, 0.95, 1.0), # cyan
-	Color(1.00, 0.55, 0.10, 1.0), # orange
-	Color(0.20, 0.88, 0.30, 1.0), # green
-	Color(0.72, 0.38, 0.98, 1.0), # purple
-]
-
 const STRING_TEXTURES: Array[Texture2D] = [
 	preload("res://assets/textures/chartplayer/GuitarRed.png"),
 	preload("res://assets/textures/chartplayer/GuitarYellow.png"),
@@ -29,6 +19,7 @@ const STRING_TEXTURES: Array[Texture2D] = [
 	preload("res://assets/textures/chartplayer/GuitarGreen.png"),
 	preload("res://assets/textures/chartplayer/GuitarPurple.png"),
 ]
+const NOTE_MARKER_SHADER: Shader = preload("res://shaders/note_marker_border.gdshader")
 
 const START_Z       : float = -ChartCommon.HIGHWAY_DEPTH
 const STRUM_Z       : float = 0.0
@@ -47,8 +38,7 @@ const NOTE_MARKER_PULSE_FREQUENCY: float = 8.0
 const NOTE_MARKER_TEXTURE_ALPHA: float = 1.0
 const NOTE_VISUAL_ALPHA: float = 0.4
 const SUSTAIN_MIN_SECS: float = 0.05
-const SUSTAIN_TRAIL_WIDTH_RATIO: float = 0.5 # Half of note marker length
-const SUSTAIN_TRAIL_DEFAULT_WIDTH: float = 0.5
+const SUSTAIN_TRAIL_WIDTH: float = 0.5
 const SUSTAIN_TRAIL_HEIGHT: float = 0.08
 const SUSTAIN_MIN_LENGTH: float = SUSTAIN_MIN_SECS * TRAVEL_SPEED
 
@@ -58,7 +48,7 @@ var time_offset  : float = 0.0
 var duration     : float = 0.25
 var is_active    : bool  = false
 var _miss_until  : float = -1.0
-var _note_marker_mat: StandardMaterial3D = null
+var _note_marker_mat: ShaderMaterial = null
 var _sustain_trail: MeshInstance3D = null
 var _sustain_trail_mat: StandardMaterial3D = null
 var _indicator_color: Color = Color(1.0, 0.5, 0.1, 1.0)
@@ -69,27 +59,13 @@ var _marker_texture: Texture2D = null
 
 func _ready() -> void:
 	if _note_marker:
-		var plane_mesh := _note_marker.mesh as PlaneMesh
-		if plane_mesh != null:
-			plane_mesh.orientation = PlaneMesh.FACE_Z
 		_note_marker.position = NOTE_MARKER_LOCAL_OFFSET
 		_note_marker.rotation_degrees = NOTE_MARKER_LOCAL_ROTATION_DEGREES
-		_note_marker_mat = StandardMaterial3D.new()
-		_note_marker_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		_note_marker_mat.albedo_color = Color(1.0, 1.0, 1.0, NOTE_MARKER_TEXTURE_ALPHA)
-		_note_marker_mat.emission_enabled = true
-		_note_marker_mat.emission = Color(1.0, 1.0, 1.0, NOTE_MARKER_TEXTURE_ALPHA)
-		_note_marker_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		_note_marker_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-		_note_marker_mat.emission_energy_multiplier = NOTE_MARKER_NEON_GLOW_BASE
-		_note_marker_mat.metallic = 0.2
-		_note_marker_mat.roughness = 0.08
-		_note_marker_mat.clearcoat_enabled = true
-		_note_marker_mat.clearcoat = 1.0
-		_note_marker_mat.clearcoat_roughness = 0.0
-		_note_marker_mat.rim_enabled = true
-		_note_marker_mat.rim = 0.45
-		_note_marker_mat.rim_tint = 0.35
+		_note_marker_mat = ShaderMaterial.new()
+		_note_marker_mat.shader = NOTE_MARKER_SHADER
+		_note_marker_mat.set_shader_parameter("tint_color", Color(1.0, 1.0, 1.0, NOTE_MARKER_TEXTURE_ALPHA))
+		_note_marker_mat.set_shader_parameter("border_color", Color(1.0, 1.0, 1.0, 1.0))
+		_note_marker_mat.set_shader_parameter("emission_energy", NOTE_MARKER_NEON_GLOW_BASE)
 		_note_marker.set_surface_override_material(0, _note_marker_mat)
 		if _marker_texture == null:
 			_marker_texture = STRING_TEXTURES[string_index] if string_index < STRING_TEXTURES.size() else null
@@ -123,7 +99,7 @@ func setup(
 	_miss_until  = -1.0
 
 	position = Vector3(ChartCommon.fret_mid_world_x(fret - 1), ChartCommon.string_world_y(string_index), START_Z)
-	_indicator_color = STRING_COLORS[string_index] if string_index < STRING_COLORS.size() else Color.WHITE
+	_indicator_color = ChartCommon.STRING_COLORS[string_index] if string_index < ChartCommon.STRING_COLORS.size() else Color.WHITE
 	_marker_texture = STRING_TEXTURES[string_index] if string_index < STRING_TEXTURES.size() else null
 	_apply_marker_texture(_marker_texture)
 	_apply_marker_color()
@@ -159,8 +135,8 @@ func deactivate() -> void:
 func _apply_marker_color() -> void:
 	if _note_marker_mat == null:
 		return
-	_note_marker_mat.albedo_color = Color(1.0, 1.0, 1.0, NOTE_MARKER_TEXTURE_ALPHA)
-	_note_marker_mat.emission = Color(1.0, 1.0, 1.0, NOTE_MARKER_TEXTURE_ALPHA)
+	var marker_tint := Color(_indicator_color.r, _indicator_color.g, _indicator_color.b, NOTE_MARKER_TEXTURE_ALPHA)
+	_note_marker_mat.set_shader_parameter("tint_color", marker_tint)
 	if _sustain_trail_mat != null:
 		var visual_color := _with_visual_alpha(_indicator_color)
 		_sustain_trail_mat.albedo_color = visual_color
@@ -170,8 +146,7 @@ func _apply_marker_color() -> void:
 func _apply_marker_texture(texture: Texture2D) -> void:
 	if _note_marker_mat == null:
 		return
-	_note_marker_mat.albedo_texture = texture
-	_note_marker_mat.emission_texture = texture
+	_note_marker_mat.set_shader_parameter("albedo_tex", texture)
 
 
 func _update_marker_glow(song_time: float) -> void:
@@ -179,7 +154,7 @@ func _update_marker_glow(song_time: float) -> void:
 		return
 	var pulse: float = 0.5 + 0.5 * sin(song_time * NOTE_MARKER_PULSE_FREQUENCY)
 	var glow_energy: float = NOTE_MARKER_NEON_GLOW_BASE + NOTE_MARKER_NEON_GLOW_PULSE * pulse
-	_note_marker_mat.emission_energy_multiplier = glow_energy
+	_note_marker_mat.set_shader_parameter("emission_energy", glow_energy)
 	if _sustain_trail_mat != null:
 		_sustain_trail_mat.emission_energy_multiplier = glow_energy
 
@@ -197,7 +172,7 @@ func _update_sustain_trail() -> void:
 		_sustain_trail.mesh = trail_mesh
 		if _sustain_trail_mat != null:
 			_sustain_trail.set_surface_override_material(0, _sustain_trail_mat)
-	trail_mesh.size = Vector3(_get_sustain_trail_width(), SUSTAIN_TRAIL_HEIGHT, sustain_length)
+	trail_mesh.size = Vector3(SUSTAIN_TRAIL_WIDTH, SUSTAIN_TRAIL_HEIGHT, sustain_length)
 	_sustain_trail.position = Vector3(
 		NOTE_MARKER_LOCAL_OFFSET.x,
 		NOTE_MARKER_LOCAL_OFFSET.y,
@@ -208,15 +183,3 @@ func _update_sustain_trail() -> void:
 
 func _with_visual_alpha(c: Color) -> Color:
 	return Color(c.r, c.g, c.b, NOTE_VISUAL_ALPHA)
-
-
-func _get_sustain_trail_width() -> float:
-	if _note_marker == null:
-		return SUSTAIN_TRAIL_DEFAULT_WIDTH
-	var marker_aabb: AABB = _note_marker.get_aabb()
-	if marker_aabb.size == Vector3.ZERO:
-		return SUSTAIN_TRAIL_DEFAULT_WIDTH
-	var marker_max_dimension: float = maxf(marker_aabb.size.x, marker_aabb.size.z)
-	if marker_max_dimension <= 0.0:
-		return SUSTAIN_TRAIL_DEFAULT_WIDTH
-	return marker_max_dimension * SUSTAIN_TRAIL_WIDTH_RATIO
