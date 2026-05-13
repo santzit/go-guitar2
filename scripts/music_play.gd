@@ -13,10 +13,10 @@ const BUS_MASTER : int = 6   # Master bus
 
 # -- Timing constants (must match note.gd) -----------------------------------
 const TRAVEL_SPEED : float = ChartCommon.Z_UNITS_PER_SECOND
-## Highway depth in world units (absolute distance). Notes travel 20 units (Z=-20 → Z=0).
+## Highway depth in world units (absolute distance). Notes travel HIGHWAY_DEPTH units (Z=-depth → Z=0).
 ## LEAD_TIME = HIGHWAY_DEPTH / TRAVEL_SPEED = how many seconds ahead notes spawn.
-const HIGHWAY_DEPTH : float = 20.0
-const LEAD_TIME     : float = HIGHWAY_DEPTH / TRAVEL_SPEED   # = 10.0 s
+const HIGHWAY_DEPTH : float = ChartCommon.HIGHWAY_DEPTH
+const LEAD_TIME     : float = HIGHWAY_DEPTH / TRAVEL_SPEED
 
 # -- Highway layout (from ChartCommon + game-specific) ----------------------
 ## ChartCommon defines FRET_COUNT, FRET_WORLD_WIDTH, and all coordinate formulas.
@@ -281,13 +281,15 @@ func _process(delta: float) -> void:
 
 	# ── Song clock ───────────────────────────────────────────────────────────
 	# The MAIN WEM is the full-length song — no loop detection needed.
-	if _player and _player.playing:
-		_song_time = _player.get_playback_position() \
-			+ AudioServer.get_time_since_last_mix() \
-			- AudioServer.get_output_latency()
+	# Always prefer the audio stream's playback position as the timebase.
+	if _player and _player.stream:
+		_song_time = _player.get_playback_position()
+		if _player.playing:
+			_song_time += AudioServer.get_time_since_last_mix() \
+				- AudioServer.get_output_latency()
 		_song_time = maxf(_song_time, 0.0)
 	else:
-		# Wall-clock fallback when audio isn't playing.
+		# Wall-clock fallback when no audio stream exists (demo mode only).
 		_song_time = float(Time.get_ticks_msec() - _start_wall_ms) / 1000.0
 
 	# Push the authoritative audio time to all active notes/chords so their Z

@@ -9,7 +9,7 @@ const ChartCommon = preload("res://scripts/common.gd")
 ##   X = ChartCommon.fret_mid_world_x(fret)      — linear fret spacing (2 units/fret)
 ##   Y = ChartCommon.string_world_y(string_index) — string 0 = top, 5 = bottom
 ##   Z = ChartCommon.note_world_z(time_offset, song_time, STRUM_Z)
-##       Notes spawn at Z = -20 and travel toward Z = 0.
+##       Notes spawn at Z = -ChartCommon.HIGHWAY_DEPTH and travel toward Z = 0.
 ##
 # ── Per-string note colors (string 0 top → string 5 bottom) ───────────────────
 const STRING_COLORS: Array[Color] = [
@@ -30,7 +30,7 @@ const STRING_TEXTURES: Array[Texture2D] = [
 	preload("res://assets/textures/chartplayer/GuitarPurple.png"),
 ]
 
-const START_Z       : float = -20.0
+const START_Z       : float = -ChartCommon.HIGHWAY_DEPTH
 const STRUM_Z       : float = 0.0
 const TRAVEL_SPEED  : float = ChartCommon.Z_UNITS_PER_SECOND
 ## Keep notes alive briefly after crossing STRUM_Z so game-side hit/miss checks

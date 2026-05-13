@@ -12,14 +12,16 @@ This project uses a single shared coordinate source in:
 - String spacing: `0.5` world units
 - String margin (top/bottom): `0.25` world units
 - Fretboard/highway X length: `48.0` world units (`24 * 2.0`)
-- Time depth scale: `1.0` world unit = `1.0` second
+- Highway depth: `20.0` world units (notes spawn at `-20` → strum at `0`)
+- Note lookahead: `2.0` seconds
+- Time depth scale: `10.0` world units = `1.0` second (`HIGHWAY_DEPTH / NOTE_LOOKAHEAD_SECS`)
 
 ## Position formulas
 
 - Fret separator X: `fret * fret_spacing`
 - Fret midpoint X: `fret_separator(next) - fret_spacing / 2`
 - String Y: `margin + string_number * string_spacing`
-- Note/chord Z: `strum_z - (event_time - song_time) * 1.0`
+- Note/chord Z: `strum_z - (event_time - song_time) * Z_UNITS_PER_SECOND`
 
 ## Usage
 

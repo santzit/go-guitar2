@@ -15,7 +15,12 @@ const STRING_COUNT       : int   = 6
 const FRET_SPACING       : float = 2.0
 const STRING_SPACING     : float = 0.5
 const STRING_MARGIN      : float = 0.25
-const Z_UNITS_PER_SECOND : float = 1.0
+## Z distance from note spawn to strum line (world units).
+const HIGHWAY_DEPTH      : float = 20.0
+## Configurable lookahead window for spawning notes (seconds).
+const NOTE_LOOKAHEAD_SECS: float = 2.0
+## Z-units per second so notes travel HIGHWAY_DEPTH in NOTE_LOOKAHEAD_SECS.
+const Z_UNITS_PER_SECOND : float = HIGHWAY_DEPTH / NOTE_LOOKAHEAD_SECS
 ## Total world-unit width of the highway (fret 0 = X 0, fret 24 = X 48).
 const FRET_WORLD_WIDTH   : float = float(FRET_COUNT) * FRET_SPACING
 ## Height of one string slot in world units.
@@ -92,6 +97,6 @@ static func note_indicator_size(fret_num: int) -> Vector2:
 # ── Z (time depth) ─────────────────────────────────────────────────────────────
 
 ## World Z from song time and note timestamp.
-## 1 world unit = 1 second.
+## Z_UNITS_PER_SECOND defines how many world units correspond to one second.
 static func note_world_z(time_offset: float, song_time: float, strum_z: float = 0.0) -> float:
 	return strum_z - (time_offset - song_time) * Z_UNITS_PER_SECOND

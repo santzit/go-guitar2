@@ -5,7 +5,7 @@ const ChartCommon = preload("res://scripts/common.gd")
 
 const LANE_COUNT : int = 6
 const TRAVEL_SPEED : float = ChartCommon.Z_UNITS_PER_SECOND
-const HIGHWAY_Z_MIN : float = -20.0
+const HIGHWAY_Z_MIN : float = -ChartCommon.HIGHWAY_DEPTH
 const HIGHWAY_Z_MAX : float = 0.0
 
 @onready var _surface: MeshInstance3D = $HighwaySurface
