@@ -12,13 +12,6 @@
 [node name="MusicPlay" type="Node3D"]
 script = ExtResource("3_script")
 
-; ── Directional sun-light (angled from upper-right) ──────────────────────────
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
-transform = Transform3D(0.866025, -0.433013, 0.25, 0, 0.5, 0.866025, -0.5, -0.75, 0.433013, 0, 8, 0)
-light_color    = Color(0.9, 0.85, 1.0, 1)
-light_energy   = 1.2
-shadow_enabled = true
-
 [node name="WorldEnviroment" type="WorldEnvironment" parent="."]
 script = ExtResource("7_worldenv")
 
