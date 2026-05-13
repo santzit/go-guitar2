@@ -74,6 +74,13 @@ func _process(_delta: float) -> void:
 			samples_ready.emit(cap.player_id, pcm_bytes)
 
 
+func _exit_tree() -> void:
+	for i in range(_captures.size() - 1, -1, -1):
+		var cap: _PlayerCapture = _captures[i]
+		_shutdown_capture(cap)
+	_captures.clear()
+
+
 # ── Public API ─────────────────────────────────────────────────────────────────
 
 ## Returns the most recent PCM bytes captured for the given player id (1 or 2).
@@ -171,12 +178,7 @@ func _close_for_player(player_id: int) -> void:
 		var cap : _PlayerCapture = _captures[i]
 		if cap.player_id != player_id:
 			continue
-		if cap.mic_player:
-			cap.mic_player.stop()
-			cap.mic_player.queue_free()
-		# Remove the bus only if we created it (bus_idx != -1).
-		if cap.bus_idx != -1:
-			AudioServer.remove_bus(cap.bus_idx)
+		_shutdown_capture(cap)
 		_captures.remove_at(i)
 		print("InputAudioManager: Player %d capture bus closed." % player_id)
 		return
@@ -187,3 +189,18 @@ func _apply_monitor(cap: _PlayerCapture, profile) -> void:
 	AudioServer.set_bus_mute(cap.bus_idx, not profile.monitor_enabled)
 	if profile.monitor_enabled:
 		AudioServer.set_bus_volume_db(cap.bus_idx, profile.monitor_volume_db)
+
+
+func _shutdown_capture(cap: _PlayerCapture) -> void:
+	if is_instance_valid(cap.mic_player):
+		cap.mic_player.stop()
+		cap.mic_player.stream = null
+		cap.mic_player.free()
+	cap.mic_player = null
+	cap.capture_effect = null
+	cap.last_pcm = PackedByteArray()
+	cap.active = false
+
+	var idx := AudioServer.get_bus_index(cap.bus_name)
+	if idx != -1 and idx < AudioServer.bus_count:
+		AudioServer.remove_bus(idx)

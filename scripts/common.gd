@@ -11,14 +11,23 @@ extends RefCounted
 const FRET_COUNT         : int   = 24
 ## Total strings on the virtual guitar neck.
 const STRING_COUNT       : int   = 6
+## Per-string note colors (string 0 top -> string 5 bottom).
+const STRING_COLORS: Array[Color] = [
+	Color(0.95, 0.15, 0.15, 1.0),
+	Color(0.98, 0.88, 0.05, 1.0),
+	Color(0.18, 0.48, 1.00, 1.0),
+	Color(1.00, 0.52, 0.08, 1.0),
+	Color(0.12, 0.88, 0.25, 1.0),
+	Color(0.62, 0.08, 0.95, 1.0),
+]
 ## New simplified coordinate spacing.
 const FRET_SPACING       : float = 2.0
 const STRING_SPACING     : float = 0.5
 const STRING_MARGIN      : float = 0.25
 ## Z distance from note spawn to strum line (world units).
-const HIGHWAY_DEPTH      : float = 20.0
+const HIGHWAY_DEPTH      : float = 30.0
 ## Configurable lookahead window for spawning notes (seconds).
-const NOTE_LOOKAHEAD_SECS: float = 2.0
+const NOTE_LOOKAHEAD_SECS: float = 3.0
 ## Z-units per second so notes travel HIGHWAY_DEPTH in NOTE_LOOKAHEAD_SECS.
 const Z_UNITS_PER_SECOND : float = HIGHWAY_DEPTH / NOTE_LOOKAHEAD_SECS
 ## Total world-unit width of the highway (fret 0 = X 0, fret 24 = X 48).
@@ -86,7 +95,7 @@ static func string_top_separator_y(str_idx: int) -> float:
 ## World-unit size (width × height) for a note finger indicator at fret_num.
 ## Width is one fret slot (FRET_SPACING world units); height = 80 % of STRING_SLOT_HEIGHT,
 ## so the indicator fits comfortably between strings.
-static func note_indicator_size(fret_num: int) -> Vector2:
+static func note_indicator_size(_fret_num: int) -> Vector2:
 	if float(FRET_COUNT) <= MIN_VALID_FRET_POS:
 		return DEFAULT_NOTE_INDICATOR_SIZE
 	var w    := FRET_SPACING

@@ -149,11 +149,12 @@ func setup(
 	_clear_indicators()
 	var chord_pool := get_parent()
 	if chord_pool and chord_pool.has_method("spawn_note"):
+		var show_lane_connector: bool = is_single_event
 		for n in p_notes:
 			var f   : int   = int(n.get("fret", 0))
 			var s   : int   = clampi(int(n.get("string", 0)), 0, 5)
 			var dur : float = float(n.get("duration", 0.25))
-			var note_node : Node3D = chord_pool.spawn_note(f, s, p_time, dur)
+			var note_node : Node3D = chord_pool.spawn_note(f, s, p_time, dur, show_lane_connector)
 			if note_node:
 				_indicators.append(note_node)
 

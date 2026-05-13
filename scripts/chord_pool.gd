@@ -75,8 +75,14 @@ func spawn_chord(
 
 
 ## Borrow a Note from the NotePool on behalf of a chord container.
-func spawn_note(p_fret: int, p_string: int, p_time: float, p_duration: float) -> Node3D:
-	return _note_pool.spawn_note(p_fret, p_string, p_time, p_duration)
+func spawn_note(
+		p_fret: int,
+		p_string: int,
+		p_time: float,
+		p_duration: float,
+		p_show_lane_connector: bool = true
+) -> Node3D:
+	return _note_pool.spawn_note(p_fret, p_string, p_time, p_duration, p_show_lane_connector)
 
 
 ## Called by a Chord when it passes the strum line and deactivates itself.

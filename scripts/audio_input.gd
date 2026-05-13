@@ -22,13 +22,16 @@ const BUS_NAME : StringName = &"GuitarInput"
 var _capture_effect : AudioEffectCapture = null
 var _mic_player     : AudioStreamPlayer  = null
 var _bus_idx        : int                = -1
+var _owns_bus       : bool               = false
 var _active         : bool               = false
 ## Last captured PCM bytes — updated each frame; empty when nothing was captured.
 var _last_pcm       : PackedByteArray    = PackedByteArray()
 
 
 func _ready() -> void:
-	_open()
+	# Capture bus opens lazily via open() to avoid unnecessary microphone
+	# allocations in sessions that never consume AudioInput.
+	pass
 
 
 func _process(_delta: float) -> void:
@@ -51,6 +54,10 @@ func _process(_delta: float) -> void:
 
 	_last_pcm = pcm_bytes
 	samples_available.emit(pcm_bytes)
+
+
+func _exit_tree() -> void:
+	_shutdown()
 
 
 ## Returns the PCM-16 LE mono bytes that were captured in the most recent frame.
@@ -94,6 +101,7 @@ func _open() -> void:
 	var existing_idx : int = AudioServer.get_bus_index(BUS_NAME)
 	if existing_idx != -1:
 		_bus_idx = existing_idx
+		_owns_bus = false
 		# Retrieve the existing AudioEffectCapture from the bus.
 		for ei in AudioServer.get_bus_effect_count(_bus_idx):
 			var fx = AudioServer.get_bus_effect(_bus_idx, ei)
@@ -104,6 +112,7 @@ func _open() -> void:
 		_bus_idx = AudioServer.bus_count
 		AudioServer.add_bus()
 		AudioServer.set_bus_name(_bus_idx, BUS_NAME)
+		_owns_bus = true
 		# Mute the bus — we only want to capture, not play back to speakers.
 		AudioServer.set_bus_mute(_bus_idx, true)
 		_capture_effect = AudioEffectCapture.new()
@@ -122,3 +131,23 @@ func _open() -> void:
 	_active = true
 	print("AudioInput: capture bus '%s' ready (bus_idx=%d, mix_rate=%d Hz)." % [
 		BUS_NAME, _bus_idx, AudioServer.get_mix_rate()])
+
+
+func _shutdown() -> void:
+	_active = false
+	_last_pcm = PackedByteArray()
+	_capture_effect = null
+
+	if is_instance_valid(_mic_player):
+		_mic_player.stop()
+		_mic_player.stream = null
+		_mic_player.free()
+	_mic_player = null
+
+	if _owns_bus:
+		var idx := AudioServer.get_bus_index(BUS_NAME)
+		if idx != -1 and idx < AudioServer.bus_count:
+			AudioServer.remove_bus(idx)
+
+	_bus_idx = -1
+	_owns_bus = false

@@ -26,12 +26,18 @@ func _make_note() -> Node3D:
 
 ## Activate a note from the pool.
 ## Returns the note node, or null if the pool is exhausted.
-func spawn_note(p_fret: int, p_string: int, p_time: float, p_duration: float, _unused_show_label: bool = true) -> Node3D:
+func spawn_note(
+		p_fret: int,
+		p_string: int,
+		p_time: float,
+		p_duration: float,
+		p_show_lane_connector: bool = true
+) -> Node3D:
 	if _pool.is_empty():
 		_pool.append(_make_note())
 
 	var note: Node3D = _pool.pop_back()
-	note.setup(p_fret, p_string, p_time, p_duration)
+	note.setup(p_fret, p_string, p_time, p_duration, p_show_lane_connector)
 	_active.append(note)
 	return note
 
