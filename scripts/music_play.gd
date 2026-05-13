@@ -33,23 +33,31 @@ const DEFAULT_CAMERA_FRET: float = FRET_COUNT * 0.5
 const CAM_FOV           : float = 60.0
 ## Camera elevation — raised to show the full fretboard lane depth.
 const CAMERA_Y          : float = 4
+const CAMERA_Y_MAX      : float = 9.0
 ## Camera is on the player/strum side (positive Z) looking down the highway.
 ## Fretboard strings are at Z=0 (strum/arrival side); notes spawn at Z=-20.
 ## Z=10 gives a good overview angle similar to ChartPlayer's default.
 const CAMERA_Z          : float = 8
 const CAMERA_Z_MIN      : float = 6.0
 const CAMERA_Z_MAX      : float = 18.0
+const CAMERA_Z_SOFT_MAX : float = 13.5
 ## Look-at target Z — aimed one-third into the highway depth for a natural rake.
 const CAMERA_LOOK_AT_Z  : float = -7.0
 const CAMERA_LERP_SPEED : float = 0.5    # slower pan for cinematic drift
 const CAMERA_Z_LERP_SPEED : float = 0.65
+const CAMERA_Y_LERP_SPEED : float = 0.6
 const CAMERA_EVENT_LOOKBACK : float = 0.35
 const CAMERA_FRAME_PADDING : float = 1.45
 const CAMERA_X_DEADZONE    : float = 0.45
 const CAMERA_Z_DEADZONE    : float = 0.6
+const CAMERA_Y_DEADZONE    : float = 0.25
 ## Camera X clamp — keeps the camera from tracking to the highway edges.
 const CAMERA_X_MIN      : float = 1.75
 const CAMERA_X_MAX      : float = FRET_WORLD_WIDTH
+const CAMERA_EXCESS_TO_Y_GAIN : float = 0.85
+const CAMERA_EXCESS_TO_LEFT_GAIN : float = 0.65
+const CAMERA_MAX_LEFT_SHIFT : float = 4.5
+const CAMERA_CHARTPLAYER_OFFSET_BLEND : float = 0.35
 
 # -- Screenshot capture (for automated testing) ------------------------------
 const SCREENSHOT_TIMES : Array  = [5.0, 10.0, 15.0, 20.0, 25.0]
@@ -105,6 +113,7 @@ var _playing             : bool     = false
 var _shot_idx            : int      = 0
 var _start_wall_ms       : int      = 0
 var _camera_target_x    : float    = 0.0
+var _camera_target_y    : float    = CAMERA_Y
 var _camera_target_z    : float    = CAMERA_Z
 var _camera_look_at_z   : float    = CAMERA_LOOK_AT_Z
 var _camera_target_look_at_z: float = CAMERA_LOOK_AT_Z
@@ -262,11 +271,12 @@ func _ready() -> void:
 		push_warning("MusicPlay: FRET_COUNT should be evenly divisible by LANE_COUNT for lane mapping.")
 	if _camera:
 		_camera_target_x = clampf(ChartCommon.fret_separator_world_x(FRET_COUNT / 2), CAMERA_X_MIN, CAMERA_X_MAX)  # integer division: 24/2=12
+		_camera_target_y = CAMERA_Y
 		_camera_target_z = CAMERA_Z
 		_camera_look_at_z = CAMERA_LOOK_AT_Z
 		_camera_target_look_at_z = CAMERA_LOOK_AT_Z
 		_camera.position.x = _camera_target_x
-		_camera.position.y = CAMERA_Y
+		_camera.position.y = _camera_target_y
 		_camera.position.z = _camera_target_z
 		_camera.fov        = CAM_FOV
 		_camera.look_at(Vector3(_camera.position.x, 0.0, _camera_look_at_z), Vector3.UP)
@@ -384,9 +394,9 @@ func _process(delta: float) -> void:
 	if _camera:
 		var cam_pos  := _camera.position
 		cam_pos.x = lerp(cam_pos.x, _camera_target_x, CAMERA_LERP_SPEED * minf(delta, MAX_DELTA))
+		cam_pos.y = lerp(cam_pos.y, _camera_target_y, CAMERA_Y_LERP_SPEED * minf(delta, MAX_DELTA))
 		cam_pos.z = lerp(cam_pos.z, _camera_target_z, CAMERA_Z_LERP_SPEED * minf(delta, MAX_DELTA))
 		_camera_look_at_z = lerp(_camera_look_at_z, _camera_target_look_at_z, CAMERA_Z_LERP_SPEED * minf(delta, MAX_DELTA))
-		cam_pos.y = CAMERA_Y
 		_camera.position = cam_pos
 		_camera.look_at(Vector3(cam_pos.x, 0.0, _camera_look_at_z), Vector3.UP)
 
@@ -713,16 +723,28 @@ func _update_camera_targets_from_visible_events() -> void:
 		var distance_for_x: float = half_x / maxf(tan(hfov * 0.5), 0.001)
 		var distance_for_z: float = half_z / maxf(tan(vfov * 0.5), 0.001)
 		var required_distance: float = maxf(distance_for_x, distance_for_z)
+		var base_desired_z: float = center_z + required_distance
+		var extra_depth: float = maxf(base_desired_z - CAMERA_Z_SOFT_MAX, 0.0)
 
-		var desired_x: float = clampf(center_x, CAMERA_X_MIN, CAMERA_X_MAX)
-		var desired_z: float = clampf(center_z + required_distance, CAMERA_Z_MIN, CAMERA_Z_MAX)
+		var center_fret: float = center_x / ChartCommon.FRET_SPACING
+		var chartplayer_offset_frets: float = (10.0 - center_fret) / 4.0
+		var chartplayer_offset_x: float = chartplayer_offset_frets * ChartCommon.FRET_SPACING * CAMERA_CHARTPLAYER_OFFSET_BLEND
+
+		var overflow_left_shift: float = minf(extra_depth * CAMERA_EXCESS_TO_LEFT_GAIN, CAMERA_MAX_LEFT_SHIFT)
+		var desired_y: float = clampf(CAMERA_Y + (extra_depth * CAMERA_EXCESS_TO_Y_GAIN), CAMERA_Y, CAMERA_Y_MAX)
+
+		var desired_x: float = clampf(center_x + chartplayer_offset_x - overflow_left_shift, CAMERA_X_MIN, CAMERA_X_MAX)
+		var desired_z: float = clampf(base_desired_z, CAMERA_Z_MIN, CAMERA_Z_MAX)
 		if absf(desired_x - _camera_target_x) > CAMERA_X_DEADZONE:
 			_camera_target_x = desired_x
+		if absf(desired_y - _camera_target_y) > CAMERA_Y_DEADZONE:
+			_camera_target_y = desired_y
 		if absf(desired_z - _camera_target_z) > CAMERA_Z_DEADZONE:
 			_camera_target_z = desired_z
 		_camera_target_look_at_z = center_z
 	else:
 		_camera_target_x = clampf(ChartCommon.fret_separator_world_x(FRET_COUNT / 2), CAMERA_X_MIN, CAMERA_X_MAX)
+		_camera_target_y = CAMERA_Y
 		_camera_target_z = CAMERA_Z
 		_camera_target_look_at_z = CAMERA_LOOK_AT_Z
 
