@@ -1,8 +1,9 @@
-[gd_scene load_steps=6 format=3 uid="uid://cmpscene0001"]
+[gd_scene load_steps=7 format=3 uid="uid://cmpscene0001"]
 
 [ext_resource type="PackedScene" uid="uid://chighway0001" path="res://scenes/highway.tscn"     id="1_highway"]
 [ext_resource type="PackedScene" uid="uid://cbkgnd00001" path="res://scenes/background.tscn"   id="2_bg"]
 [ext_resource type="Script"                              path="res://scripts/music_play.gd"    id="3_script"]
+[ext_resource type="Script"                              path="res://scripts/CameraController.gd" id="4_camera"]
 [ext_resource type="PackedScene" path="res://scenes/fretboard.tscn" id="5_fretboard"]
 [ext_resource type="PackedScene" uid="uid://cchordpool01" path="res://scenes/chord_pool.tscn"  id="6_chordpool"]
 
@@ -25,6 +26,7 @@ shadow_enabled = true
 ;   basis.y = cross(basis.z, basis.x)      = (0, 0.9514, -0.3078)
 [node name="Camera3D" type="Camera3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.9514, 0.3078, 0, -0.3078, 0.9514, 12, 5.5, 10)
+script = ExtResource("4_camera")
 fov = 60.0
 
 ; ── Background (sky + WorldEnvironment + bloom) ───────────────────────────────
