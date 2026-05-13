@@ -13,18 +13,15 @@ const BUS_MASTER : int = 6   # Master bus
 
 # -- Timing constants (must match note.gd) -----------------------------------
 const TRAVEL_SPEED : float = ChartCommon.Z_UNITS_PER_SECOND
-## Highway depth in world units (absolute distance). Notes travel 20 units (Z=-20 → Z=0).
+## Highway depth in world units (absolute distance). Notes travel HIGHWAY_DEPTH units (Z=-depth → Z=0).
 ## LEAD_TIME = HIGHWAY_DEPTH / TRAVEL_SPEED = how many seconds ahead notes spawn.
-const HIGHWAY_DEPTH : float = 20.0
-const LEAD_TIME     : float = HIGHWAY_DEPTH / TRAVEL_SPEED   # = 10.0 s
+const HIGHWAY_DEPTH : float = ChartCommon.HIGHWAY_DEPTH
+const LEAD_TIME     : float = HIGHWAY_DEPTH / TRAVEL_SPEED
 
 # -- Highway layout (from ChartCommon + game-specific) ----------------------
 ## ChartCommon defines FRET_COUNT, FRET_WORLD_WIDTH, and all coordinate formulas.
 const FRET_COUNT         : int   = ChartCommon.FRET_COUNT    # 24
 const FRET_WORLD_WIDTH   : float = ChartCommon.FRET_WORLD_WIDTH  # 24.0
-const FRET_RANGE_WINDOW  : float = 4.0
-const LANE_COUNT         : int   = 6
-const FRETS_PER_LANE     : int   = FRET_COUNT / LANE_COUNT
 
 # -- Screenshot capture (for automated testing) ------------------------------
 const SCREENSHOT_TIMES : Array  = [5.0, 10.0, 15.0, 20.0, 25.0]
@@ -59,7 +56,6 @@ const QENGINE_NOISE_GATE    : float = 0.02
 
 # -- Scene references --------------------------------------------------------
 @onready var _chord_pool  : Node3D            = $ChordPool
-@onready var _highway     : Node3D            = $Highway
 @onready var _fretboard   : Node3D            = $Fretboard
 @onready var _player      : AudioStreamPlayer = $AudioStreamPlayer
 @onready var _camera      : CameraController   = $Camera3D
@@ -95,9 +91,6 @@ var _string_glow         : Array[float] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 ## Scan pointer into _notes for the string-glow window.
 ## Advances past notes that have fully passed the strum line.
 var _glow_cursor         : int      = 0
-var _lane_glow           : Array[float] = []
-var _active_window_min_fret : int = -1
-var _active_window_max_fret : int = -1
 
 ## Chord repeat tracker: sorted "fret:string,..." signature of the last spawned chord.
 ## Empty string means no chord has been spawned yet.
@@ -227,10 +220,6 @@ func _ready() -> void:
 		_q_engine = null
 
 	# Snap camera to the centre of the highway on startup.
-	_lane_glow = _zero_lane_array()
-	# Configuration sanity check for lane bucketing constants.
-	if FRET_COUNT % LANE_COUNT != 0:
-		push_warning("MusicPlay: FRET_COUNT should be evenly divisible by LANE_COUNT for lane mapping.")
 	if _camera:
 		_camera.reset_camera_defaults()
 
@@ -281,13 +270,15 @@ func _process(delta: float) -> void:
 
 	# ── Song clock ───────────────────────────────────────────────────────────
 	# The MAIN WEM is the full-length song — no loop detection needed.
-	if _player and _player.playing:
-		_song_time = _player.get_playback_position() \
-			+ AudioServer.get_time_since_last_mix() \
-			- AudioServer.get_output_latency()
+	# Always prefer the audio stream's playback position as the timebase.
+	if _player and _player.stream:
+		_song_time = _player.get_playback_position()
+		if _player.playing:
+			_song_time += AudioServer.get_time_since_last_mix() \
+				- AudioServer.get_output_latency()
 		_song_time = maxf(_song_time, 0.0)
 	else:
-		# Wall-clock fallback when audio isn't playing.
+		# Wall-clock fallback when no audio stream exists (demo mode only).
 		_song_time = float(Time.get_ticks_msec() - _start_wall_ms) / 1000.0
 
 	# Push the authoritative audio time to all active notes/chords so their Z
@@ -353,9 +344,6 @@ func _process(delta: float) -> void:
 
 	# Drive per-string glow intensity from upcoming note data.
 	_update_string_glows()
-
-	# ── Update lane highlighting every frame based on next upcoming note ──────────────
-	_update_fret_range_visuals()
 
 	# Update debug info overlay.
 	_update_debug_info()
@@ -577,61 +565,6 @@ func _update_string_glows() -> void:
 		if absf(new_val - current) > 0.001:
 			_string_glow[s] = new_val
 			_fretboard.set_string_glow(s, new_val)
-
-
-func _update_fret_range_visuals() -> void:
-	if not is_instance_valid(_highway):
-		return
-
-	# Find the FIRST upcoming unified event (after current song time).
-	# Start from _debug_strum_event_idx (first event not yet at the strum line)
-	# so we scan the notes currently visible on-screen, not 10+ seconds ahead.
-	var range_min_fret: int = -1
-	var range_max_fret: int = -1
-	var i: int = _debug_strum_event_idx
-	while i < _events.size():
-		var ev: Dictionary = _events[i]
-		var event_time: float = float(ev.get("time_start", -1.0))
-		if event_time > _song_time + FRET_RANGE_WINDOW:
-			break
-		if event_time > _song_time:
-			range_min_fret = int(ev.get("hand_fret_start", -1))
-			range_max_fret = int(ev.get("hand_fret_end", -1))
-			break
-		i += 1
-
-	var targets: Array[float] = _zero_lane_array()
-
-	if range_min_fret >= 1 and range_max_fret >= range_min_fret:
-		# Highlight lanes that overlap with the 4-fret range
-		for lane in LANE_COUNT:
-			var lane_min: int = 1 + lane * FRETS_PER_LANE
-			var lane_max: int = lane_min + FRETS_PER_LANE - 1
-			# Lane is active if it overlaps with the highlight range
-			if range_max_fret >= lane_min and range_min_fret <= lane_max:
-				targets[lane] = 1.0
-		
-		_highway.call("set_active_fret_range", range_min_fret, range_max_fret)
-		_active_window_min_fret = range_min_fret
-		_active_window_max_fret = range_max_fret
-	else:
-		# No upcoming notes - dim the highway
-		_highway.call("set_active_fret_range", 0, -1)
-		_active_window_min_fret = -1
-		_active_window_max_fret = -1
-
-	# Smooth transition of lane glow
-	for lane in LANE_COUNT:
-		_lane_glow[lane] = lerpf(_lane_glow[lane], targets[lane], 0.15)
-	_highway.call("set_lane_intensities", _lane_glow)
-
-
-func _zero_lane_array() -> Array[float]:
-	var arr: Array[float] = []
-	arr.resize(LANE_COUNT)
-	for i in LANE_COUNT:
-		arr[i] = 0.0
-	return arr
 
 
 func _return_to_menu() -> void:

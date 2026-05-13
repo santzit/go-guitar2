@@ -48,7 +48,7 @@ void fragment() {
 """
 
 ## Notes / chords spawn at Z = START_Z and travel toward STRUM_Z = 0.
-const START_Z          : float = -20.0
+const START_Z          : float = -ChartCommon.HIGHWAY_DEPTH
 const STRUM_Z          : float =  0.0
 const TRAVEL_SPEED     : float =  ChartCommon.Z_UNITS_PER_SECOND   # must match note.gd and music_play.gd
 const MISS_HOLD        : float =  1.0   # seconds to keep visible after strum
