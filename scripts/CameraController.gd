@@ -247,6 +247,6 @@ func _find_next_upcoming_center_fret(events: Array, start_idx: int, song_time: f
 	return -1.0
 
 
-func _damp_float(current: float, target: float, rate: float, delta: float) -> float:
+func _damp_float(from_value: float, target: float, rate: float, delta: float) -> float:
 	var blend: float = 1.0 - exp(-maxf(rate, 0.001) * delta)
-	return lerpf(current, target, blend)
+	return lerpf(from_value, target, blend)

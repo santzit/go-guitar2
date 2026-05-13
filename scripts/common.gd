@@ -13,12 +13,12 @@ const FRET_COUNT         : int   = 24
 const STRING_COUNT       : int   = 6
 ## Per-string note colors (string 0 top -> string 5 bottom).
 const STRING_COLORS: Array[Color] = [
-	Color(0.98, 0.26, 0.22, 1.0),
-	Color(0.98, 0.78, 0.16, 1.0),
-	Color(0.20, 0.80, 0.95, 1.0),
-	Color(1.00, 0.55, 0.10, 1.0),
-	Color(0.20, 0.88, 0.30, 1.0),
-	Color(0.72, 0.38, 0.98, 1.0),
+	Color(0.95, 0.15, 0.15, 1.0),
+	Color(0.98, 0.88, 0.05, 1.0),
+	Color(0.18, 0.48, 1.00, 1.0),
+	Color(1.00, 0.52, 0.08, 1.0),
+	Color(0.12, 0.88, 0.25, 1.0),
+	Color(0.62, 0.08, 0.95, 1.0),
 ]
 ## New simplified coordinate spacing.
 const FRET_SPACING       : float = 2.0
@@ -95,7 +95,7 @@ static func string_top_separator_y(str_idx: int) -> float:
 ## World-unit size (width × height) for a note finger indicator at fret_num.
 ## Width is one fret slot (FRET_SPACING world units); height = 80 % of STRING_SLOT_HEIGHT,
 ## so the indicator fits comfortably between strings.
-static func note_indicator_size(fret_num: int) -> Vector2:
+static func note_indicator_size(_fret_num: int) -> Vector2:
 	if float(FRET_COUNT) <= MIN_VALID_FRET_POS:
 		return DEFAULT_NOTE_INDICATOR_SIZE
 	var w    := FRET_SPACING

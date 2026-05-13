@@ -141,7 +141,7 @@ func _format_tuning(raw_tuning) -> String:
 
 func _format_duration(sec: float) -> String:
 	var total: int = maxi(int(round(sec)), 0)
-	var mm: int = total / 60
+	var mm: int = int(total / 60.0)
 	var ss: int = total % 60
 	return "%02d:%02d" % [mm, ss]
 

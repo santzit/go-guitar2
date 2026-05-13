@@ -48,7 +48,7 @@ func _apply_audio_settings() -> void:
 	# Sync AudioServer bus volumes from PlayerManager profiles.
 	# Master / Music / SFX volumes would go here when a GameSettings autoload
 	# is added. For now we only log readiness.
-	var mix_rate : int = AudioServer.get_mix_rate()
+	var mix_rate : int = int(round(AudioServer.get_mix_rate()))
 	print("Boot: AudioServer mix_rate=%d Hz, bus_count=%d." % [mix_rate, AudioServer.bus_count])
 
 
