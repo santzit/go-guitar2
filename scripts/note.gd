@@ -1,5 +1,6 @@
 extends Node3D
 const ChartCommon = preload("res://scripts/common.gd")
+const NOTE_MARKER_SHADER: Shader = preload("res://shaders/note_marker_corner_glow.gdshader")
 ## note.gd  –  behaviour for a single pooled note with a static 3D NoteMarker mesh.
 ##
 ## All coordinate formulas live in scripts/common.gd (class ChartCommon) so they
@@ -11,16 +12,6 @@ const ChartCommon = preload("res://scripts/common.gd")
 ##   Z = ChartCommon.note_world_z(time_offset, song_time, STRUM_Z)
 ##       Notes spawn at Z = -ChartCommon.HIGHWAY_DEPTH and travel toward Z = 0.
 ##
-const STRING_TEXTURES: Array[Texture2D] = [
-	preload("res://assets/textures/chartplayer/GuitarRed.png"),
-	preload("res://assets/textures/chartplayer/GuitarYellow.png"),
-	preload("res://assets/textures/chartplayer/GuitarCyan.png"),
-	preload("res://assets/textures/chartplayer/GuitarOrange.png"),
-	preload("res://assets/textures/chartplayer/GuitarGreen.png"),
-	preload("res://assets/textures/chartplayer/GuitarPurple.png"),
-]
-const NOTE_MARKER_SHADER: Shader = preload("res://shaders/note_marker_border.gdshader")
-
 const START_Z       : float = -ChartCommon.HIGHWAY_DEPTH
 const STRUM_Z       : float = 0.0
 const TRAVEL_SPEED  : float = ChartCommon.Z_UNITS_PER_SECOND
@@ -32,15 +23,22 @@ const MISS_HOLD_SECS: float = 1.0
 ## Lift marker slightly so the visual middle aligns with the string centerline.
 const NOTE_MARKER_LOCAL_OFFSET: Vector3 = Vector3(0.0, 0.1, 0.08)
 const NOTE_MARKER_LOCAL_ROTATION_DEGREES: Vector3 = Vector3.ZERO
-const NOTE_MARKER_NEON_GLOW_BASE: float = 1.8
+const NOTE_MARKER_NEON_GLOW_BASE: float = 2.4
 const NOTE_MARKER_NEON_GLOW_PULSE: float = 0.8
 const NOTE_MARKER_PULSE_FREQUENCY: float = 8.0
 const NOTE_MARKER_TEXTURE_ALPHA: float = 1.0
+const NOTE_MARKER_SIZE: Vector3 = Vector3(0.78, 0.34, 0.04)
+const NOTE_MARKER_CORNER_RADIUS: float = 0.08
+const NOTE_MARKER_CORNER_SEGMENTS: int = 8
+const NOTE_MARKER_CORNER_GLOW_WIDTH: float = 0.22
+const NOTE_MARKER_CORNER_GLOW_BOOST: float = 18.0
 const NOTE_VISUAL_ALPHA: float = 0.4
 const SUSTAIN_MIN_SECS: float = 0.05
 const SUSTAIN_TRAIL_WIDTH: float = 0.5
 const SUSTAIN_TRAIL_HEIGHT: float = 0.08
 const SUSTAIN_MIN_LENGTH: float = SUSTAIN_MIN_SECS * TRAVEL_SPEED
+
+static var _note_marker_mesh_cache: ArrayMesh = null
 
 var fret         : int   = 0
 var string_index : int   = 0
@@ -52,27 +50,23 @@ var _note_marker_mat: ShaderMaterial = null
 var _sustain_trail: MeshInstance3D = null
 var _sustain_trail_mat: StandardMaterial3D = null
 var _indicator_color: Color = Color(1.0, 0.5, 0.1, 1.0)
-var _marker_texture: Texture2D = null
 
 @onready var _note_marker: MeshInstance3D = $NoteMarker
 
 
 func _ready() -> void:
 	if _note_marker:
+		_note_marker.mesh = _get_note_marker_mesh()
 		_note_marker.position = NOTE_MARKER_LOCAL_OFFSET
 		_note_marker.rotation_degrees = NOTE_MARKER_LOCAL_ROTATION_DEGREES
 		_note_marker_mat = ShaderMaterial.new()
 		_note_marker_mat.shader = NOTE_MARKER_SHADER
-		_note_marker_mat.set_shader_parameter("tint_color", Color(1.0, 1.0, 1.0, NOTE_MARKER_TEXTURE_ALPHA))
-		_note_marker_mat.set_shader_parameter("border_color", Color(1.0, 1.0, 1.0, 1.0))
-		_note_marker_mat.set_shader_parameter("border_width", 0.16)
-		_note_marker_mat.set_shader_parameter("corner_radius", 0.34)
-		_note_marker_mat.set_shader_parameter("border_emission_energy", 3.6)
-		_note_marker_mat.set_shader_parameter("emission_energy", NOTE_MARKER_NEON_GLOW_BASE)
+		_note_marker_mat.set_shader_parameter("corner_glow_color", Color(1.0, 1.0, 1.0, 1.0))
+		_note_marker_mat.set_shader_parameter("corner_glow_width", NOTE_MARKER_CORNER_GLOW_WIDTH)
+		_note_marker_mat.set_shader_parameter("corner_glow_boost", NOTE_MARKER_CORNER_GLOW_BOOST)
+		_note_marker_mat.set_shader_parameter("corner_radius_uv", NOTE_MARKER_CORNER_RADIUS / minf(NOTE_MARKER_SIZE.x, NOTE_MARKER_SIZE.y))
+		_note_marker_mat.set_shader_parameter("glow_energy", NOTE_MARKER_NEON_GLOW_BASE)
 		_note_marker.set_surface_override_material(0, _note_marker_mat)
-		if _marker_texture == null:
-			_marker_texture = STRING_TEXTURES[string_index] if string_index < STRING_TEXTURES.size() else null
-		_apply_marker_texture(_marker_texture)
 		_sustain_trail = MeshInstance3D.new()
 		_sustain_trail_mat = StandardMaterial3D.new()
 		_sustain_trail_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -103,8 +97,6 @@ func setup(
 
 	position = Vector3(ChartCommon.fret_mid_world_x(fret - 1), ChartCommon.string_world_y(string_index), START_Z)
 	_indicator_color = ChartCommon.STRING_COLORS[string_index] if string_index < ChartCommon.STRING_COLORS.size() else Color.WHITE
-	_marker_texture = STRING_TEXTURES[string_index] if string_index < STRING_TEXTURES.size() else null
-	_apply_marker_texture(_marker_texture)
 	_apply_marker_color()
 	_update_sustain_trail()
 	_update_marker_glow(0.0)
@@ -139,17 +131,11 @@ func _apply_marker_color() -> void:
 	if _note_marker_mat == null:
 		return
 	var marker_tint := Color(_indicator_color.r, _indicator_color.g, _indicator_color.b, NOTE_MARKER_TEXTURE_ALPHA)
-	_note_marker_mat.set_shader_parameter("tint_color", marker_tint)
+	_note_marker_mat.set_shader_parameter("base_color", marker_tint)
 	if _sustain_trail_mat != null:
 		var visual_color := _with_visual_alpha(_indicator_color)
 		_sustain_trail_mat.albedo_color = visual_color
 		_sustain_trail_mat.emission = visual_color
-
-
-func _apply_marker_texture(texture: Texture2D) -> void:
-	if _note_marker_mat == null:
-		return
-	_note_marker_mat.set_shader_parameter("albedo_tex", texture)
 
 
 func _update_marker_glow(song_time: float) -> void:
@@ -157,7 +143,7 @@ func _update_marker_glow(song_time: float) -> void:
 		return
 	var pulse: float = 0.5 + 0.5 * sin(song_time * NOTE_MARKER_PULSE_FREQUENCY)
 	var glow_energy: float = NOTE_MARKER_NEON_GLOW_BASE + NOTE_MARKER_NEON_GLOW_PULSE * pulse
-	_note_marker_mat.set_shader_parameter("emission_energy", glow_energy)
+	_note_marker_mat.set_shader_parameter("glow_energy", glow_energy)
 	if _sustain_trail_mat != null:
 		_sustain_trail_mat.emission_energy_multiplier = glow_energy
 
@@ -186,3 +172,117 @@ func _update_sustain_trail() -> void:
 
 func _with_visual_alpha(c: Color) -> Color:
 	return Color(c.r, c.g, c.b, NOTE_VISUAL_ALPHA)
+
+
+func _get_note_marker_mesh() -> ArrayMesh:
+	if _note_marker_mesh_cache != null:
+		return _note_marker_mesh_cache
+	_note_marker_mesh_cache = _build_rounded_box_mesh(
+		NOTE_MARKER_SIZE.x,
+		NOTE_MARKER_SIZE.y,
+		NOTE_MARKER_SIZE.z,
+		NOTE_MARKER_CORNER_RADIUS,
+		NOTE_MARKER_CORNER_SEGMENTS
+	)
+	return _note_marker_mesh_cache
+
+
+func _build_rounded_box_mesh(width: float, height: float, depth: float, corner_radius: float, corner_segments: int) -> ArrayMesh:
+	var hw := width * 0.5
+	var hh := height * 0.5
+	var hz := depth * 0.5
+	var radius := minf(corner_radius, minf(hw, hh))
+	var segs := maxi(corner_segments, 2)
+
+	var points: PackedVector2Array = _rounded_rect_points(hw, hh, radius, segs)
+	var tri: PackedInt32Array = Geometry2D.triangulate_polygon(points)
+	if tri.is_empty():
+		var reversed: PackedVector2Array = points.duplicate()
+		reversed.reverse()
+		points = reversed
+		tri = Geometry2D.triangulate_polygon(points)
+
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+
+	for i in range(tri.size() / 3):
+		var i0: int = tri[i * 3]
+		var i1: int = tri[i * 3 + 1]
+		var i2: int = tri[i * 3 + 2]
+		_emit_tri(st, points[i0], points[i1], points[i2], hz)
+		_emit_tri(st, points[i2], points[i1], points[i0], -hz)
+
+	for i in points.size():
+		var j := (i + 1) % points.size()
+		var p0: Vector2 = points[i]
+		var p1: Vector2 = points[j]
+		_emit_side_quad(st, p0, p1, hz)
+
+	st.generate_normals()
+	return st.commit()
+
+
+func _rounded_rect_points(half_w: float, half_h: float, radius: float, segments: int) -> PackedVector2Array:
+	var centers := [
+		Vector2(half_w - radius, half_h - radius),
+		Vector2(half_w - radius, -half_h + radius),
+		Vector2(-half_w + radius, -half_h + radius),
+		Vector2(-half_w + radius, half_h - radius),
+	]
+	var angle_pairs := [
+		Vector2(PI * 0.5, 0.0),
+		Vector2(0.0, -PI * 0.5),
+		Vector2(-PI * 0.5, -PI),
+		Vector2(PI, PI * 0.5),
+	]
+
+	var out := PackedVector2Array()
+	for c in centers.size():
+		var center: Vector2 = centers[c]
+		var a0: float = angle_pairs[c].x
+		var a1: float = angle_pairs[c].y
+		for s in range(segments):
+			var t := float(s) / float(segments - 1)
+			var a := lerpf(a0, a1, t)
+			var p := center + Vector2(cos(a), sin(a)) * radius
+			if out.is_empty() or out[out.size() - 1].distance_squared_to(p) > 0.000001:
+				out.append(p)
+	return out
+
+
+func _emit_tri(st: SurfaceTool, a2: Vector2, b2: Vector2, c2: Vector2, z: float) -> void:
+	var a := Vector3(a2.x, a2.y, z)
+	var b := Vector3(b2.x, b2.y, z)
+	var c := Vector3(c2.x, c2.y, z)
+	st.set_uv(_xy_uv(a2))
+	st.add_vertex(a)
+	st.set_uv(_xy_uv(b2))
+	st.add_vertex(b)
+	st.set_uv(_xy_uv(c2))
+	st.add_vertex(c)
+
+
+func _emit_side_quad(st: SurfaceTool, p0: Vector2, p1: Vector2, hz: float) -> void:
+	var a := Vector3(p0.x, p0.y, hz)
+	var b := Vector3(p1.x, p1.y, hz)
+	var c := Vector3(p1.x, p1.y, -hz)
+	var d := Vector3(p0.x, p0.y, -hz)
+	st.set_uv(Vector2(0.0, 0.0))
+	st.add_vertex(a)
+	st.set_uv(Vector2(1.0, 0.0))
+	st.add_vertex(b)
+	st.set_uv(Vector2(1.0, 1.0))
+	st.add_vertex(c)
+	st.set_uv(Vector2(0.0, 0.0))
+	st.add_vertex(a)
+	st.set_uv(Vector2(1.0, 1.0))
+	st.add_vertex(c)
+	st.set_uv(Vector2(0.0, 1.0))
+	st.add_vertex(d)
+
+
+func _xy_uv(p: Vector2) -> Vector2:
+	return Vector2(
+		(p.x / NOTE_MARKER_SIZE.x) + 0.5,
+		(p.y / NOTE_MARKER_SIZE.y) + 0.5
+	)

@@ -1,9 +1,9 @@
 [gd_scene load_steps=3 format=3 uid="uid://cnotescn0001"]
 
-[ext_resource type="Script" path="res://scripts/note.gd" id="1_notescript"]
+[ext_resource type="Script" uid="uid://sgku0amyd188" path="res://scripts/note.gd" id="1_notescript"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_note_marker"]
-size = Vector3(0.78, 0.34, 0.04)
+size = Vector3(0.78, 0.34, 0.08)
 
 [node name="Note" type="Node3D"]
 script = ExtResource("1_notescript")

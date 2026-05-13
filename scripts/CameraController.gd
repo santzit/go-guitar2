@@ -15,7 +15,7 @@ const CAMERA_Z_MIN      : float = 6.0
 const CAMERA_Z_MAX      : float = 18.0
 const CAMERA_Z_SOFT_MAX : float = 13.5
 const CAMERA_LOOK_AT_Z  : float = -7.0
-const CAMERA_WORLD_DAMPING_RATE : float = 0.55
+const CAMERA_WORLD_DAMPING_RATE : float = 0.24
 const CAMERA_LOOK_DAMPING_RATE  : float = 0.45
 const CAMERA_FRET_DAMPING_RATE  : float = 0.60
 const CAMERA_Y_DAMPING_RATE     : float = 0.45
@@ -35,7 +35,7 @@ const CAMERA_FOCUS_FRET_DEADBAND  : float = 1.5
 const CAMERA_LOOK_X_DEADBAND      : float = 0.9
 const CAMERA_EXCESS_TO_Y_GAIN : float = 0.45
 const CAMERA_EXCESS_TO_LEFT_GAIN : float = 0.65
-const CAMERA_MAX_LEFT_SHIFT : float = 4.5
+const CAMERA_MAX_LEFT_SHIFT : float = 2.2
 const CAMERA_CHARTPLAYER_OFFSET_BLEND : float = 0.35
 const CAMERA_DISTANCE_SPREAD_FREE : float = 12.0
 const CAMERA_DISTANCE_MIN_SPREAD  : float = 4.0
@@ -193,10 +193,17 @@ func _update_camera_targets_from_visible_events(events: Array, debug_strum_event
 			_camera_target_z = desired_z
 		_camera_target_look_at_z = clampf(_camera_target_z - CAMERA_LOOK_AHEAD_DEPTH, CAMERA_LOOK_AT_Z_MIN, CAMERA_LOOK_AT_Z_MAX)
 	else:
-		_camera_target_position_fret = DEFAULT_CAMERA_FRET
-		_stable_center_fret = DEFAULT_CAMERA_FRET
-		_stable_focus_fret = DEFAULT_CAMERA_FRET
-		_camera_target_look_at_x = _fret_to_world_x(DEFAULT_CAMERA_FRET)
+		var next_center_fret := _find_next_upcoming_center_fret(events, debug_strum_event_idx, song_time)
+		if next_center_fret >= 0.0:
+			_camera_target_position_fret = clampf(next_center_fret, CAMERA_TARGET_FRET_MIN, CAMERA_TARGET_FRET_MAX) - CAMERA_POSITION_FRET_BIAS
+			_stable_center_fret = next_center_fret
+			_stable_focus_fret = next_center_fret
+			_camera_target_look_at_x = _fret_to_world_x(next_center_fret)
+		else:
+			_camera_target_position_fret = DEFAULT_CAMERA_FRET
+			_stable_center_fret = DEFAULT_CAMERA_FRET
+			_stable_focus_fret = DEFAULT_CAMERA_FRET
+			_camera_target_look_at_x = _fret_to_world_x(DEFAULT_CAMERA_FRET)
 		_camera_target_left_shift = 0.0
 		_camera_target_x = clampf(_camera_x_from_fret(_camera_target_position_fret), CAMERA_X_MIN, CAMERA_X_MAX)
 		_camera_target_y = CAMERA_Y
@@ -211,6 +218,33 @@ func _fret_to_world_x(fret_num: float) -> float:
 func _camera_x_from_fret(position_fret: float) -> float:
 	var fret_offset: float = (10.0 - position_fret) / 4.0
 	return _fret_to_world_x(position_fret + (fret_offset * CAMERA_CHARTPLAYER_OFFSET_BLEND))
+
+
+func _find_next_upcoming_center_fret(events: Array, start_idx: int, song_time: float) -> float:
+	for i in range(maxi(start_idx, 0), events.size()):
+		var ev: Dictionary = events[i]
+		var event_time: float = float(ev.get("time_start", -1.0))
+		if event_time <= song_time:
+			continue
+
+		var min_fret: float = INF
+		var max_fret: float = -INF
+		for n in ev.get("notes", []):
+			var fret: int = int(n.get("fret", -1))
+			if fret < 1 or fret > FRET_COUNT:
+				continue
+			min_fret = minf(min_fret, float(fret))
+			max_fret = maxf(max_fret, float(fret))
+
+		if min_fret != INF and max_fret != -INF:
+			return (min_fret + max_fret) * 0.5
+
+		var hand_start: int = int(ev.get("hand_fret_start", -1))
+		var hand_end: int = int(ev.get("hand_fret_end", -1))
+		if hand_start >= 1 and hand_end >= hand_start:
+			return (float(hand_start) + float(hand_end)) * 0.5
+
+	return -1.0
 
 
 func _damp_float(current: float, target: float, rate: float, delta: float) -> float:
