@@ -1,6 +1,7 @@
 extends Node3D
 const ChartCommon = preload("res://scripts/common.gd")
 const NOTE_MARKER_SHADER: Shader = preload("res://shaders/note_marker_corner_glow.gdshader")
+const NOTE_LANE_CONNECTOR_SHADER: Shader = preload("res://shaders/note_lane_connector.gdshader")
 ## note.gd  –  behaviour for a single pooled note with a static 3D NoteMarker mesh.
 ##
 ## All coordinate formulas live in scripts/common.gd (class ChartCommon) so they
@@ -32,6 +33,10 @@ const NOTE_MARKER_CORNER_RADIUS: float = 0.08
 const NOTE_MARKER_CORNER_SEGMENTS: int = 8
 const NOTE_MARKER_CORNER_GLOW_WIDTH: float = 0.22
 const NOTE_MARKER_CORNER_GLOW_BOOST: float = 18.0
+const NOTE_LANE_CONNECTOR_WIDTH: float = 0.012
+const NOTE_LANE_CONNECTOR_DEPTH: float = 0.012
+const NOTE_LANE_CONNECTOR_MIN_HEIGHT: float = 0.02
+const NOTE_LANE_CONNECTOR_GLOW_MULTIPLIER: float = 2.2
 const NOTE_VISUAL_ALPHA: float = 0.4
 const SUSTAIN_MIN_SECS: float = 0.05
 const SUSTAIN_TRAIL_WIDTH: float = 0.5
@@ -46,7 +51,10 @@ var time_offset  : float = 0.0
 var duration     : float = 0.25
 var is_active    : bool  = false
 var _miss_until  : float = -1.0
+var _show_lane_connector: bool = true
 var _note_marker_mat: ShaderMaterial = null
+var _lane_connector: MeshInstance3D = null
+var _lane_connector_mat: ShaderMaterial = null
 var _sustain_trail: MeshInstance3D = null
 var _sustain_trail_mat: StandardMaterial3D = null
 var _indicator_color: Color = Color(1.0, 0.5, 0.1, 1.0)
@@ -67,6 +75,19 @@ func _ready() -> void:
 		_note_marker_mat.set_shader_parameter("corner_radius_uv", NOTE_MARKER_CORNER_RADIUS / minf(NOTE_MARKER_SIZE.x, NOTE_MARKER_SIZE.y))
 		_note_marker_mat.set_shader_parameter("glow_energy", NOTE_MARKER_NEON_GLOW_BASE)
 		_note_marker.set_surface_override_material(0, _note_marker_mat)
+		_lane_connector = MeshInstance3D.new()
+		var connector_mesh := BoxMesh.new()
+		connector_mesh.size = Vector3(NOTE_LANE_CONNECTOR_WIDTH, NOTE_LANE_CONNECTOR_MIN_HEIGHT, NOTE_LANE_CONNECTOR_DEPTH)
+		_lane_connector.mesh = connector_mesh
+		_lane_connector_mat = ShaderMaterial.new()
+		_lane_connector_mat.shader = NOTE_LANE_CONNECTOR_SHADER
+		_lane_connector_mat.set_shader_parameter("line_color", Color(1.0, 1.0, 1.0, 1.0))
+		_lane_connector_mat.set_shader_parameter("glow_energy", NOTE_MARKER_NEON_GLOW_BASE * NOTE_LANE_CONNECTOR_GLOW_MULTIPLIER)
+		_lane_connector_mat.set_shader_parameter("connector_width", NOTE_LANE_CONNECTOR_WIDTH)
+		_lane_connector_mat.set_shader_parameter("connector_depth", NOTE_LANE_CONNECTOR_DEPTH)
+		_lane_connector_mat.set_shader_parameter("connector_height", NOTE_LANE_CONNECTOR_MIN_HEIGHT)
+		_lane_connector.set_surface_override_material(0, _lane_connector_mat)
+		add_child(_lane_connector)
 		_sustain_trail = MeshInstance3D.new()
 		_sustain_trail_mat = StandardMaterial3D.new()
 		_sustain_trail_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -85,12 +106,13 @@ func setup(
 		p_string: int,
 		p_time: float,
 		p_duration: float,
-		_unused_show_label: bool = true
+		p_show_lane_connector: bool = true
 ) -> void:
 	fret         = p_fret
 	string_index = clampi(p_string, 0, 5)
 	time_offset  = p_time
 	duration     = p_duration
+	_show_lane_connector = p_show_lane_connector
 	is_active    = true
 	visible      = true
 	_miss_until  = -1.0
@@ -98,6 +120,7 @@ func setup(
 	position = Vector3(ChartCommon.fret_mid_world_x(fret - 1), ChartCommon.string_world_y(string_index), START_Z)
 	_indicator_color = ChartCommon.STRING_COLORS[string_index] if string_index < ChartCommon.STRING_COLORS.size() else Color.WHITE
 	_apply_marker_color()
+	_update_lane_connector()
 	_update_sustain_trail()
 	_update_marker_glow(0.0)
 
@@ -144,6 +167,8 @@ func _update_marker_glow(song_time: float) -> void:
 	var pulse: float = 0.5 + 0.5 * sin(song_time * NOTE_MARKER_PULSE_FREQUENCY)
 	var glow_energy: float = NOTE_MARKER_NEON_GLOW_BASE + NOTE_MARKER_NEON_GLOW_PULSE * pulse
 	_note_marker_mat.set_shader_parameter("glow_energy", glow_energy)
+	if _lane_connector_mat != null:
+		_lane_connector_mat.set_shader_parameter("glow_energy", glow_energy * NOTE_LANE_CONNECTOR_GLOW_MULTIPLIER)
 	if _sustain_trail_mat != null:
 		_sustain_trail_mat.emission_energy_multiplier = glow_energy
 
@@ -168,6 +193,33 @@ func _update_sustain_trail() -> void:
 		NOTE_MARKER_LOCAL_OFFSET.z - sustain_length * 0.5
 	)
 	_sustain_trail.visible = true
+
+
+func _update_lane_connector() -> void:
+	if _lane_connector == null:
+		return
+	if not _show_lane_connector:
+		_lane_connector.visible = false
+		return
+	var marker_anchor_y: float = NOTE_MARKER_LOCAL_OFFSET.y
+	var highway_local_y: float = -position.y
+	var connector_height: float = marker_anchor_y - highway_local_y
+	if connector_height <= NOTE_LANE_CONNECTOR_MIN_HEIGHT:
+		_lane_connector.visible = false
+		return
+	var connector_mesh := _lane_connector.mesh as BoxMesh
+	if connector_mesh == null:
+		connector_mesh = BoxMesh.new()
+		_lane_connector.mesh = connector_mesh
+	connector_mesh.size = Vector3(NOTE_LANE_CONNECTOR_WIDTH, connector_height, NOTE_LANE_CONNECTOR_DEPTH)
+	if _lane_connector_mat != null:
+		_lane_connector_mat.set_shader_parameter("connector_height", connector_height)
+	_lane_connector.position = Vector3(
+		NOTE_MARKER_LOCAL_OFFSET.x,
+		highway_local_y + (connector_height * 0.5),
+		NOTE_MARKER_LOCAL_OFFSET.z
+	)
+	_lane_connector.visible = true
 
 
 func _with_visual_alpha(c: Color) -> Color:
