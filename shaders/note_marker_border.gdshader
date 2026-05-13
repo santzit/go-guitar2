@@ -4,10 +4,11 @@ render_mode blend_mix, cull_disabled, unshaded;
 uniform sampler2D albedo_tex : source_color;
 uniform vec4 tint_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
 uniform vec4 border_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
-uniform float border_width : hint_range(0.01, 0.40) = 0.12;
-uniform float corner_radius : hint_range(0.02, 0.45) = 0.26;
-uniform float edge_softness : hint_range(0.001, 0.05) = 0.01;
+uniform float border_width : hint_range(0.01, 0.40) = 0.16;
+uniform float corner_radius : hint_range(0.02, 0.45) = 0.34;
+uniform float edge_softness : hint_range(0.001, 0.05) = 0.008;
 uniform float emission_energy : hint_range(0.0, 8.0) = 1.8;
+uniform float border_emission_energy : hint_range(0.0, 12.0) = 3.6;
 
 float sd_rounded_rect(vec2 p, vec2 half_size, float radius) {
 	vec2 q = abs(p) - (half_size - vec2(radius));
@@ -29,8 +30,10 @@ void fragment() {
 	vec3 rgb = mix(base.rgb, border_color.rgb, border_mask);
 	float alpha_mask = mix(1.0, rounded_mask, front_face);
 	float alpha = base.a * alpha_mask;
+	float border_emission = border_mask * border_emission_energy;
 
 	ALBEDO = rgb;
-	EMISSION = rgb * emission_energy;
+	EMISSION = base.rgb * emission_energy + border_color.rgb * border_emission;
 	ALPHA = alpha;
+	ALPHA_SCISSOR_THRESHOLD = 0.05;
 }

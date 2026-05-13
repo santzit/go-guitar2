@@ -65,6 +65,9 @@ func _ready() -> void:
 		_note_marker_mat.shader = NOTE_MARKER_SHADER
 		_note_marker_mat.set_shader_parameter("tint_color", Color(1.0, 1.0, 1.0, NOTE_MARKER_TEXTURE_ALPHA))
 		_note_marker_mat.set_shader_parameter("border_color", Color(1.0, 1.0, 1.0, 1.0))
+		_note_marker_mat.set_shader_parameter("border_width", 0.16)
+		_note_marker_mat.set_shader_parameter("corner_radius", 0.34)
+		_note_marker_mat.set_shader_parameter("border_emission_energy", 3.6)
 		_note_marker_mat.set_shader_parameter("emission_energy", NOTE_MARKER_NEON_GLOW_BASE)
 		_note_marker.set_surface_override_material(0, _note_marker_mat)
 		if _marker_texture == null:
