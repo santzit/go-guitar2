@@ -12,10 +12,11 @@ func _ready() -> void:
 	environment.background_mode = Environment.BG_COLOR
 	environment.background_color = Color(0, 0, 0, 1)
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_DISABLED
+	environment.glow_normalized = false
 	environment.glow_enabled = true
-	environment.glow_intensity = 1.5
-	environment.glow_bloom = 0.55
-	environment.glow_hdr_threshold = 0.4
+	environment.glow_intensity = 2.4
+	environment.glow_bloom = 0.85
+	environment.glow_hdr_threshold = 0.22
 
 	_ensure_directional_light()
 
