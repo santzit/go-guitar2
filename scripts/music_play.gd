@@ -426,7 +426,7 @@ func _build_play_events(src_notes: Array) -> Array:
 		for gn in group:
 			var f: int = int(gn.get("fret", 0))
 			var s: int = int(gn.get("string", 0))
-			if f < 1 or f > FRET_COUNT or s < 0 or s > 5:
+			if f < 0 or f > FRET_COUNT or s < 0 or s > 5:
 				continue
 			var dur: float = maxf(float(gn.get("duration", 0.25)), 0.0)
 			var hs_id: int = int(gn.get("hand_shape_id", -1))
@@ -455,13 +455,14 @@ func _build_play_events(src_notes: Array) -> Array:
 				outline_min_string = mini(outline_min_string, hs_min_string)
 				outline_max_string = maxi(outline_max_string, hs_max_string)
 			max_duration = maxf(max_duration, dur)
-			min_fret = mini(min_fret, f)
+			if f >= 1:
+				min_fret = mini(min_fret, f)
 
 		if not valid_notes.is_empty():
 			var event_kind: String = "single"
 			if valid_notes.size() > 1 or has_hand_shape:
 				event_kind = "chord"
-			var hand_start: int = maxi(min_fret - 1, 1)
+			var hand_start: int = 1 if min_fret == 999 else maxi(min_fret - 1, 1)
 			var hand_end: int = mini(hand_start + 3, FRET_COUNT)
 			var chord_name: String = ""
 			var show_details: bool = false
