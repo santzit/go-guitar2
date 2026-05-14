@@ -1,47 +1,35 @@
 extends Node3D
+const EventPoolBase = preload("res://scripts/event_pool_base.gd")
 
 const MAX_NOTE_HEADS: int = 192
 const NOTE_HEAD_SCENE: PackedScene = preload("res://scenes/note_head.tscn")
 
-var _pool: Array[Node3D] = []
-var _active: Array[Node3D] = []
+var _heads: EventPoolBase = EventPoolBase.new()
 
 
 func _ready() -> void:
-	for _i in MAX_NOTE_HEADS:
-		_pool.append(_make_note_head())
+	_heads.warm(MAX_NOTE_HEADS, Callable(self, "_make_note_head"))
 
 
 func begin_frame() -> void:
-	for i in range(_active.size() - 1, -1, -1):
-		var head := _active[i]
-		if is_instance_valid(head):
-			if head.has_method("hide_head"):
-				head.hide_head()
-			else:
-				head.visible = false
-		_pool.append(head)
-	_active.clear()
+	_heads.release_all(Callable(self, "_hide_head_instance"))
 
 
 func spawn_note_head(p_fret: int, p_string: int, p_marker_type: String = "single") -> Node3D:
-	if _pool.is_empty():
-		_pool.append(_make_note_head())
-	var head: Node3D = _pool.pop_back()
+	var head: Node3D = _heads.acquire(Callable(self, "_make_note_head"))
 	if head.has_method("setup_head"):
 		head.setup_head(p_fret, p_string, p_marker_type)
 	else:
 		head.visible = true
-	_active.append(head)
 	return head
 
 
 func active_count() -> int:
-	return _active.size()
+	return _heads.active_count()
 
 
 func get_active_heads() -> Array[Node3D]:
-	return _active
+	return _heads.get_active()
 
 
 func _make_note_head() -> Node3D:
@@ -49,3 +37,12 @@ func _make_note_head() -> Node3D:
 	head.visible = false
 	add_child(head)
 	return head
+
+
+func _hide_head_instance(head: Node3D) -> void:
+	if not is_instance_valid(head):
+		return
+	if head.has_method("hide_head"):
+		head.hide_head()
+	else:
+		head.visible = false

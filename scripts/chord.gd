@@ -1,5 +1,6 @@
 extends Node3D
 const ChartCommon = preload("res://scripts/common.gd")
+const EventLifecycle = preload("res://scripts/event_lifecycle.gd")
 ## chord.gd — Unified play-event container for single notes and chords.
 ##
 ## Single-note events:
@@ -52,6 +53,7 @@ const TRAVEL_SPEED     : float =  ChartCommon.Z_UNITS_PER_SECOND   # must match 
 
 var time_offset    : float = 0.0
 var is_active      : bool  = false
+var _lifecycle: EventLifecycle = EventLifecycle.new()
 
 ## Lazy-initialised persistent nodes (survive pool reuse).
 var _border_mesh   : MeshInstance3D = null
@@ -82,6 +84,7 @@ func setup(
 	time_offset = p_time
 	is_active   = true
 	visible     = true
+	_lifecycle.setup(time_offset, 0.0, 0.0, false)
 	var is_single_event : bool = (p_event_kind == "single") or (p_notes.size() <= 1)
 
 	# ── Determine extent of notes ──────────────────────────────────────────────
@@ -214,7 +217,8 @@ func _clear_indicators() -> void:
 func tick(p_song_time: float) -> void:
 	if not is_active:
 		return
-	if p_song_time >= time_offset:
+	var state: Dictionary = _lifecycle.advance(p_song_time)
+	if bool(state.get("finished_now", false)):
 		deactivate()
 		return
 	position.z = ChartCommon.note_world_z(time_offset, p_song_time, STRUM_Z)

@@ -1,5 +1,6 @@
 extends Node3D
 const ChartCommon = preload("res://scripts/common.gd")
+const EventLifecycle = preload("res://scripts/event_lifecycle.gd")
 const NOTE_MARKER_SHADER: Shader = preload("res://shaders/note_marker_corner_glow.gdshader")
 const NOTE_LANE_CONNECTOR_SHADER: Shader = preload("res://shaders/note_lane_connector.gdshader")
 ## note.gd  –  behaviour for a single pooled note with a static 3D NoteMarker mesh.
@@ -47,9 +48,8 @@ var time_offset  : float = 0.0
 var duration     : float = 0.25
 var is_active    : bool  = false
 var _head_hidden : bool  = false
-var _end_time    : float = 0.0
-var _has_sustain : bool  = false
 var _show_lane_connector: bool = true
+var _lifecycle: EventLifecycle = EventLifecycle.new()
 var _note_marker_mat: ShaderMaterial = null
 var _lane_connector: MeshInstance3D = null
 var _lane_connector_mat: ShaderMaterial = null
@@ -126,8 +126,7 @@ func setup(
 	is_active    = true
 	visible      = true
 	_head_hidden = false
-	_end_time = time_offset
-	_has_sustain = false
+	_lifecycle.setup(time_offset, duration, SUSTAIN_MIN_SECS, true)
 
 	position = Vector3(ChartCommon.fret_mid_world_x(fret - 1), ChartCommon.string_world_y(string_index), START_Z)
 	if _note_marker != null:
@@ -138,9 +137,6 @@ func setup(
 	_apply_marker_color()
 	_update_lane_connector()
 	_update_sustain_trail()
-	if duration * TRAVEL_SPEED >= SUSTAIN_MIN_LENGTH:
-		_has_sustain = true
-		_end_time = time_offset + duration
 	_update_marker_glow(0.0)
 
 
@@ -148,18 +144,19 @@ func tick(p_song_time: float) -> void:
 	if not is_active:
 		return
 
-	if _head_hidden:
+	var state: Dictionary = _lifecycle.advance(p_song_time)
+
+	if bool(state.get("is_crossed", false)):
 		position.z = STRUM_Z
-		_update_active_sustain_trail(p_song_time)
+		_update_active_sustain_trail(float(state.get("remaining_secs", 0.0)))
 	else:
 		position.z = ChartCommon.note_world_z(time_offset, p_song_time, STRUM_Z)
 	_update_marker_glow(p_song_time)
 
-	if not _head_hidden and p_song_time >= time_offset:
+	if bool(state.get("crossed_now", false)):
 		_hide_head_visuals()
 		position.z = STRUM_Z
-		_update_active_sustain_trail(p_song_time)
-	if _head_hidden and p_song_time >= _end_time:
+	if bool(state.get("finished_now", false)):
 		deactivate()
 
 
@@ -169,8 +166,6 @@ func deactivate() -> void:
 	is_active    = false
 	visible      = false
 	_head_hidden = false
-	_end_time = 0.0
-	_has_sustain = false
 	var pool := get_parent()
 	if pool and pool.has_method("return_note"):
 		pool.return_note(self)
@@ -212,17 +207,14 @@ func _update_sustain_trail() -> void:
 		return
 	var sustain_length: float = maxf(duration * TRAVEL_SPEED, 0.0)
 	if sustain_length < SUSTAIN_MIN_LENGTH:
-		_has_sustain = false
 		_sustain_trail.visible = false
 		return
-	_has_sustain = true
 	_set_sustain_trail_length(sustain_length)
 
 
-func _update_active_sustain_trail(song_time: float) -> void:
-	if not _has_sustain or _sustain_trail == null:
+func _update_active_sustain_trail(remaining_secs: float) -> void:
+	if _sustain_trail == null:
 		return
-	var remaining_secs: float = maxf(_end_time - song_time, 0.0)
 	if remaining_secs <= 0.0:
 		_sustain_trail.visible = false
 		return

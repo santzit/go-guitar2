@@ -2,6 +2,7 @@ extends Node3D
 class_name OpenString
 
 const ChartCommon = preload("res://scripts/common.gd")
+const EventLifecycle = preload("res://scripts/event_lifecycle.gd")
 
 const START_Z: float = -ChartCommon.HIGHWAY_DEPTH
 const STRUM_Z: float = 0.0
@@ -22,8 +23,7 @@ var time_offset: float = 0.0
 var duration: float = 0.25
 var is_active: bool = false
 var _head_hidden: bool = false
-var _end_time: float = 0.0
-var _has_sustain: bool = false
+var _lifecycle: EventLifecycle = EventLifecycle.new()
 var _marker_mat: StandardMaterial3D = null
 var _sustain_trail: MeshInstance3D = null
 var _sustain_trail_mat: StandardMaterial3D = null
@@ -79,8 +79,7 @@ func setup(
 	is_active = true
 	visible = true
 	_head_hidden = false
-	_end_time = time_offset
-	_has_sustain = false
+	_lifecycle.setup(time_offset, duration, SUSTAIN_MIN_SECS, true)
 
 	var span_world: float = float(OPEN_STRING_SPAN_FRETS) * ChartCommon.FRET_SPACING
 	var center_x: float = span_world * 0.5
@@ -89,27 +88,25 @@ func setup(
 		_marker.visible = true
 	_apply_color()
 	_update_sustain_trail()
-	if duration * TRAVEL_SPEED >= SUSTAIN_MIN_LENGTH:
-		_has_sustain = true
-		_end_time = time_offset + duration
 
 
 func tick(song_time: float) -> void:
 	if not is_active:
 		return
 
-	if _head_hidden:
+	var state: Dictionary = _lifecycle.advance(song_time)
+
+	if bool(state.get("is_crossed", false)):
 		position.z = STRUM_Z
-		_update_active_sustain_trail(song_time)
+		_update_active_sustain_trail(float(state.get("remaining_secs", 0.0)))
 	else:
 		position.z = ChartCommon.note_world_z(time_offset, song_time, STRUM_Z)
 	_update_sustain_glow(song_time)
 
-	if not _head_hidden and song_time >= time_offset:
+	if bool(state.get("crossed_now", false)):
 		_hide_head_visuals()
 		position.z = STRUM_Z
-		_update_active_sustain_trail(song_time)
-	if _head_hidden and song_time >= _end_time:
+	if bool(state.get("finished_now", false)):
 		deactivate()
 
 
@@ -119,8 +116,6 @@ func deactivate() -> void:
 	is_active = false
 	visible = false
 	_head_hidden = false
-	_end_time = 0.0
-	_has_sustain = false
 	if _sustain_trail:
 		_sustain_trail.visible = false
 	var pool := get_parent()
@@ -154,17 +149,14 @@ func _update_sustain_trail() -> void:
 		return
 	var sustain_length: float = maxf(duration * TRAVEL_SPEED, 0.0)
 	if sustain_length < SUSTAIN_MIN_LENGTH:
-		_has_sustain = false
 		_sustain_trail.visible = false
 		return
-	_has_sustain = true
 	_set_sustain_trail_length(sustain_length)
 
 
-func _update_active_sustain_trail(song_time: float) -> void:
-	if not _has_sustain or _sustain_trail == null:
+func _update_active_sustain_trail(remaining_secs: float) -> void:
+	if _sustain_trail == null:
 		return
-	var remaining_secs: float = maxf(_end_time - song_time, 0.0)
 	if remaining_secs <= 0.0:
 		_sustain_trail.visible = false
 		return

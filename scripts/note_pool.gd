@@ -1,15 +1,14 @@
 extends Node3D
 ## note_pool.gd  –  manages a fixed pool of up to MAX_NOTES Note instances.
+const EventPoolBase = preload("res://scripts/event_pool_base.gd")
 
 const MAX_NOTES  : int         = 128
 const MAX_OPEN_STRINGS: int    = 64
 const NOTE_SCENE : PackedScene = preload("res://scenes/note.tscn")
 const OPEN_STRING_SCENE: PackedScene = preload("res://scenes/open_string.tscn")
 
-var _pool  : Array[Node3D] = []
-var _active: Array[Node3D] = []
-var _open_pool: Array[Node3D] = []
-var _active_open: Array[Node3D] = []
+var _notes: EventPoolBase = EventPoolBase.new()
+var _opens: EventPoolBase = EventPoolBase.new()
 
 
 func _ready() -> void:
@@ -17,10 +16,8 @@ func _ready() -> void:
 
 
 func _build_pool() -> void:
-	for i in MAX_NOTES:
-		_pool.append(_make_note())
-	for i in MAX_OPEN_STRINGS:
-		_open_pool.append(_make_open_string())
+	_notes.warm(MAX_NOTES, Callable(self, "_make_note"))
+	_opens.warm(MAX_OPEN_STRINGS, Callable(self, "_make_open_string"))
 
 
 func _make_note() -> Node3D:
@@ -47,30 +44,21 @@ func spawn_note(
 		p_show_lane_connector: bool = true
 ) -> Node3D:
 	if p_fret == 0:
-		if _open_pool.is_empty():
-			_open_pool.append(_make_open_string())
-		var open_string: Node3D = _open_pool.pop_back()
+		var open_string: Node3D = _opens.acquire(Callable(self, "_make_open_string"))
 		open_string.setup(p_fret, p_string, p_time, p_duration, false)
-		_active_open.append(open_string)
 		return open_string
 
-	if _pool.is_empty():
-		_pool.append(_make_note())
-
-	var note: Node3D = _pool.pop_back()
+	var note: Node3D = _notes.acquire(Callable(self, "_make_note"))
 	note.setup(p_fret, p_string, p_time, p_duration, p_show_lane_connector)
-	_active.append(note)
 	return note
 
 
 ## Called by a Note when it passes the strum line and deactivates itself.
 func return_note(note: Node3D) -> void:
 	if note.has_method("is_open_string") and note.call("is_open_string"):
-		_active_open.erase(note)
-		_open_pool.append(note)
+		_opens.release(note)
 		return
-	_active.erase(note)
-	_pool.append(note)
+	_notes.release(note)
 
 
 ## Called every frame by music_play.gd with the audio-derived song time.
@@ -79,15 +67,15 @@ func return_note(note: Node3D) -> void:
 func tick(song_time: float) -> void:
 	# Iterate backwards so that note.tick() calling deactivate() (which removes
 	# from _active via return_note) is safe without allocating a duplicate array.
-	for i in range(_active.size() - 1, -1, -1):
-		_active[i].tick(song_time)
-	for i in range(_active_open.size() - 1, -1, -1):
-		_active_open[i].tick(song_time)
+	for i in range(_notes.get_active().size() - 1, -1, -1):
+		_notes.get_active()[i].tick(song_time)
+	for i in range(_opens.get_active().size() - 1, -1, -1):
+		_opens.get_active()[i].tick(song_time)
 
 
 ## Deactivate all active notes (e.g. on song stop / restart).
 func clear_notes() -> void:
-	for i in range(_active.size() - 1, -1, -1):
-		_active[i].deactivate()
-	for i in range(_active_open.size() - 1, -1, -1):
-		_active_open[i].deactivate()
+	for i in range(_notes.get_active().size() - 1, -1, -1):
+		_notes.get_active()[i].deactivate()
+	for i in range(_opens.get_active().size() - 1, -1, -1):
+		_opens.get_active()[i].deactivate()
