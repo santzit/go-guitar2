@@ -32,7 +32,7 @@ const CAMERA_FOCUS_CLAMP_AHEAD  : float = 5.0
 const CAMERA_POSITION_FRET_BIAS : float = 1.0
 const CAMERA_FOCUS_UPDATE_INTERVAL : float = 0.50
 const CAMERA_FOCUS_FRET_DEADBAND  : float = 1.5
-const CAMERA_LOOK_X_DEADBAND      : float = 0.9
+const CAMERA_LOOK_X_DEADBAND      : float = 1.2
 const CAMERA_EXCESS_TO_Y_GAIN : float = 0.45
 const CAMERA_EXCESS_TO_LEFT_GAIN : float = 0.65
 const CAMERA_MAX_LEFT_SHIFT : float = 2.2
@@ -55,6 +55,8 @@ const CAMERA_FRET_EDGE_BLEND      : float = 0.10
 const CAMERA_LOCK_RELEASE_MAX_FRET: float = 13.0
 const CAMERA_LOCK_ENGAGE_MAX_FRET : float = 10.0
 const CAMERA_LOCK_LOW_CENTER_FRET : float = 6.0
+const CAMERA_LOOKAHEAD_LOOK_X_BLEND: float = 0.12
+const CAMERA_MAX_YAW_DEGREES      : float = 1.2
 
 var _camera_target_x    : float = 0.0
 var _camera_target_y    : float = CAMERA_Y
@@ -80,7 +82,7 @@ func reset_camera_defaults() -> void:
 	_camera_position_fret = DEFAULT_CAMERA_FRET
 	_camera_target_position_fret = DEFAULT_CAMERA_FRET
 	_camera_target_x = clampf(_camera_x_from_fret(_camera_position_fret), CAMERA_X_MIN, CAMERA_X_MAX)
-	_camera_target_look_at_x = _fret_to_world_x(DEFAULT_CAMERA_FRET)
+	_camera_target_look_at_x = _camera_target_x
 	_camera_look_at_x = _camera_target_look_at_x
 	_camera_target_y = CAMERA_Y
 	_camera_target_z = CAMERA_Z
@@ -110,7 +112,6 @@ func tick_camera(events: Array, debug_strum_event_idx: int, song_time: float, le
 	_camera_position_fret = _damp_float(_camera_position_fret, _camera_target_position_fret, CAMERA_FRET_DAMPING_RATE, damp_delta)
 	_camera_left_shift = _damp_float(_camera_left_shift, _camera_target_left_shift, CAMERA_LEFT_SHIFT_DAMPING_RATE, damp_delta)
 	_camera_target_x = clampf(_camera_x_from_fret(_camera_position_fret) - _camera_left_shift, CAMERA_X_MIN, CAMERA_X_MAX)
-	_camera_look_at_x = _damp_float(_camera_look_at_x, _camera_target_look_at_x, CAMERA_LOOK_DAMPING_RATE, damp_delta)
 	_camera_look_at_z = _damp_float(_camera_look_at_z, _camera_target_look_at_z, CAMERA_LOOK_DAMPING_RATE, damp_delta)
 
 	var cam_pos  := position
@@ -118,6 +119,8 @@ func tick_camera(events: Array, debug_strum_event_idx: int, song_time: float, le
 	cam_pos.y = _damp_float(cam_pos.y, _camera_target_y, CAMERA_Y_DAMPING_RATE, damp_delta)
 	cam_pos.z = _damp_float(cam_pos.z, _camera_target_z, CAMERA_Z_DAMPING_RATE, damp_delta)
 	position = cam_pos
+	var yaw_limited_look_x: float = _clamp_look_x_for_yaw(_camera_target_look_at_x, cam_pos.x, cam_pos.z, _camera_look_at_z)
+	_camera_look_at_x = _damp_float(_camera_look_at_x, yaw_limited_look_x, CAMERA_LOOK_DAMPING_RATE, damp_delta)
 	look_at(Vector3(_camera_look_at_x, 0.0, _camera_look_at_z), Vector3.UP)
 
 
@@ -196,7 +199,9 @@ func _update_camera_targets_from_visible_events(events: Array, debug_strum_event
 			clamped_center_fret = CAMERA_LOCK_LOW_CENTER_FRET
 		_camera_target_position_fret = clampf(clamped_center_fret, CAMERA_TARGET_FRET_MIN, CAMERA_TARGET_FRET_MAX) - CAMERA_POSITION_FRET_BIAS
 		var weighted_edge_x: float = (_fret_to_world_x(1.0) * 0.6) + (_fret_to_world_x(float(FRET_COUNT)) * 0.4)
-		var desired_look_x: float = lerpf(_fret_to_world_x(_lookahead_center_fret), weighted_edge_x, CAMERA_FRET_EDGE_BLEND)
+		var lookahead_look_x: float = lerpf(_fret_to_world_x(_lookahead_center_fret), weighted_edge_x, CAMERA_FRET_EDGE_BLEND)
+		var base_front_look_x: float = _camera_x_from_fret(_camera_target_position_fret)
+		var desired_look_x: float = lerpf(base_front_look_x, lookahead_look_x, CAMERA_LOOKAHEAD_LOOK_X_BLEND)
 		if absf(desired_look_x - _camera_target_look_at_x) >= CAMERA_LOOK_X_DEADBAND:
 			_camera_target_look_at_x = desired_look_x
 
@@ -233,13 +238,13 @@ func _update_camera_targets_from_visible_events(events: Array, debug_strum_event
 			_stable_center_fret = next_center_fret
 			_stable_focus_fret = next_center_fret
 			_lookahead_center_fret = next_center_fret
-			_camera_target_look_at_x = _fret_to_world_x(next_center_fret)
+			_camera_target_look_at_x = _camera_x_from_fret(_camera_target_position_fret)
 		else:
 			_camera_target_position_fret = DEFAULT_CAMERA_FRET
 			_stable_center_fret = DEFAULT_CAMERA_FRET
 			_stable_focus_fret = DEFAULT_CAMERA_FRET
 			_lookahead_center_fret = DEFAULT_CAMERA_FRET
-			_camera_target_look_at_x = _fret_to_world_x(DEFAULT_CAMERA_FRET)
+			_camera_target_look_at_x = _camera_x_from_fret(DEFAULT_CAMERA_FRET)
 		_camera_target_left_shift = 0.0
 		_camera_target_x = clampf(_camera_x_from_fret(_camera_target_position_fret), CAMERA_X_MIN, CAMERA_X_MAX)
 		_camera_target_y = CAMERA_Y
@@ -256,6 +261,12 @@ func _fret_to_world_x(fret_num: float) -> float:
 func _camera_x_from_fret(position_fret: float) -> float:
 	var fret_offset: float = (10.0 - position_fret) / 4.0
 	return _fret_to_world_x(position_fret + (fret_offset * CAMERA_CHARTPLAYER_OFFSET_BLEND))
+
+
+func _clamp_look_x_for_yaw(target_look_x: float, cam_x: float, cam_z: float, look_z: float) -> float:
+	var depth_to_look: float = maxf(absf(cam_z - look_z), 0.001)
+	var max_dx: float = tan(deg_to_rad(CAMERA_MAX_YAW_DEGREES)) * depth_to_look
+	return clampf(target_look_x, cam_x - max_dx, cam_x + max_dx)
 
 
 func _find_next_upcoming_center_fret(events: Array, start_idx: int, song_time: float) -> float:
