@@ -18,9 +18,6 @@ const ChartCommon = preload("res://scripts/common.gd")
 ## The chord container itself (border + label) still moves as a Node3D in Z;
 ## the individual Note instances are parented to NotePool and manage their own Z.
 
-## Project font — Inter 18pt Bold, used for the chord name Label3D.
-const _INTER_BOLD: FontFile = preload("res://assets/fonts/Inter_18pt-Bold.ttf")
-
 ## Border shader — bottom-corner glow only.
 ## Glow touches the bottom edge of the chord box (UV.y == 1.0), which aligns
 ## with the highway string-separator lines underneath the chord.
@@ -202,7 +199,6 @@ func _ensure_label() -> void:
 		_chord_label.billboard        = BaseMaterial3D.BILLBOARD_ENABLED
 		_chord_label.pixel_size       = 0.005
 		_chord_label.font_size        = 48
-		_chord_label.font             = _INTER_BOLD
 		_chord_label.modulate         = Color(1.0, 1.0, 1.0, 1.0)
 		_chord_label.outline_size     = 8
 		_chord_label.outline_modulate = Color(0.0, 0.0, 0.0, 1.0)
