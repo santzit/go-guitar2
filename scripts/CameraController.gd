@@ -30,7 +30,7 @@ const CAMERA_FOCUS_CLAMP_BEHIND : float = 3.0
 const CAMERA_FOCUS_CLAMP_AHEAD  : float = 5.0
 const CAMERA_POSITION_FRET_BIAS : float = 0.35
 const CAMERA_FOCUS_FRET_DEADBAND  : float = 1.5
-const CAMERA_LOOK_X_DEADBAND      : float = 0.55
+const CAMERA_LOOK_X_DEADBAND      : float = 0.35
 const CAMERA_EXCESS_TO_LEFT_GAIN : float = 0.65
 const CAMERA_MAX_LEFT_SHIFT : float = 2.2
 const CAMERA_CHARTPLAYER_OFFSET_BLEND : float = 0.35
@@ -54,8 +54,8 @@ const CAMERA_TARGET_BEHIND_SECONDS: float = 0.20
 const CAMERA_TARGET_AHEAD_SECONDS : float = 0.90
 const CAMERA_TARGET_HYSTERESIS_FRETS: float = 0.60
 const CAMERA_FRET_EDGE_BLEND      : float = 0.10
-const CAMERA_LOOKAHEAD_LOOK_X_BLEND: float = 0.12
-const CAMERA_MAX_YAW_DEGREES      : float = 1.5
+const CAMERA_LOOKAHEAD_LOOK_X_BLEND: float = 0.03
+const CAMERA_MAX_YAW_DEGREES      : float = 1.0
 const CAMERA_LOW_FRET_OFFSET_START: float = 1.0
 const CAMERA_LOW_FRET_OFFSET_END  : float = 5.0
 
@@ -183,6 +183,8 @@ func _update_camera_targets_from_visible_events(events: Array, debug_strum_event
 		_has_fretted_camera_target = true
 		var raw_center_fret: float = (min_fret + max_fret) * 0.5
 		var weighted_center_fret: float = (weighted_fret_sum / weight_sum) if weight_sum > 0.0 else raw_center_fret
+		if weight_sum <= 0.0 and has_focus_fret:
+			weighted_center_fret = target_focus_fret
 		var raw_focus_fret: float = target_focus_fret if has_focus_fret else raw_center_fret
 		var lookahead_blend: float = 1.0 - pow(1.0 - CAMERA_LOOKAHEAD_BLEND_RATE, clampf(damp_delta, 0.0001, 0.2))
 		_lookahead_center_fret = lerpf(_lookahead_center_fret, weighted_center_fret, lookahead_blend)
@@ -197,8 +199,8 @@ func _update_camera_targets_from_visible_events(events: Array, debug_strum_event
 		_camera_target_position_fret = clampf(clamped_center_fret, CAMERA_TARGET_FRET_MIN, CAMERA_TARGET_FRET_MAX) - CAMERA_POSITION_FRET_BIAS
 		var weighted_edge_x: float = (_fret_to_world_x(1.0) * 0.6) + (_fret_to_world_x(float(FRET_COUNT)) * 0.4)
 		var lookahead_look_x: float = lerpf(_fret_to_world_x(_lookahead_center_fret), weighted_edge_x, CAMERA_FRET_EDGE_BLEND)
-		var base_front_look_x: float = _camera_x_from_fret(_camera_target_position_fret)
-		var desired_look_x: float = lerpf(base_front_look_x, lookahead_look_x, CAMERA_LOOKAHEAD_LOOK_X_BLEND)
+		var expected_cam_x: float = clampf(_camera_x_from_fret(_camera_target_position_fret) - _camera_target_left_shift, CAMERA_X_MIN, CAMERA_X_MAX)
+		var desired_look_x: float = expected_cam_x + ((lookahead_look_x - expected_cam_x) * CAMERA_LOOKAHEAD_LOOK_X_BLEND)
 		if absf(desired_look_x - _camera_target_look_at_x) >= CAMERA_LOOK_X_DEADBAND:
 			_camera_target_look_at_x = desired_look_x
 
