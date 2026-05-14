@@ -135,9 +135,10 @@ func _ready() -> void:
 	if _bridge.load_psarc_abs(selected_psarc_path):
 		_notes = _bridge.get_notes()
 		_last_chord_sig = ""
-		_events = _bridge.get_play_events()
-		if _events.is_empty():
-			_events = _build_play_events(_notes)
+		var bridge_events: Array = _bridge.get_play_events()
+		_events = _build_play_events(_notes)
+		if not bridge_events.is_empty() and bridge_events.size() != _events.size():
+			push_warning("MusicPlay: bridge events (%d) differ from local events (%d); using local builder." % [bridge_events.size(), _events.size()])
 		print("MusicPlay: %d notes loaded, requesting audio stream..." % _notes.size())
 		print("MusicPlay: %d unified events built (single + chord)." % _events.size())
 		# ── Initialise the scorer from the event list ──────────────────────────

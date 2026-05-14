@@ -10,6 +10,7 @@ extends Node3D
 
 ## Mirrors ChartCommon.STRING_COUNT — kept local for brevity in this file.
 const STRING_COUNT : int = ChartCommon.STRING_COUNT
+const NOTE_MARKER_SHADER: Shader = preload("res://shaders/note_marker_corner_glow.gdshader")
 
 ## Width of each fret-line quad in world units.
 ## Slightly wider than the highway shader lines to be clearly visible.
@@ -26,6 +27,11 @@ const FRET_NUM_Z_OFFSET: float = 0.04
 const UPCOMING_MARKER_Z: float = 0.02
 const UPCOMING_OPEN_STRING_SPAN_FRETS: int = 4
 const UPCOMING_SCAN_MAX_EVENTS: int = 24
+const UPCOMING_NOTE_HEAD_SIZE: Vector3 = Vector3(0.78, 0.34, 0.04)
+const UPCOMING_NOTE_HEAD_CORNER_RADIUS: float = 0.08
+const UPCOMING_NOTE_HEAD_CORNER_GLOW_WIDTH: float = 0.22
+const UPCOMING_NOTE_HEAD_CORNER_GLOW_BOOST: float = 18.0
+const UPCOMING_NOTE_HEAD_GLOW_ENERGY: float = 2.4
 
 ## Cache of ShaderMaterial per string (index 0–5).
 var _string_mats : Array = []
@@ -99,26 +105,26 @@ func _render_event_markers(notes: Array) -> void:
 	for n in open_notes:
 		_add_open_string_marker(int(n.get("string", 0)))
 
-	if fretted.size() == 1:
-		var single: Dictionary = fretted[0]
-		_add_single_marker(int(single.get("fret", 1)), int(single.get("string", 0)))
-	elif fretted.size() > 1:
-		_add_chord_group_marker(fretted)
+	var fretted_marker_type: String = "single"
+	if fretted.size() > 1:
+		fretted_marker_type = "chord"
+	for n in fretted:
+		_add_note_head_marker(int(n.get("fret", 1)), int(n.get("string", 0)), fretted_marker_type)
 
 
-func _add_single_marker(fret: int, string_idx: int) -> void:
+func _add_note_head_marker(fret: int, string_idx: int, marker_type: String) -> void:
 	var marker := MeshInstance3D.new()
-	marker.name = "UpcomingSingle"
-	marker.set_meta("marker_type", "single")
+	marker.name = "UpcomingNoteHead"
+	marker.set_meta("marker_type", marker_type)
 	var mesh := BoxMesh.new()
-	mesh.size = Vector3(0.34, 0.10, 0.05)
+	mesh.size = UPCOMING_NOTE_HEAD_SIZE
 	marker.mesh = mesh
 	marker.position = Vector3(
 		ChartCommon.fret_mid_world_x(fret - 1),
-		ChartCommon.string_world_y(string_idx),
+		ChartCommon.string_world_y(string_idx) + 0.10,
 		UPCOMING_MARKER_Z
 	)
-	marker.set_surface_override_material(0, _make_marker_material(Color(1.0, 1.0, 1.0, 1.0)))
+	marker.set_surface_override_material(0, _make_note_head_material(string_idx))
 	_upcoming_root.add_child(marker)
 
 
@@ -141,43 +147,6 @@ func _add_open_string_marker(string_idx: int) -> void:
 	_upcoming_root.add_child(marker)
 
 
-func _add_chord_group_marker(notes: Array) -> void:
-	var min_fret: int = 999
-	var max_fret: int = -1
-	var min_string: int = 999
-	var max_string: int = -1
-	for n in notes:
-		var f: int = int(n.get("fret", -1))
-		var s: int = int(n.get("string", -1))
-		if f < 1 or s < 0 or s >= STRING_COUNT:
-			continue
-		min_fret = mini(min_fret, f)
-		max_fret = maxi(max_fret, f)
-		min_string = mini(min_string, s)
-		max_string = maxi(max_string, s)
-	if min_fret == 999:
-		return
-
-	var left_x: float = ChartCommon.fret_separator_world_x(min_fret - 1)
-	var right_x: float = ChartCommon.fret_separator_world_x(max_fret)
-	if right_x <= left_x:
-		right_x = left_x + ChartCommon.FRET_SPACING
-	var top_y: float = ChartCommon.string_top_separator_y(min_string)
-	var bottom_y: float = ChartCommon.string_separator_y(max_string)
-	var width: float = right_x - left_x
-	var height: float = maxf(top_y - bottom_y, 0.10)
-
-	var marker := MeshInstance3D.new()
-	marker.name = "UpcomingChord"
-	marker.set_meta("marker_type", "chord")
-	var mesh := BoxMesh.new()
-	mesh.size = Vector3(width, height, 0.05)
-	marker.mesh = mesh
-	marker.position = Vector3((left_x + right_x) * 0.5, (top_y + bottom_y) * 0.5, UPCOMING_MARKER_Z)
-	marker.set_surface_override_material(0, _make_marker_material(Color(0.8, 0.95, 1.0, 1.0)))
-	_upcoming_root.add_child(marker)
-
-
 func _make_marker_material(color: Color) -> StandardMaterial3D:
 	var mat := StandardMaterial3D.new()
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
@@ -185,6 +154,19 @@ func _make_marker_material(color: Color) -> StandardMaterial3D:
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	mat.emission_enabled = false
 	mat.albedo_color = color
+	return mat
+
+
+func _make_note_head_material(string_idx: int) -> ShaderMaterial:
+	var c: Color = ChartCommon.STRING_COLORS[string_idx] if string_idx >= 0 and string_idx < ChartCommon.STRING_COLORS.size() else Color.WHITE
+	var mat := ShaderMaterial.new()
+	mat.shader = NOTE_MARKER_SHADER
+	mat.set_shader_parameter("base_color", Color(c.r, c.g, c.b, 1.0))
+	mat.set_shader_parameter("corner_glow_color", Color(1.0, 1.0, 1.0, 1.0))
+	mat.set_shader_parameter("corner_glow_width", UPCOMING_NOTE_HEAD_CORNER_GLOW_WIDTH)
+	mat.set_shader_parameter("corner_glow_boost", UPCOMING_NOTE_HEAD_CORNER_GLOW_BOOST)
+	mat.set_shader_parameter("corner_radius_uv", UPCOMING_NOTE_HEAD_CORNER_RADIUS / minf(UPCOMING_NOTE_HEAD_SIZE.x, UPCOMING_NOTE_HEAD_SIZE.y))
+	mat.set_shader_parameter("glow_energy", UPCOMING_NOTE_HEAD_GLOW_ENERGY)
 	return mat
 
 
