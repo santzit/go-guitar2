@@ -15,9 +15,9 @@ const CAMERA_Z_MIN      : float = 6.0
 const CAMERA_Z_MAX      : float = 14.5
 const CAMERA_Z_SOFT_MAX : float = 11.0
 const CAMERA_LOOK_AT_Z  : float = -7.0
-const CAMERA_WORLD_DAMPING_RATE : float = 0.24
+const CAMERA_WORLD_DAMPING_RATE : float = 0.40
 const CAMERA_LOOK_DAMPING_RATE  : float = 0.45
-const CAMERA_FRET_DAMPING_RATE  : float = 0.60
+const CAMERA_FRET_DAMPING_RATE  : float = 0.85
 const CAMERA_Y_DAMPING_RATE     : float = 0.45
 const CAMERA_Z_DAMPING_RATE     : float = 0.24
 const CAMERA_LEFT_SHIFT_DAMPING_RATE : float = 0.50
@@ -47,11 +47,11 @@ const CAMERA_Z_RELEASE_RATE       : float = 0.18
 const CAMERA_Y_FROM_DEPTH_GAIN    : float = 0.18
 const CAMERA_LOOKAHEAD_SECONDS    : float = 3.0
 const CAMERA_LOOKAHEAD_RECENCY_TAU: float = 0.65
-const CAMERA_LOOKAHEAD_BLEND_RATE : float = 0.50
+const CAMERA_LOOKAHEAD_BLEND_RATE : float = 0.75
 const CAMERA_TARGET_BEHIND_SECONDS: float = 0.20
 const CAMERA_TARGET_AHEAD_SECONDS : float = 1.60
-const CAMERA_TARGET_HYSTERESIS_FRETS: float = 1.20
-const CAMERA_JUMP_REANCHOR_FRETS: float = 6.0
+const CAMERA_TARGET_HYSTERESIS_FRETS: float = 0.70
+const CAMERA_JUMP_REANCHOR_FRETS: float = 4.5
 const CAMERA_ZOOM_HYSTERESIS_FRETS: float = 0.50
 const CAMERA_LOW_FRET_ZOOM_BONUS_PER_FRET: float = 0.45
 const CAMERA_FRET_EDGE_BLEND      : float = 0.10
@@ -59,6 +59,7 @@ const CAMERA_LOOKAHEAD_LOOK_X_BLEND: float = 0.03
 const CAMERA_MAX_YAW_DEGREES      : float = 1.0
 const CAMERA_LOW_FRET_OFFSET_START: float = 1.0
 const CAMERA_LOW_FRET_OFFSET_END  : float = 5.0
+const CAMERA_TARGET_X_FROM_TARGET_BLEND: float = 0.75
 
 var _camera_target_x    : float = 0.0
 var _camera_target_y    : float = CAMERA_Y
@@ -78,9 +79,6 @@ var _lookahead_center_fret : float = DEFAULT_CAMERA_FRET
 var _lookahead_span_frets  : float = CAMERA_DISTANCE_MIN_SPREAD
 var _stable_zoom_span_frets: float = CAMERA_DISTANCE_MIN_SPREAD
 var _smoothed_depth_target_z: float = CAMERA_Z
-var _has_snapped_to_fretted_notes: bool = false
-var _has_fretted_camera_target: bool = false
-var _force_reanchor_this_frame: bool = false
 
 
 func reset_camera_defaults() -> void:
@@ -102,9 +100,6 @@ func reset_camera_defaults() -> void:
 	_lookahead_span_frets = CAMERA_DISTANCE_MIN_SPREAD
 	_stable_zoom_span_frets = CAMERA_DISTANCE_MIN_SPREAD
 	_smoothed_depth_target_z = CAMERA_Z
-	_has_snapped_to_fretted_notes = false
-	_has_fretted_camera_target = false
-	_force_reanchor_this_frame = false
 	position.x = _camera_target_x
 	position.y = _camera_target_y
 	position.z = _camera_target_z
@@ -115,27 +110,13 @@ func reset_camera_defaults() -> void:
 func tick_camera(events: Array, debug_strum_event_idx: int, song_time: float, lead_time: float, delta: float, max_delta: float) -> void:
 	var damp_delta := minf(delta, max_delta)
 	_update_camera_targets_from_visible_events(events, debug_strum_event_idx, song_time, lead_time, damp_delta)
-	var should_snap_now: bool = _force_reanchor_this_frame or (not _has_snapped_to_fretted_notes and _has_fretted_camera_target)
-	if should_snap_now:
-		_camera_position_fret = _camera_target_position_fret
-		_camera_left_shift = _camera_target_left_shift
-		_camera_target_x = clampf(_camera_x_from_fret(_camera_position_fret) - _camera_left_shift, CAMERA_X_MIN, CAMERA_X_MAX)
-		_camera_look_at_x = _camera_target_look_at_x
-		_camera_look_at_z = _camera_target_look_at_z
-		_camera_target_y = _camera_target_y
-		_camera_target_z = _camera_target_z
-		var snap_pos := position
-		snap_pos.x = _camera_target_x
-		snap_pos.y = _camera_target_y
-		snap_pos.z = _camera_target_z
-		position = snap_pos
-		if not _has_snapped_to_fretted_notes and _has_fretted_camera_target:
-			_has_snapped_to_fretted_notes = true
-		_force_reanchor_this_frame = false
 
 	_camera_position_fret = _damp_float(_camera_position_fret, _camera_target_position_fret, CAMERA_FRET_DAMPING_RATE, damp_delta)
 	_camera_left_shift = _damp_float(_camera_left_shift, _camera_target_left_shift, CAMERA_LEFT_SHIFT_DAMPING_RATE, damp_delta)
-	_camera_target_x = clampf(_camera_x_from_fret(_camera_position_fret) - _camera_left_shift, CAMERA_X_MIN, CAMERA_X_MAX)
+	var target_x_from_current: float = _camera_x_from_fret(_camera_position_fret)
+	var target_x_from_target: float = _camera_x_from_fret(_camera_target_position_fret)
+	var blended_target_x: float = lerpf(target_x_from_current, target_x_from_target, CAMERA_TARGET_X_FROM_TARGET_BLEND)
+	_camera_target_x = clampf(blended_target_x - _camera_left_shift, CAMERA_X_MIN, CAMERA_X_MAX)
 	_camera_look_at_z = _damp_float(_camera_look_at_z, _camera_target_look_at_z, CAMERA_LOOK_DAMPING_RATE, damp_delta)
 
 	var cam_pos  := position
@@ -159,7 +140,6 @@ func _update_camera_targets_from_visible_events(events: Array, debug_strum_event
 	var lookahead_end: float = song_time + maxf(lead_time, CAMERA_LOOKAHEAD_SECONDS)
 	var target_window_start: float = song_time - CAMERA_TARGET_BEHIND_SECONDS
 	var target_window_end: float = song_time + minf(maxf(lead_time, CAMERA_TARGET_AHEAD_SECONDS), CAMERA_LOOKAHEAD_SECONDS)
-	_has_fretted_camera_target = false
 
 	var i: int = debug_strum_event_idx
 	while i < events.size():
@@ -193,7 +173,6 @@ func _update_camera_targets_from_visible_events(events: Array, debug_strum_event
 		i += 1
 
 	if has_visible_note:
-		_has_fretted_camera_target = true
 		var raw_center_fret: float = (min_fret + max_fret) * 0.5
 		var weighted_center_fret: float = (weighted_fret_sum / weight_sum) if weight_sum > 0.0 else raw_center_fret
 		if weight_sum <= 0.0 and has_focus_fret:
@@ -209,7 +188,6 @@ func _update_camera_targets_from_visible_events(events: Array, debug_strum_event
 		if should_reanchor_jump:
 			_stable_center_fret = _lookahead_center_fret
 			_stable_focus_fret = raw_focus_fret
-			_force_reanchor_this_frame = true
 		elif absf(_lookahead_center_fret - _stable_center_fret) >= CAMERA_TARGET_HYSTERESIS_FRETS:
 			_stable_center_fret = _lookahead_center_fret
  
@@ -254,7 +232,6 @@ func _update_camera_targets_from_visible_events(events: Array, debug_strum_event
 			_stable_focus_fret = next_center_fret
 			_lookahead_center_fret = next_center_fret
 			_camera_target_look_at_x = _camera_x_from_fret(_camera_target_position_fret)
-			_has_fretted_camera_target = true
 		else:
 			_camera_target_position_fret = DEFAULT_CAMERA_FRET
 			_stable_center_fret = DEFAULT_CAMERA_FRET
