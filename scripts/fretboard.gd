@@ -23,9 +23,13 @@ const FRET_NUM_Y_OFFSET: float = 0.22
 const FRET_NUM_PIXEL_SIZE: float = 0.005
 ## Additional Z offset so fret-number labels sit in front of fret lines.
 const FRET_NUM_Z_OFFSET: float = 0.04
+const UPCOMING_MARKER_Z: float = 0.02
+const UPCOMING_OPEN_STRING_SPAN_FRETS: int = 4
+const UPCOMING_SCAN_MAX_EVENTS: int = 24
 
 ## Cache of ShaderMaterial per string (index 0–5).
 var _string_mats : Array = []
+var _upcoming_root: Node3D = null
 
 
 func _ready() -> void:
@@ -37,6 +41,11 @@ func _ready() -> void:
 		else:
 			push_warning("Fretboard: String%d node not found." % i)
 			_string_mats.append(null)
+	for i in STRING_COUNT:
+		set_string_glow(i, 0.0)
+	_upcoming_root = Node3D.new()
+	_upcoming_root.name = "UpcomingMarkers"
+	add_child(_upcoming_root)
 	_build_fret_lines()
 	_build_fret_numbers()
 
@@ -49,6 +58,134 @@ func set_string_glow(string_idx: int, intensity: float) -> void:
 	var mat : ShaderMaterial = _string_mats[string_idx]
 	if mat:
 		mat.set_shader_parameter("glow_intensity", clampf(intensity, 0.0, 1.0))
+
+
+func update_upcoming_markers(events: Array, song_time: float, lookahead: float, start_idx: int = 0) -> void:
+	if _upcoming_root == null:
+		return
+	for child in _upcoming_root.get_children():
+		child.free()
+
+	var added: int = 0
+	for i in range(maxi(start_idx, 0), events.size()):
+		if added >= UPCOMING_SCAN_MAX_EVENTS:
+			break
+		var ev: Dictionary = events[i]
+		var t: float = float(ev.get("time_start", -1.0))
+		if t <= song_time:
+			continue
+		if t > song_time + lookahead:
+			break
+		var notes: Array = ev.get("notes", [])
+		if notes.is_empty():
+			continue
+		_render_event_markers(notes)
+		added += 1
+
+
+func _render_event_markers(notes: Array) -> void:
+	var fretted: Array = []
+	var open_notes: Array = []
+	for n in notes:
+		var f: int = int(n.get("fret", -1))
+		var s: int = int(n.get("string", -1))
+		if s < 0 or s >= STRING_COUNT:
+			continue
+		if f == 0:
+			open_notes.append({"string": s})
+		elif f >= 1 and f <= ChartCommon.FRET_COUNT:
+			fretted.append({"fret": f, "string": s})
+
+	for n in open_notes:
+		_add_open_string_marker(int(n.get("string", 0)))
+
+	if fretted.size() == 1:
+		var single: Dictionary = fretted[0]
+		_add_single_marker(int(single.get("fret", 1)), int(single.get("string", 0)))
+	elif fretted.size() > 1:
+		_add_chord_group_marker(fretted)
+
+
+func _add_single_marker(fret: int, string_idx: int) -> void:
+	var marker := MeshInstance3D.new()
+	marker.name = "UpcomingSingle"
+	marker.set_meta("marker_type", "single")
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(0.34, 0.10, 0.05)
+	marker.mesh = mesh
+	marker.position = Vector3(
+		ChartCommon.fret_mid_world_x(fret - 1),
+		ChartCommon.string_world_y(string_idx),
+		UPCOMING_MARKER_Z
+	)
+	marker.set_surface_override_material(0, _make_marker_material(Color(1.0, 1.0, 1.0, 1.0)))
+	_upcoming_root.add_child(marker)
+
+
+func _add_open_string_marker(string_idx: int) -> void:
+	var marker := MeshInstance3D.new()
+	marker.name = "UpcomingOpen"
+	marker.set_meta("marker_type", "open")
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = 0.018
+	mesh.bottom_radius = 0.018
+	mesh.height = float(UPCOMING_OPEN_STRING_SPAN_FRETS) * ChartCommon.FRET_SPACING
+	marker.mesh = mesh
+	marker.rotation_degrees = Vector3(0.0, 0.0, 90.0)
+	marker.position = Vector3(
+		(float(UPCOMING_OPEN_STRING_SPAN_FRETS) * ChartCommon.FRET_SPACING) * 0.5,
+		ChartCommon.string_world_y(string_idx),
+		UPCOMING_MARKER_Z
+	)
+	marker.set_surface_override_material(0, _make_marker_material(Color(1.0, 1.0, 1.0, 1.0)))
+	_upcoming_root.add_child(marker)
+
+
+func _add_chord_group_marker(notes: Array) -> void:
+	var min_fret: int = 999
+	var max_fret: int = -1
+	var min_string: int = 999
+	var max_string: int = -1
+	for n in notes:
+		var f: int = int(n.get("fret", -1))
+		var s: int = int(n.get("string", -1))
+		if f < 1 or s < 0 or s >= STRING_COUNT:
+			continue
+		min_fret = mini(min_fret, f)
+		max_fret = maxi(max_fret, f)
+		min_string = mini(min_string, s)
+		max_string = maxi(max_string, s)
+	if min_fret == 999:
+		return
+
+	var left_x: float = ChartCommon.fret_separator_world_x(min_fret - 1)
+	var right_x: float = ChartCommon.fret_separator_world_x(max_fret)
+	if right_x <= left_x:
+		right_x = left_x + ChartCommon.FRET_SPACING
+	var top_y: float = ChartCommon.string_top_separator_y(min_string)
+	var bottom_y: float = ChartCommon.string_separator_y(max_string)
+	var width: float = right_x - left_x
+	var height: float = maxf(top_y - bottom_y, 0.10)
+
+	var marker := MeshInstance3D.new()
+	marker.name = "UpcomingChord"
+	marker.set_meta("marker_type", "chord")
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(width, height, 0.05)
+	marker.mesh = mesh
+	marker.position = Vector3((left_x + right_x) * 0.5, (top_y + bottom_y) * 0.5, UPCOMING_MARKER_Z)
+	marker.set_surface_override_material(0, _make_marker_material(Color(0.8, 0.95, 1.0, 1.0)))
+	_upcoming_root.add_child(marker)
+
+
+func _make_marker_material(color: Color) -> StandardMaterial3D:
+	var mat := StandardMaterial3D.new()
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.emission_enabled = false
+	mat.albedo_color = color
+	return mat
 
 
 ## Instantiate a thin PlaneMesh quad at each ChartPlayer fret separator X position.

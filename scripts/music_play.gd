@@ -344,6 +344,8 @@ func _process(delta: float) -> void:
 
 	# Drive per-string glow intensity from upcoming note data.
 	_update_string_glows()
+	if is_instance_valid(_fretboard):
+		_fretboard.call("update_upcoming_markers", _events, _song_time, LEAD_TIME, _debug_strum_event_idx)
 
 	# Update debug info overlay.
 	_update_debug_info()
