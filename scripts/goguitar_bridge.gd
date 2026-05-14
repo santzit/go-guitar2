@@ -78,6 +78,35 @@ func get_play_events() -> Array:
 	return _ext.get_play_events()
 
 
+## Returns chord templates as an Array of Dictionaries:
+##   {
+##     "id": int,
+##     "name": String,
+##     "frets": Array[int],
+##     "fingers": Array[int],
+##   }
+func get_chord_templates() -> Array:
+	if _ext == null or not _ext.has_method("get_chord_templates"):
+		return []
+	return _ext.get_chord_templates()
+
+
+## Returns hand-shape metadata as an Array of Dictionaries:
+##   {
+##     "chord_id": int,
+##     "start_time": float,
+##     "end_time": float,
+##     "min_fret": int,
+##     "max_fret": int,
+##     "min_string": int,
+##     "max_string": int,
+##   }
+func get_hand_shapes() -> Array:
+	if _ext == null or not _ext.has_method("get_hand_shapes"):
+		return []
+	return _ext.get_hand_shapes()
+
+
 ## Returns raw preview WEM bytes from the song (official DLC — short clip).
 func get_preview_wem_bytes() -> PackedByteArray:
 	if _ext == null:

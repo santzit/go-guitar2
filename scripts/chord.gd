@@ -79,7 +79,9 @@ func setup(
 		p_outline_min_fret: int = -1,
 		p_outline_max_fret: int = -1,
 		p_outline_min_string: int = -1,
-		p_outline_max_string: int = -1
+		p_outline_max_string: int = -1,
+		p_hand_fret_start: int = 1,
+		p_visual_base_fret: int = 1
 ) -> void:
 	time_offset = p_time
 	is_active   = true
@@ -118,6 +120,8 @@ func setup(
 	# right_x = separator at min_fret + 3, so the box is always exactly 4 frets wide
 	#           (covering slots min_fret, min_fret+1, min_fret+2, min_fret+3)
 	var visual_min_fret: int = maxi(min_fret, 1)
+	if min_fret < 1:
+		visual_min_fret = clampi(p_visual_base_fret, 1, ChartCommon.FRET_COUNT)
 	var left_x   : float = ChartCommon.fret_separator_world_x(visual_min_fret - 1)
 	var right_x  : float = ChartCommon.fret_separator_world_x(
 		mini(visual_min_fret + 3, ChartCommon.FRET_COUNT)
@@ -152,7 +156,15 @@ func setup(
 			var f   : int   = int(n.get("fret", 0))
 			var s   : int   = clampi(int(n.get("string", 0)), 0, 5)
 			var dur : float = float(n.get("duration", 0.25))
-			var note_node : Node3D = chord_pool.spawn_note(f, s, p_time, dur, show_lane_connector)
+			var note_node : Node3D = chord_pool.spawn_note(
+				f,
+				s,
+				p_time,
+				dur,
+				show_lane_connector,
+				p_hand_fret_start,
+				p_visual_base_fret
+			)
 			if note_node:
 				_indicators.append(note_node)
 

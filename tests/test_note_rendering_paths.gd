@@ -47,10 +47,17 @@ func _run_all() -> void:
 	_assert_true(fretted != null and fretted.visible, "fretted note starts visible")
 	_assert_true(fretted != null and not fretted.has_method("is_open_string"), "fretted note uses note.gd path")
 
-	var open_note := pool.call("spawn_note", 0, 1, 5.0, 0.5, false) as Node3D
+	var open_note := pool.call("spawn_note", 0, 1, 5.0, 0.5, false, 3) as Node3D
 	_assert_true(open_note != null, "spawn_note returns an open-string instance for fret 0")
 	_assert_true(open_note != null and open_note.visible, "open-string note starts visible")
 	_assert_true(open_note != null and open_note.has_method("is_open_string") and open_note.call("is_open_string"), "open-string path uses open_string.gd")
+	if open_note != null:
+		_assert_near(open_note.position.x, 8.0, "open-string anchor follows provided hand fret window")
+
+	var open_note_visual := pool.call("spawn_note", 0, 1, 5.2, 0.5, false, 1, 6) as Node3D
+	_assert_true(open_note_visual != null, "spawn_note returns open-string instance with visual base override")
+	if open_note_visual != null:
+		_assert_near(open_note_visual.position.x, 14.0, "open-string anchor prefers visual base fret over hand start")
 	var open_sustain := open_note.get_node_or_null("SustainTrail") as MeshInstance3D if open_note != null else null
 	_assert_true(open_sustain != null and open_sustain.visible, "open-string sustain trail is visible for sustained note")
 	var open_initial_sustain_len: float = 0.0

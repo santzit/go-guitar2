@@ -42,7 +42,9 @@ func spawn_event(
 		p_outline_min_fret: int = -1,
 		p_outline_max_fret: int = -1,
 		p_outline_min_string: int = -1,
-		p_outline_max_string: int = -1
+		p_outline_max_string: int = -1,
+		p_hand_fret_start: int = 1,
+		p_visual_base_fret: int = 1
 ) -> Node3D:
 	var chord : Node3D = _chords.acquire(Callable(self, "_make_chord"))
 	chord.setup(
@@ -56,6 +58,8 @@ func spawn_event(
 		p_outline_max_fret,
 		p_outline_min_string,
 		p_outline_max_string,
+		p_hand_fret_start,
+		p_visual_base_fret,
 	)
 	return chord
 
@@ -76,9 +80,19 @@ func spawn_note(
 		p_string: int,
 		p_time: float,
 		p_duration: float,
-		p_show_lane_connector: bool = true
+		p_show_lane_connector: bool = true,
+		p_hand_fret_start: int = 1,
+		p_visual_base_fret: int = -1
 ) -> Node3D:
-	return _note_pool.spawn_note(p_fret, p_string, p_time, p_duration, p_show_lane_connector)
+	return _note_pool.spawn_note(
+		p_fret,
+		p_string,
+		p_time,
+		p_duration,
+		p_show_lane_connector,
+		p_hand_fret_start,
+		p_visual_base_fret
+	)
 
 
 ## Called by a Chord when it passes the strum line and deactivates itself.

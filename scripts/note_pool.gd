@@ -41,11 +41,21 @@ func spawn_note(
 		p_string: int,
 		p_time: float,
 		p_duration: float,
-		p_show_lane_connector: bool = true
+		p_show_lane_connector: bool = true,
+		p_hand_fret_start: int = 1,
+		p_visual_base_fret: int = -1
 ) -> Node3D:
 	if p_fret == 0:
 		var open_string: Node3D = _opens.acquire(Callable(self, "_make_open_string"))
-		open_string.setup(p_fret, p_string, p_time, p_duration, false)
+		open_string.setup(
+			p_fret,
+			p_string,
+			p_time,
+			p_duration,
+			false,
+			p_hand_fret_start,
+			p_visual_base_fret
+		)
 		return open_string
 
 	var note: Node3D = _notes.acquire(Callable(self, "_make_note"))

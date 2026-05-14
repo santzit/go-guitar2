@@ -19,6 +19,8 @@ const SUSTAIN_MIN_LENGTH: float = SUSTAIN_MIN_SECS * TRAVEL_SPEED
 
 var fret: int = 0
 var string_index: int = 0
+var hand_fret_start: int = 1
+var visual_base_fret: int = -1
 var time_offset: float = 0.0
 var duration: float = 0.25
 var is_active: bool = false
@@ -69,11 +71,15 @@ func setup(
 		p_string: int,
 		p_time: float,
 		p_duration: float,
-		_unused_show_lane_connector: bool = false
+		_unused_show_lane_connector: bool = false,
+		p_hand_fret_start: int = 1,
+		p_visual_base_fret: int = -1
 ) -> void:
 	_ensure_visual_nodes()
 	fret = p_fret
 	string_index = clampi(p_string, 0, ChartCommon.STRING_COUNT - 1)
+	hand_fret_start = clampi(p_hand_fret_start, 1, ChartCommon.FRET_COUNT)
+	visual_base_fret = clampi(p_visual_base_fret, 1, ChartCommon.FRET_COUNT) if p_visual_base_fret >= 1 else -1
 	time_offset = p_time
 	duration = maxf(p_duration, 0.0)
 	is_active = true
@@ -81,8 +87,10 @@ func setup(
 	_head_hidden = false
 	_lifecycle.setup(time_offset, duration, SUSTAIN_MIN_SECS, true)
 
-	var span_world: float = float(OPEN_STRING_SPAN_FRETS) * ChartCommon.FRET_SPACING
-	var center_x: float = span_world * 0.5
+	var anchor_fret_start: int = _anchor_fret_start()
+	var left_x: float = ChartCommon.fret_separator_world_x(anchor_fret_start - 1)
+	var right_x: float = ChartCommon.fret_separator_world_x(mini(anchor_fret_start + 3, ChartCommon.FRET_COUNT))
+	var center_x: float = (left_x + right_x) * 0.5
 	position = Vector3(center_x, ChartCommon.string_world_y(string_index), START_Z)
 	if _marker != null:
 		_marker.visible = true
@@ -172,7 +180,10 @@ func _set_sustain_trail_length(sustain_length: float) -> void:
 		_sustain_trail.mesh = trail_mesh
 		if _sustain_trail_mat:
 			_sustain_trail.set_surface_override_material(0, _sustain_trail_mat)
-	var span_world: float = float(OPEN_STRING_SPAN_FRETS) * ChartCommon.FRET_SPACING
+	var anchor_fret_start: int = _anchor_fret_start()
+	var left_x: float = ChartCommon.fret_separator_world_x(anchor_fret_start - 1)
+	var right_x: float = ChartCommon.fret_separator_world_x(mini(anchor_fret_start + 3, ChartCommon.FRET_COUNT))
+	var span_world: float = maxf(right_x - left_x, ChartCommon.FRET_SPACING)
 	trail_mesh.size = Vector3(span_world, SUSTAIN_TRAIL_HEIGHT, sustain_length)
 	_sustain_trail.position = Vector3(
 		0.0,
@@ -187,6 +198,12 @@ func _update_sustain_glow(song_time: float) -> void:
 		return
 	var pulse: float = 0.5 + 0.5 * sin(song_time * NOTE_MARKER_PULSE_FREQUENCY)
 	_sustain_trail_mat.emission_energy_multiplier = NOTE_MARKER_NEON_GLOW_BASE + NOTE_MARKER_NEON_GLOW_PULSE * pulse
+
+
+func _anchor_fret_start() -> int:
+	if visual_base_fret >= 1:
+		return clampi(visual_base_fret, 1, ChartCommon.FRET_COUNT)
+	return clampi(hand_fret_start, 1, ChartCommon.FRET_COUNT)
 
 
 func _with_visual_alpha(c: Color) -> Color:

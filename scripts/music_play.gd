@@ -6,6 +6,7 @@ extends Node3D
 const _GoGuitarBridgeScript = preload("res://scripts/goguitar_bridge.gd")
 const _GameStateScript = preload("res://scripts/game_state.gd")
 const ChartCommon = preload("res://scripts/common.gd")
+const PlayEventBuilder = preload("res://scripts/play_event_builder.gd")
 
 # -- Mixer bus indices (must match GameState.BUS_NAMES) -----------------------
 const BUS_MUSIC  : int = 1   # Music bus
@@ -333,7 +334,9 @@ func _process(delta: float) -> void:
 			int(ev.get("outline_min_fret", -1)),
 			int(ev.get("outline_max_fret", -1)),
 			int(ev.get("outline_min_string", -1)),
-			int(ev.get("outline_max_string", -1))
+			int(ev.get("outline_max_string", -1)),
+			int(ev.get("hand_fret_start", 1)),
+			int(ev.get("visual_base_fret", int(ev.get("hand_fret_start", 1))))
 		)
 		_next_event_idx += 1
 
@@ -410,108 +413,12 @@ func _on_quit_button_pressed() -> void:
 ##  - notes[] (size 1 for single-note events, >1 for chords)
 ##  - kind ("single" or "chord")
 func _build_play_events(src_notes: Array) -> Array:
-	var events: Array = []
-	var i: int = 0
-	while i < src_notes.size():
-		var nd : Dictionary = src_notes[i]
-		var t0 : float = float(nd.get("time", 0.0))
-		var group: Array = [nd]
-		var j: int = i + 1
-		while j < src_notes.size() \
-				and absf(float(src_notes[j].get("time", 0.0)) - t0) < CHORD_GROUP_THRESHOLD:
-			group.append(src_notes[j])
-			j += 1
-
-		var valid_notes: Array = []
-		var max_duration: float = 0.0
-		var min_fret: int = 999
-		var has_hand_shape: bool = false
-		var outline_min_fret: int = 999
-		var outline_max_fret: int = -1
-		var outline_min_string: int = 999
-		var outline_max_string: int = -1
-		for gn in group:
-			var f: int = int(gn.get("fret", 0))
-			var s: int = int(gn.get("string", 0))
-			if f < 0 or f > FRET_COUNT or s < 0 or s > 5:
-				continue
-			var dur: float = maxf(float(gn.get("duration", 0.25)), 0.0)
-			var hs_id: int = int(gn.get("hand_shape_id", -1))
-			var hs_chord_id: int = int(gn.get("hand_shape_chord_id", -1))
-			var hs_min_fret: int = int(gn.get("hand_shape_min_fret", -1))
-			var hs_max_fret: int = int(gn.get("hand_shape_max_fret", -1))
-			var hs_min_string: int = int(gn.get("hand_shape_min_string", -1))
-			var hs_max_string: int = int(gn.get("hand_shape_max_string", -1))
-			valid_notes.append({
-				"fret": f,
-				"string": s,
-				"duration": dur,
-				"hand_shape_id": hs_id,
-				"hand_shape_chord_id": hs_chord_id,
-				"hand_shape_min_fret": hs_min_fret,
-				"hand_shape_max_fret": hs_max_fret,
-				"hand_shape_min_string": hs_min_string,
-				"hand_shape_max_string": hs_max_string,
-			})
-			if hs_id >= 0:
-				has_hand_shape = true
-			if hs_min_fret >= 1 and hs_max_fret >= hs_min_fret:
-				outline_min_fret = mini(outline_min_fret, hs_min_fret)
-				outline_max_fret = maxi(outline_max_fret, hs_max_fret)
-			if hs_min_string >= 0 and hs_max_string >= hs_min_string:
-				outline_min_string = mini(outline_min_string, hs_min_string)
-				outline_max_string = maxi(outline_max_string, hs_max_string)
-			max_duration = maxf(max_duration, dur)
-			min_fret = mini(min_fret, f)
-
-		if not valid_notes.is_empty():
-			var event_kind: String = "single"
-			if valid_notes.size() > 1 or has_hand_shape:
-				event_kind = "chord"
-			var hand_start: int = maxi(min_fret - 1, 1)
-			var hand_end: int = mini(hand_start + 3, FRET_COUNT)
-			var chord_name: String = ""
-			var show_details: bool = false
-			var force_outline: bool = has_hand_shape
-			if outline_min_fret == 999:
-				outline_min_fret = -1
-			if outline_min_string == 999:
-				outline_min_string = -1
-			if force_outline and outline_min_fret >= 1 and outline_max_fret >= outline_min_fret:
-				hand_start = maxi(outline_min_fret - 1, 1)
-				hand_end = mini(outline_max_fret, FRET_COUNT)
-			if event_kind == "chord":
-				var sig: String
-				if force_outline:
-					var hs_sig_id: int = int(valid_notes[0].get("hand_shape_id", -1))
-					var hs_sig_chord_id: int = int(valid_notes[0].get("hand_shape_chord_id", -1))
-					sig = "hs:%d:%d" % [hs_sig_id, hs_sig_chord_id]
-				else:
-					sig = _chord_signature(valid_notes)
-				show_details = (sig != _last_chord_sig)
-				_last_chord_sig = sig
-				var root_f: int = int(valid_notes[0].get("fret", 0))
-				var root_s: int = int(valid_notes[0].get("string", 0))
-				chord_name = _get_note_name(root_f, root_s)
-
-			events.append({
-				"time_start": t0,
-				"time_end": t0 + max_duration,
-				"hand_fret_start": hand_start,
-				"hand_fret_end": hand_end,
-				"notes": valid_notes,
-				"kind": event_kind,
-				"chord_name": chord_name,
-				"show_details": show_details,
-				"force_outline": force_outline,
-				"outline_min_fret": outline_min_fret,
-				"outline_max_fret": outline_max_fret,
-				"outline_min_string": outline_min_string,
-				"outline_max_string": outline_max_string,
-			})
-
-		i = j
-	return events
+	return PlayEventBuilder.build_play_events(
+		src_notes,
+		FRET_COUNT,
+		CHORD_GROUP_THRESHOLD,
+		Callable(self, "_get_note_name")
+	)
 
 
 func _take_screenshot(num: int) -> void:
