@@ -34,25 +34,27 @@ const CAMERA_LOOK_X_DEADBAND      : float = 0.35
 const CAMERA_EXCESS_TO_LEFT_GAIN : float = 0.65
 const CAMERA_MAX_LEFT_SHIFT : float = 2.2
 const CAMERA_CHARTPLAYER_OFFSET_BLEND : float = 0.35
-const CAMERA_DISTANCE_SPREAD_FREE : float = 14.0
+const CAMERA_DISTANCE_SPREAD_FREE : float = 4.0
 const CAMERA_DISTANCE_MIN_SPREAD  : float = 4.0
-const CAMERA_DISTANCE_PER_FRET    : float = 0.30
-const CAMERA_DISTANCE_BASE        : float = 5.4
-const CAMERA_SPREAD_ATTACK_RATE   : float = 0.45
-const CAMERA_SPREAD_RELEASE_RATE  : float = 0.25
+const CAMERA_DISTANCE_PER_FRET    : float = 0.50
+const CAMERA_DISTANCE_BASE        : float = 5.2
+const CAMERA_SPREAD_ATTACK_RATE   : float = 0.90
+const CAMERA_SPREAD_RELEASE_RATE  : float = 0.20
 const CAMERA_TARGET_Y_DEADBAND    : float = 0.45
 const CAMERA_LOOK_AHEAD_DEPTH     : float = 15.0
 const CAMERA_LOOK_AT_Z_MIN        : float = -14.0
 const CAMERA_LOOK_AT_Z_MAX        : float = -2.0
-const CAMERA_Z_ATTACK_RATE        : float = 0.30
-const CAMERA_Z_RELEASE_RATE       : float = 0.14
+const CAMERA_Z_ATTACK_RATE        : float = 0.55
+const CAMERA_Z_RELEASE_RATE       : float = 0.18
 const CAMERA_Y_FROM_DEPTH_GAIN    : float = 0.18
 const CAMERA_LOOKAHEAD_SECONDS    : float = 3.0
 const CAMERA_LOOKAHEAD_RECENCY_TAU: float = 0.65
 const CAMERA_LOOKAHEAD_BLEND_RATE : float = 0.50
 const CAMERA_TARGET_BEHIND_SECONDS: float = 0.20
 const CAMERA_TARGET_AHEAD_SECONDS : float = 0.90
-const CAMERA_TARGET_HYSTERESIS_FRETS: float = 0.60
+const CAMERA_TARGET_HYSTERESIS_FRETS: float = 1.20
+const CAMERA_ZOOM_HYSTERESIS_FRETS: float = 0.50
+const CAMERA_LOW_FRET_ZOOM_BONUS_PER_FRET: float = 0.45
 const CAMERA_FRET_EDGE_BLEND      : float = 0.10
 const CAMERA_LOOKAHEAD_LOOK_X_BLEND: float = 0.03
 const CAMERA_MAX_YAW_DEGREES      : float = 1.0
@@ -75,6 +77,7 @@ var _stable_focus_fret  : float = DEFAULT_CAMERA_FRET
 var _smoothed_spread_frets : float = CAMERA_DISTANCE_MIN_SPREAD
 var _lookahead_center_fret : float = DEFAULT_CAMERA_FRET
 var _lookahead_span_frets  : float = CAMERA_DISTANCE_MIN_SPREAD
+var _stable_zoom_span_frets: float = CAMERA_DISTANCE_MIN_SPREAD
 var _smoothed_depth_target_z: float = CAMERA_Z
 var _has_snapped_to_fretted_notes: bool = false
 var _has_fretted_camera_target: bool = false
@@ -97,6 +100,7 @@ func reset_camera_defaults() -> void:
 	_smoothed_spread_frets = CAMERA_DISTANCE_MIN_SPREAD
 	_lookahead_center_fret = DEFAULT_CAMERA_FRET
 	_lookahead_span_frets = CAMERA_DISTANCE_MIN_SPREAD
+	_stable_zoom_span_frets = CAMERA_DISTANCE_MIN_SPREAD
 	_smoothed_depth_target_z = CAMERA_Z
 	_has_snapped_to_fretted_notes = false
 	_has_fretted_camera_target = false
@@ -115,8 +119,13 @@ func tick_camera(events: Array, debug_strum_event_idx: int, song_time: float, le
 		_camera_left_shift = _camera_target_left_shift
 		_camera_target_x = clampf(_camera_x_from_fret(_camera_position_fret) - _camera_left_shift, CAMERA_X_MIN, CAMERA_X_MAX)
 		_camera_look_at_x = _camera_target_look_at_x
+		_camera_look_at_z = _camera_target_look_at_z
+		_camera_target_y = _camera_target_y
+		_camera_target_z = _camera_target_z
 		var snap_pos := position
 		snap_pos.x = _camera_target_x
+		snap_pos.y = _camera_target_y
+		snap_pos.z = _camera_target_z
 		position = snap_pos
 		_has_snapped_to_fretted_notes = true
 
@@ -185,7 +194,7 @@ func _update_camera_targets_from_visible_events(events: Array, debug_strum_event
 		var weighted_center_fret: float = (weighted_fret_sum / weight_sum) if weight_sum > 0.0 else raw_center_fret
 		if weight_sum <= 0.0 and has_focus_fret:
 			weighted_center_fret = target_focus_fret
-		var raw_focus_fret: float = target_focus_fret if has_focus_fret else raw_center_fret
+		var raw_focus_fret: float = target_focus_fret if has_focus_fret else weighted_center_fret
 		var lookahead_blend: float = 1.0 - pow(1.0 - CAMERA_LOOKAHEAD_BLEND_RATE, clampf(damp_delta, 0.0001, 0.2))
 		_lookahead_center_fret = lerpf(_lookahead_center_fret, weighted_center_fret, lookahead_blend)
 		_lookahead_span_frets = lerpf(_lookahead_span_frets, maxf(max_fret - min_fret, 1.0), lookahead_blend)
@@ -194,9 +203,14 @@ func _update_camera_targets_from_visible_events(events: Array, debug_strum_event
 			_stable_focus_fret = raw_focus_fret
 		if absf(_lookahead_center_fret - _stable_center_fret) >= CAMERA_TARGET_HYSTERESIS_FRETS:
 			_stable_center_fret = _lookahead_center_fret
+ 
+		if absf(_lookahead_span_frets - _stable_zoom_span_frets) >= CAMERA_ZOOM_HYSTERESIS_FRETS:
+			_stable_zoom_span_frets = _lookahead_span_frets
 
 		var clamped_center_fret: float = clampf(_stable_center_fret, _stable_focus_fret - CAMERA_FOCUS_CLAMP_BEHIND, _stable_focus_fret + CAMERA_FOCUS_CLAMP_AHEAD)
-		_camera_target_position_fret = clampf(clamped_center_fret, CAMERA_TARGET_FRET_MIN, CAMERA_TARGET_FRET_MAX) - CAMERA_POSITION_FRET_BIAS
+		var low_fret_t: float = clampf((min_fret - CAMERA_LOW_FRET_OFFSET_START) / maxf(CAMERA_LOW_FRET_OFFSET_END - CAMERA_LOW_FRET_OFFSET_START, 0.001), 0.0, 1.0)
+		var dynamic_bias: float = CAMERA_POSITION_FRET_BIAS * low_fret_t
+		_camera_target_position_fret = clampf(clamped_center_fret, CAMERA_TARGET_FRET_MIN, CAMERA_TARGET_FRET_MAX) - dynamic_bias
 		var weighted_edge_x: float = (_fret_to_world_x(1.0) * 0.6) + (_fret_to_world_x(float(FRET_COUNT)) * 0.4)
 		var lookahead_look_x: float = lerpf(_fret_to_world_x(_lookahead_center_fret), weighted_edge_x, CAMERA_FRET_EDGE_BLEND)
 		var expected_cam_x: float = clampf(_camera_x_from_fret(_camera_target_position_fret) - _camera_target_left_shift, CAMERA_X_MIN, CAMERA_X_MAX)
@@ -208,8 +222,10 @@ func _update_camera_targets_from_visible_events(events: Array, debug_strum_event
 		var spread_rate: float = CAMERA_SPREAD_ATTACK_RATE if raw_fret_dist > _smoothed_spread_frets else CAMERA_SPREAD_RELEASE_RATE
 		_smoothed_spread_frets = _damp_float(_smoothed_spread_frets, raw_fret_dist, spread_rate, damp_delta)
 		var adjusted_fret_dist: float = maxf(_smoothed_spread_frets - CAMERA_DISTANCE_SPREAD_FREE, 0.0)
-		var span_driven_distance: float = CAMERA_DISTANCE_BASE + (maxf(adjusted_fret_dist, CAMERA_DISTANCE_MIN_SPREAD) * CAMERA_DISTANCE_PER_FRET)
-		var base_desired_z: float = CAMERA_Z + maxf(span_driven_distance - CAMERA_DISTANCE_BASE, 0.0)
+		var zoom_span: float = maxf(_stable_zoom_span_frets, CAMERA_DISTANCE_MIN_SPREAD)
+		var span_driven_distance: float = CAMERA_DISTANCE_BASE + (maxf(adjusted_fret_dist, zoom_span - CAMERA_DISTANCE_MIN_SPREAD) * CAMERA_DISTANCE_PER_FRET)
+		var low_fret_zoom_bonus: float = maxf(0.0, 5.0 - min_fret) * CAMERA_LOW_FRET_ZOOM_BONUS_PER_FRET
+		var base_desired_z: float = CAMERA_Z + maxf(span_driven_distance - CAMERA_DISTANCE_BASE, 0.0) + low_fret_zoom_bonus
 		var z_rate: float = CAMERA_Z_ATTACK_RATE if base_desired_z > _smoothed_depth_target_z else CAMERA_Z_RELEASE_RATE
 		_smoothed_depth_target_z = _damp_float(_smoothed_depth_target_z, base_desired_z, z_rate, damp_delta)
 		var desired_z: float = clampf(_smoothed_depth_target_z, CAMERA_Z_MIN, CAMERA_Z_MAX)
@@ -242,6 +258,7 @@ func _update_camera_targets_from_visible_events(events: Array, debug_strum_event
 		_smoothed_depth_target_z = _damp_float(_smoothed_depth_target_z, CAMERA_Z, CAMERA_Z_RELEASE_RATE, damp_delta)
 		_camera_target_z = _smoothed_depth_target_z
 		_lookahead_span_frets = _damp_float(_lookahead_span_frets, CAMERA_DISTANCE_MIN_SPREAD, CAMERA_SPREAD_RELEASE_RATE, damp_delta)
+		_stable_zoom_span_frets = _damp_float(_stable_zoom_span_frets, CAMERA_DISTANCE_MIN_SPREAD, CAMERA_SPREAD_RELEASE_RATE, damp_delta)
 		_camera_target_look_at_z = clampf(CAMERA_Z - CAMERA_LOOK_AHEAD_DEPTH, CAMERA_LOOK_AT_Z_MIN, CAMERA_LOOK_AT_Z_MAX)
 
 
