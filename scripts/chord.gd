@@ -117,9 +117,10 @@ func setup(
 	# left_x  = separator to the LEFT of the leftmost note's slot  (min_fret - 1)
 	# right_x = separator at min_fret + 3, so the box is always exactly 4 frets wide
 	#           (covering slots min_fret, min_fret+1, min_fret+2, min_fret+3)
-	var left_x   : float = ChartCommon.fret_separator_world_x(min_fret - 1)
+	var visual_min_fret: int = maxi(min_fret, 1)
+	var left_x   : float = ChartCommon.fret_separator_world_x(visual_min_fret - 1)
 	var right_x  : float = ChartCommon.fret_separator_world_x(
-		mini(min_fret + 3, ChartCommon.FRET_COUNT)
+		mini(visual_min_fret + 3, ChartCommon.FRET_COUNT)
 	)
 	# top_y = separator above the topmost string used.
 	# bot_y = separator below the last string (highway floor) — constant so every

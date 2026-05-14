@@ -426,7 +426,7 @@ func _build_play_events(src_notes: Array) -> Array:
 		for gn in group:
 			var f: int = int(gn.get("fret", 0))
 			var s: int = int(gn.get("string", 0))
-			if f < 1 or f > FRET_COUNT or s < 0 or s > 5:
+			if f < 0 or f > FRET_COUNT or s < 0 or s > 5:
 				continue
 			var dur: float = maxf(float(gn.get("duration", 0.25)), 0.0)
 			var hs_id: int = int(gn.get("hand_shape_id", -1))

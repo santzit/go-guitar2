@@ -2,10 +2,14 @@ extends Node3D
 ## note_pool.gd  –  manages a fixed pool of up to MAX_NOTES Note instances.
 
 const MAX_NOTES  : int         = 128
+const MAX_OPEN_STRINGS: int    = 64
 const NOTE_SCENE : PackedScene = preload("res://scenes/note.tscn")
+const OPEN_STRING_SCENE: PackedScene = preload("res://scenes/open_string.tscn")
 
 var _pool  : Array[Node3D] = []
 var _active: Array[Node3D] = []
+var _open_pool: Array[Node3D] = []
+var _active_open: Array[Node3D] = []
 
 
 func _ready() -> void:
@@ -15,6 +19,8 @@ func _ready() -> void:
 func _build_pool() -> void:
 	for i in MAX_NOTES:
 		_pool.append(_make_note())
+	for i in MAX_OPEN_STRINGS:
+		_open_pool.append(_make_open_string())
 
 
 func _make_note() -> Node3D:
@@ -22,6 +28,13 @@ func _make_note() -> Node3D:
 	note.visible = false
 	add_child(note)
 	return note
+
+
+func _make_open_string() -> Node3D:
+	var open_string: Node3D = OPEN_STRING_SCENE.instantiate()
+	open_string.visible = false
+	add_child(open_string)
+	return open_string
 
 
 ## Activate a note from the pool.
@@ -33,6 +46,14 @@ func spawn_note(
 		p_duration: float,
 		p_show_lane_connector: bool = true
 ) -> Node3D:
+	if p_fret == 0:
+		if _open_pool.is_empty():
+			_open_pool.append(_make_open_string())
+		var open_string: Node3D = _open_pool.pop_back()
+		open_string.setup(p_fret, p_string, p_time, p_duration, false)
+		_active_open.append(open_string)
+		return open_string
+
 	if _pool.is_empty():
 		_pool.append(_make_note())
 
@@ -44,6 +65,10 @@ func spawn_note(
 
 ## Called by a Note when it passes the strum line and deactivates itself.
 func return_note(note: Node3D) -> void:
+	if note.has_method("is_open_string") and note.call("is_open_string"):
+		_active_open.erase(note)
+		_open_pool.append(note)
+		return
 	_active.erase(note)
 	_pool.append(note)
 
@@ -56,9 +81,13 @@ func tick(song_time: float) -> void:
 	# from _active via return_note) is safe without allocating a duplicate array.
 	for i in range(_active.size() - 1, -1, -1):
 		_active[i].tick(song_time)
+	for i in range(_active_open.size() - 1, -1, -1):
+		_active_open[i].tick(song_time)
 
 
 ## Deactivate all active notes (e.g. on song stop / restart).
 func clear_notes() -> void:
 	for i in range(_active.size() - 1, -1, -1):
 		_active[i].deactivate()
+	for i in range(_active_open.size() - 1, -1, -1):
+		_active_open[i].deactivate()
