@@ -8,6 +8,6 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 godot = { git = "https://github.com/godot-rust/gdext", branch = "master", features = ["api-4-4"] }
-rocksmith2014-psarc = { path = "../extern/Rocksmith2014.rs/rocksmith2014-psarc" }
-rocksmith2014-sng = { path = "../extern/Rocksmith2014.rs/rocksmith2014-sng" }
+rocksmith2014-psarc = { git = "https://github.com/santzit/Rocksmith2014.rs" }
+rocksmith2014-sng = { git = "https://github.com/santzit/Rocksmith2014.rs" }
 serde_json = "1"
