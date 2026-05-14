@@ -24,14 +24,14 @@ const CAMERA_LEFT_SHIFT_DAMPING_RATE : float = 0.50
 const CAMERA_EVENT_LOOKBACK : float = 0.35
 const CAMERA_X_MIN      : float = 1.75
 const CAMERA_X_MAX      : float = FRET_WORLD_WIDTH
-const CAMERA_TARGET_FRET_MIN : float = 3.5
+const CAMERA_TARGET_FRET_MIN : float = 1.5
 const CAMERA_TARGET_FRET_MAX : float = float(FRET_COUNT)
 const CAMERA_FOCUS_CLAMP_BEHIND : float = 3.0
 const CAMERA_FOCUS_CLAMP_AHEAD  : float = 5.0
-const CAMERA_POSITION_FRET_BIAS : float = 1.0
+const CAMERA_POSITION_FRET_BIAS : float = 0.35
 const CAMERA_FOCUS_UPDATE_INTERVAL : float = 0.50
 const CAMERA_FOCUS_FRET_DEADBAND  : float = 1.5
-const CAMERA_LOOK_X_DEADBAND      : float = 1.2
+const CAMERA_LOOK_X_DEADBAND      : float = 0.55
 const CAMERA_EXCESS_TO_LEFT_GAIN : float = 0.65
 const CAMERA_MAX_LEFT_SHIFT : float = 2.2
 const CAMERA_CHARTPLAYER_OFFSET_BLEND : float = 0.35
@@ -52,11 +52,8 @@ const CAMERA_LOOKAHEAD_SECONDS    : float = 3.0
 const CAMERA_LOOKAHEAD_RECENCY_TAU: float = 0.65
 const CAMERA_LOOKAHEAD_BLEND_RATE : float = 0.50
 const CAMERA_FRET_EDGE_BLEND      : float = 0.10
-const CAMERA_LOCK_RELEASE_MAX_FRET: float = 13.0
-const CAMERA_LOCK_ENGAGE_MAX_FRET : float = 10.0
-const CAMERA_LOCK_LOW_CENTER_FRET : float = 6.0
 const CAMERA_LOOKAHEAD_LOOK_X_BLEND: float = 0.12
-const CAMERA_MAX_YAW_DEGREES      : float = 1.2
+const CAMERA_MAX_YAW_DEGREES      : float = 1.5
 
 var _camera_target_x    : float = 0.0
 var _camera_target_y    : float = CAMERA_Y
@@ -75,7 +72,6 @@ var _stable_focus_fret  : float = DEFAULT_CAMERA_FRET
 var _smoothed_spread_frets : float = CAMERA_DISTANCE_MIN_SPREAD
 var _lookahead_center_fret : float = DEFAULT_CAMERA_FRET
 var _lookahead_span_frets  : float = CAMERA_DISTANCE_MIN_SPREAD
-var _lookahead_hi_neck_latch: bool = false
 var _smoothed_depth_target_z: float = CAMERA_Z
 
 
@@ -97,7 +93,6 @@ func reset_camera_defaults() -> void:
 	_smoothed_spread_frets = CAMERA_DISTANCE_MIN_SPREAD
 	_lookahead_center_fret = DEFAULT_CAMERA_FRET
 	_lookahead_span_frets = CAMERA_DISTANCE_MIN_SPREAD
-	_lookahead_hi_neck_latch = false
 	_smoothed_depth_target_z = CAMERA_Z
 	position.x = _camera_target_x
 	position.y = _camera_target_y
@@ -174,11 +169,6 @@ func _update_camera_targets_from_visible_events(events: Array, debug_strum_event
 		_lookahead_center_fret = lerpf(_lookahead_center_fret, weighted_center_fret, lookahead_blend)
 		_lookahead_span_frets = lerpf(_lookahead_span_frets, maxf(max_fret - min_fret, 1.0), lookahead_blend)
 
-		if max_fret >= CAMERA_LOCK_RELEASE_MAX_FRET:
-			_lookahead_hi_neck_latch = true
-		elif max_fret <= CAMERA_LOCK_ENGAGE_MAX_FRET:
-			_lookahead_hi_neck_latch = false
-
 		if _focus_update_timer <= 0.0:
 			_focus_update_timer = CAMERA_FOCUS_UPDATE_INTERVAL
 			if absf(raw_focus_fret - _stable_focus_fret) >= CAMERA_FOCUS_FRET_DEADBAND:
@@ -187,8 +177,6 @@ func _update_camera_targets_from_visible_events(events: Array, debug_strum_event
 				_stable_center_fret = _lookahead_center_fret
 
 		var clamped_center_fret: float = clampf(_stable_center_fret, _stable_focus_fret - CAMERA_FOCUS_CLAMP_BEHIND, _stable_focus_fret + CAMERA_FOCUS_CLAMP_AHEAD)
-		if not _lookahead_hi_neck_latch and max_fret <= 12.0:
-			clamped_center_fret = CAMERA_LOCK_LOW_CENTER_FRET
 		_camera_target_position_fret = clampf(clamped_center_fret, CAMERA_TARGET_FRET_MIN, CAMERA_TARGET_FRET_MAX) - CAMERA_POSITION_FRET_BIAS
 		var weighted_edge_x: float = (_fret_to_world_x(1.0) * 0.6) + (_fret_to_world_x(float(FRET_COUNT)) * 0.4)
 		var lookahead_look_x: float = lerpf(_fret_to_world_x(_lookahead_center_fret), weighted_edge_x, CAMERA_FRET_EDGE_BLEND)
@@ -233,7 +221,6 @@ func _update_camera_targets_from_visible_events(events: Array, debug_strum_event
 		_camera_target_y = CAMERA_Y
 		_smoothed_depth_target_z = _damp_float(_smoothed_depth_target_z, CAMERA_Z, CAMERA_Z_RELEASE_RATE, damp_delta)
 		_camera_target_z = _smoothed_depth_target_z
-		_lookahead_hi_neck_latch = false
 		_lookahead_span_frets = _damp_float(_lookahead_span_frets, CAMERA_DISTANCE_MIN_SPREAD, CAMERA_SPREAD_RELEASE_RATE, damp_delta)
 		_camera_target_look_at_z = clampf(CAMERA_Z - CAMERA_LOOK_AHEAD_DEPTH, CAMERA_LOOK_AT_Z_MIN, CAMERA_LOOK_AT_Z_MAX)
 
