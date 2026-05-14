@@ -25,7 +25,6 @@ const FRET_NUM_PIXEL_SIZE: float = 0.005
 ## Additional Z offset so fret-number labels sit in front of fret lines.
 const FRET_NUM_Z_OFFSET: float = 0.04
 const UPCOMING_MARKER_Z: float = 0.02
-const UPCOMING_OPEN_STRING_SPAN_FRETS: int = 4
 const UPCOMING_SCAN_MAX_EVENTS: int = 24
 const UPCOMING_NOTE_HEAD_SIZE: Vector3 = Vector3(0.78, 0.34, 0.04)
 const UPCOMING_NOTE_HEAD_CORNER_RADIUS: float = 0.08
@@ -91,19 +90,13 @@ func update_upcoming_markers(events: Array, song_time: float, lookahead: float, 
 
 func _render_event_markers(notes: Array) -> void:
 	var fretted: Array = []
-	var open_notes: Array = []
 	for n in notes:
 		var f: int = int(n.get("fret", -1))
 		var s: int = int(n.get("string", -1))
 		if s < 0 or s >= STRING_COUNT:
 			continue
-		if f == 0:
-			open_notes.append({"string": s})
-		elif f >= 1 and f <= ChartCommon.FRET_COUNT:
+		if f >= 1 and f <= ChartCommon.FRET_COUNT:
 			fretted.append({"fret": f, "string": s})
-
-	for n in open_notes:
-		_add_open_string_marker(int(n.get("string", 0)))
 
 	var fretted_marker_type: String = "single"
 	if fretted.size() > 1:
@@ -125,25 +118,6 @@ func _add_note_head_marker(fret: int, string_idx: int, marker_type: String) -> v
 		UPCOMING_MARKER_Z
 	)
 	marker.set_surface_override_material(0, _make_note_head_material(string_idx))
-	_upcoming_root.add_child(marker)
-
-
-func _add_open_string_marker(string_idx: int) -> void:
-	var marker := MeshInstance3D.new()
-	marker.name = "UpcomingOpen"
-	marker.set_meta("marker_type", "open")
-	var mesh := CylinderMesh.new()
-	mesh.top_radius = 0.018
-	mesh.bottom_radius = 0.018
-	mesh.height = float(UPCOMING_OPEN_STRING_SPAN_FRETS) * ChartCommon.FRET_SPACING
-	marker.mesh = mesh
-	marker.rotation_degrees = Vector3(0.0, 0.0, 90.0)
-	marker.position = Vector3(
-		(float(UPCOMING_OPEN_STRING_SPAN_FRETS) * ChartCommon.FRET_SPACING) * 0.5,
-		ChartCommon.string_world_y(string_idx),
-		UPCOMING_MARKER_Z
-	)
-	marker.set_surface_override_material(0, _make_marker_material(Color(1.0, 1.0, 1.0, 1.0)))
 	_upcoming_root.add_child(marker)
 
 

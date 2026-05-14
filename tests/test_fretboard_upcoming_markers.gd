@@ -87,7 +87,7 @@ func _run_all() -> void:
 
 	_assert_true(int(marker_types["single"]) > 0, "Renders at least one single-note marker")
 	_assert_true(int(marker_types["chord"]) > 0, "Renders at least one chord-group marker")
-	_assert_true(int(marker_types["open"]) > 0, "Renders at least one open-string marker")
+	_assert_eq(int(marker_types["open"]), 0, "Does not render open-string head markers")
 
 	# Markers should be replaced on each update call.
 	fretboard.call("update_upcoming_markers", events, 10.0, 1.0, 0)
