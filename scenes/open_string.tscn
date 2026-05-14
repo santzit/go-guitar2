@@ -1,0 +1,14 @@
+[gd_scene load_steps=3 format=3 uid="uid://copenstring001"]
+
+[ext_resource type="Script" path="res://scripts/open_string.gd" id="1_open_script"]
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_open_string"]
+top_radius = 0.05
+bottom_radius = 0.05
+height = 8.0
+
+[node name="OpenString" type="Node3D"]
+script = ExtResource("1_open_script")
+
+[node name="OpenStringMarker" type="MeshInstance3D" parent="."]
+mesh = SubResource("CylinderMesh_open_string")

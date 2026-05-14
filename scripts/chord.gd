@@ -1,5 +1,6 @@
 extends Node3D
 const ChartCommon = preload("res://scripts/common.gd")
+const EventLifecycle = preload("res://scripts/event_lifecycle.gd")
 ## chord.gd — Unified play-event container for single notes and chords.
 ##
 ## Single-note events:
@@ -17,9 +18,6 @@ const ChartCommon = preload("res://scripts/common.gd")
 ## They are returned to the pool when this chord container deactivates.
 ## The chord container itself (border + label) still moves as a Node3D in Z;
 ## the individual Note instances are parented to NotePool and manage their own Z.
-
-## Project font — Inter 18pt Bold, used for the chord name Label3D.
-const _INTER_BOLD: FontFile = preload("res://assets/fonts/Inter_18pt-Bold.ttf")
 
 ## Border shader — bottom-corner glow only.
 ## Glow touches the bottom edge of the chord box (UV.y == 1.0), which aligns
@@ -51,12 +49,11 @@ void fragment() {
 const START_Z          : float = -ChartCommon.HIGHWAY_DEPTH
 const STRUM_Z          : float =  0.0
 const TRAVEL_SPEED     : float =  ChartCommon.Z_UNITS_PER_SECOND   # must match note.gd and music_play.gd
-const MISS_HOLD        : float =  1.0   # seconds to keep visible after strum
 
 
 var time_offset    : float = 0.0
 var is_active      : bool  = false
-var _miss_until    : float = -1.0
+var _lifecycle: EventLifecycle = EventLifecycle.new()
 
 ## Lazy-initialised persistent nodes (survive pool reuse).
 var _border_mesh   : MeshInstance3D = null
@@ -82,12 +79,14 @@ func setup(
 		p_outline_min_fret: int = -1,
 		p_outline_max_fret: int = -1,
 		p_outline_min_string: int = -1,
-		p_outline_max_string: int = -1
+		p_outline_max_string: int = -1,
+		p_hand_fret_start: int = 1,
+		p_visual_base_fret: int = 1
 ) -> void:
 	time_offset = p_time
 	is_active   = true
 	visible     = true
-	_miss_until = -1.0
+	_lifecycle.setup(time_offset, 0.0, 0.0, false)
 	var is_single_event : bool = (p_event_kind == "single") or (p_notes.size() <= 1)
 
 	# ── Determine extent of notes ──────────────────────────────────────────────
@@ -120,9 +119,12 @@ func setup(
 	# left_x  = separator to the LEFT of the leftmost note's slot  (min_fret - 1)
 	# right_x = separator at min_fret + 3, so the box is always exactly 4 frets wide
 	#           (covering slots min_fret, min_fret+1, min_fret+2, min_fret+3)
-	var left_x   : float = ChartCommon.fret_separator_world_x(min_fret - 1)
+	var visual_min_fret: int = maxi(min_fret, 1)
+	if min_fret < 1:
+		visual_min_fret = clampi(p_visual_base_fret, 1, ChartCommon.FRET_COUNT)
+	var left_x   : float = ChartCommon.fret_separator_world_x(visual_min_fret - 1)
 	var right_x  : float = ChartCommon.fret_separator_world_x(
-		mini(min_fret + 3, ChartCommon.FRET_COUNT)
+		mini(visual_min_fret + 3, ChartCommon.FRET_COUNT)
 	)
 	# top_y = separator above the topmost string used.
 	# bot_y = separator below the last string (highway floor) — constant so every
@@ -154,7 +156,15 @@ func setup(
 			var f   : int   = int(n.get("fret", 0))
 			var s   : int   = clampi(int(n.get("string", 0)), 0, 5)
 			var dur : float = float(n.get("duration", 0.25))
-			var note_node : Node3D = chord_pool.spawn_note(f, s, p_time, dur, show_lane_connector)
+			var note_node : Node3D = chord_pool.spawn_note(
+				f,
+				s,
+				p_time,
+				dur,
+				show_lane_connector,
+				p_hand_fret_start,
+				p_visual_base_fret
+			)
 			if note_node:
 				_indicators.append(note_node)
 
@@ -202,7 +212,6 @@ func _ensure_label() -> void:
 		_chord_label.billboard        = BaseMaterial3D.BILLBOARD_ENABLED
 		_chord_label.pixel_size       = 0.005
 		_chord_label.font_size        = 48
-		_chord_label.font             = _INTER_BOLD
 		_chord_label.modulate         = Color(1.0, 1.0, 1.0, 1.0)
 		_chord_label.outline_size     = 8
 		_chord_label.outline_modulate = Color(0.0, 0.0, 0.0, 1.0)
@@ -211,9 +220,6 @@ func _ensure_label() -> void:
 
 ## Return all borrowed Note instances to ChordPool's NotePool.
 func _clear_indicators() -> void:
-	for ind in _indicators:
-		if is_instance_valid(ind) and ind.has_method("deactivate"):
-			ind.deactivate()
 	_indicators.clear()
 
 
@@ -223,18 +229,17 @@ func _clear_indicators() -> void:
 func tick(p_song_time: float) -> void:
 	if not is_active:
 		return
-	position.z = ChartCommon.note_world_z(time_offset, p_song_time, STRUM_Z)
-	if _miss_until < 0.0 and p_song_time >= time_offset:
-		_miss_until = p_song_time + MISS_HOLD
-	elif _miss_until >= 0.0 and p_song_time >= _miss_until:
+	var state: Dictionary = _lifecycle.advance(p_song_time)
+	if bool(state.get("finished_now", false)):
 		deactivate()
+		return
+	position.z = ChartCommon.note_world_z(time_offset, p_song_time, STRUM_Z)
 
 
 ## Deactivate and return to the ChordPool.
 func deactivate() -> void:
 	is_active   = false
 	visible     = false
-	_miss_until = -1.0
 	_clear_indicators()
 	if is_instance_valid(_chord_label):
 		_chord_label.visible = false

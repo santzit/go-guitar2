@@ -4,8 +4,8 @@
 [ext_resource type="Shader"  path="res://shaders/string_glow.gdshader" id="2_fbshader"]
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_string"]
-top_radius = 0.015
-bottom_radius = 0.015
+top_radius = 0.02
+bottom_radius = 0.02
 height = 48.0
 
 [sub_resource type="ShaderMaterial" id="StringMat_0"]

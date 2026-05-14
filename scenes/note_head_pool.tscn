@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://cmqutjtyfrvrc"]
+
+[ext_resource type="Script" path="res://scripts/note_head_pool.gd" id="1_note_head_pool_script"]
+
+[node name="NoteHeadPool" type="Node3D"]
+script = ExtResource("1_note_head_pool_script")

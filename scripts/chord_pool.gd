@@ -1,4 +1,5 @@
 extends Node3D
+const EventPoolBase = preload("res://scripts/event_pool_base.gd")
 ## chord_pool.gd — manages a fixed pool of chord container instances.
 ##
 ## Usage:  spawn_event(notes, time, name, show_details, kind, force_outline, outline bounds) → Node3D
@@ -12,16 +13,14 @@ extends Node3D
 const MAX_CHORDS  : int         = 64
 const CHORD_SCENE : PackedScene = preload("res://scenes/chord.tscn")
 
-var _pool  : Array = []   # idle chord containers
-var _active: Array = []   # currently moving containers
+var _chords: EventPoolBase = EventPoolBase.new()
 
 ## NotePool child — owns all Note instances used by chord containers.
 @onready var _note_pool: Node3D = $NotePool
 
 
 func _ready() -> void:
-	for i in MAX_CHORDS:
-		_pool.append(_make_chord())
+	_chords.warm(MAX_CHORDS, Callable(self, "_make_chord"))
 
 
 func _make_chord() -> Node3D:
@@ -43,11 +42,11 @@ func spawn_event(
 		p_outline_min_fret: int = -1,
 		p_outline_max_fret: int = -1,
 		p_outline_min_string: int = -1,
-		p_outline_max_string: int = -1
+		p_outline_max_string: int = -1,
+		p_hand_fret_start: int = 1,
+		p_visual_base_fret: int = 1
 ) -> Node3D:
-	if _pool.is_empty():
-		_pool.append(_make_chord())
-	var chord : Node3D = _pool.pop_back()
+	var chord : Node3D = _chords.acquire(Callable(self, "_make_chord"))
 	chord.setup(
 		p_notes,
 		p_time,
@@ -59,8 +58,9 @@ func spawn_event(
 		p_outline_max_fret,
 		p_outline_min_string,
 		p_outline_max_string,
+		p_hand_fret_start,
+		p_visual_base_fret,
 	)
-	_active.append(chord)
 	return chord
 
 
@@ -80,28 +80,37 @@ func spawn_note(
 		p_string: int,
 		p_time: float,
 		p_duration: float,
-		p_show_lane_connector: bool = true
+		p_show_lane_connector: bool = true,
+		p_hand_fret_start: int = 1,
+		p_visual_base_fret: int = -1
 ) -> Node3D:
-	return _note_pool.spawn_note(p_fret, p_string, p_time, p_duration, p_show_lane_connector)
+	return _note_pool.spawn_note(
+		p_fret,
+		p_string,
+		p_time,
+		p_duration,
+		p_show_lane_connector,
+		p_hand_fret_start,
+		p_visual_base_fret
+	)
 
 
 ## Called by a Chord when it passes the strum line and deactivates itself.
 func return_chord(chord: Node3D) -> void:
-	_active.erase(chord)
-	_pool.append(chord)
+	_chords.release(chord)
 
 
 ## Advance all active chord Z positions from the audio clock.
 ## Also ticks the NotePool so all borrowed note Z positions stay in sync.
 ## Called every frame by music_play._process().
 func tick(song_time: float) -> void:
-	for i in range(_active.size() - 1, -1, -1):
-		_active[i].tick(song_time)
+	for i in range(_chords.get_active().size() - 1, -1, -1):
+		_chords.get_active()[i].tick(song_time)
 	_note_pool.tick(song_time)
 
 
 ## Deactivate all active chords and notes (e.g. on song stop / restart).
 func clear_chords() -> void:
-	for i in range(_active.size() - 1, -1, -1):
-		_active[i].deactivate()
+	for i in range(_chords.get_active().size() - 1, -1, -1):
+		_chords.get_active()[i].deactivate()
 	_note_pool.clear_notes()
