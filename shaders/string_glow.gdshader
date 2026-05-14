@@ -9,9 +9,9 @@ uniform vec4  string_color    : source_color = vec4(1.0, 1.0, 1.0, 1.0);
 // Driven each frame by music_play.gd based on upcoming note timing.
 uniform float glow_intensity  : hint_range(0.0, 1.0) = 0.0;
 // Resting brightness for fretboard strings before upcoming-note glow ramps in.
-uniform float rest_brightness : hint_range(0.1, 1.0) = 0.34;
+uniform float rest_brightness : hint_range(0.1, 1.0) = 0.20;
 // Resting saturation for fretboard strings. 1.0 = full color, 0.0 = grayscale.
-uniform float rest_saturation : hint_range(0.0, 1.0) = 0.45;
+uniform float rest_saturation : hint_range(0.0, 1.0) = 0.30;
 
 void fragment() {
 	// Strings stay opaque and slightly dim at rest, then brighten toward full
@@ -24,6 +24,6 @@ void fragment() {
 	vec3 rest_color = mix(vec3(luma), string_color.rgb, sat);
 
 	ALBEDO   = rest_color * lit;
-	EMISSION = string_color.rgb * ramp * 3.0 * depth_fade;
+	EMISSION = string_color.rgb * ramp * 6.0 * depth_fade;
 	ALPHA    = 1.0;
 }

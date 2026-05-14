@@ -9,6 +9,8 @@ const NOTE_MARKER_CORNER_SEGMENTS: int = 8
 const NOTE_MARKER_CORNER_GLOW_WIDTH: float = 0.22
 const NOTE_MARKER_CORNER_GLOW_BOOST: float = 18.0
 const NOTE_MARKER_GLOW_ENERGY: float = 2.4
+const UPCOMING_DIM_ALPHA: float = 0.22
+const UPCOMING_DIM_COLOR_MUL: float = 0.45
 const NOTE_HEAD_Y_OFFSET: float = 0.10
 const NOTE_HEAD_Z: float = 0.02
 
@@ -17,6 +19,7 @@ static var _note_marker_mesh_cache: ArrayMesh = null
 var fret: int = 1
 var string_index: int = 0
 var marker_type: String = "single"
+var visual_style: String = "primary"
 var _note_marker_mat: ShaderMaterial = null
 
 @onready var _note_marker: MeshInstance3D = $NoteMarker
@@ -26,18 +29,30 @@ func _ready() -> void:
 	_ensure_visual_nodes()
 
 
-func setup_head(p_fret: int, p_string: int, p_marker_type: String = "single") -> void:
+func setup_head(
+		p_fret: int,
+		p_string: int,
+		p_marker_type: String = "single",
+		p_visual_style: String = "primary",
+		p_alpha: float = -1.0,
+		p_glow_energy: float = -1.0
+) -> void:
 	_ensure_visual_nodes()
 	fret = clampi(p_fret, 1, ChartCommon.FRET_COUNT)
 	string_index = clampi(p_string, 0, ChartCommon.STRING_COUNT - 1)
 	marker_type = p_marker_type
+	visual_style = p_visual_style
 	set_meta("marker_type", marker_type)
+	set_meta("visual_style", visual_style)
+	set_meta("fret", fret)
+	set_meta("string_index", string_index)
 	position = Vector3(
 		ChartCommon.fret_mid_world_x(fret - 1),
 		ChartCommon.string_world_y(string_index) + NOTE_HEAD_Y_OFFSET,
 		NOTE_HEAD_Z
 	)
-	_apply_color()
+	_apply_visual_style(p_glow_energy)
+	_apply_color(p_alpha)
 	visible = true
 
 
@@ -62,11 +77,30 @@ func _ensure_visual_nodes() -> void:
 	_note_marker.set_surface_override_material(0, _note_marker_mat)
 
 
-func _apply_color() -> void:
+func _apply_color(alpha_override: float = -1.0) -> void:
 	if _note_marker_mat == null:
 		return
 	var c: Color = ChartCommon.STRING_COLORS[string_index] if string_index < ChartCommon.STRING_COLORS.size() else Color.WHITE
-	_note_marker_mat.set_shader_parameter("base_color", Color(c.r, c.g, c.b, 1.0))
+	var alpha: float = 1.0
+	if visual_style == "upcoming_dim":
+		alpha = UPCOMING_DIM_ALPHA
+		c = Color(c.r * UPCOMING_DIM_COLOR_MUL, c.g * UPCOMING_DIM_COLOR_MUL, c.b * UPCOMING_DIM_COLOR_MUL, c.a)
+	elif alpha_override >= 0.0:
+		alpha = clampf(alpha_override, 0.0, 1.0)
+	_note_marker_mat.set_shader_parameter("base_color", Color(c.r, c.g, c.b, alpha))
+
+
+func _apply_visual_style(glow_energy_override: float = -1.0) -> void:
+	if _note_marker_mat == null:
+		return
+	var glow_energy: float = NOTE_MARKER_GLOW_ENERGY
+	if visual_style == "upcoming_dim":
+		glow_energy = 0.0
+	elif glow_energy_override >= 0.0:
+		glow_energy = clampf(glow_energy_override, 0.0, NOTE_MARKER_GLOW_ENERGY)
+	_note_marker_mat.set_shader_parameter("glow_energy", glow_energy)
+	var glow_t: float = glow_energy / NOTE_MARKER_GLOW_ENERGY if NOTE_MARKER_GLOW_ENERGY > 0.00001 else 0.0
+	_note_marker_mat.set_shader_parameter("corner_glow_boost", NOTE_MARKER_CORNER_GLOW_BOOST * glow_t)
 
 
 func _get_note_marker_mesh() -> ArrayMesh:

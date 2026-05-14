@@ -24,6 +24,9 @@ const FRET_NUM_PIXEL_SIZE: float = 0.005
 ## Additional Z offset so fret-number labels sit in front of fret lines.
 const FRET_NUM_Z_OFFSET: float = 0.04
 const UPCOMING_SCAN_MAX_EVENTS: int = 24
+const UPCOMING_NOTE_HEAD_WINDOW_SECS: float = 2.0
+const UPCOMING_SECONDARY_ALPHA: float = 0.4
+const NOTE_HEAD_MAX_GLOW_ENERGY: float = 2.4
 
 @export var note_head_pool_path: NodePath = NodePath("../NoteHeadPool")
 
@@ -65,24 +68,52 @@ func update_upcoming_markers(events: Array, song_time: float, lookahead: float, 
 		return
 	_note_head_pool.call("begin_frame")
 
+	var marker_horizon: float = minf(maxf(lookahead, 0.0), UPCOMING_NOTE_HEAD_WINDOW_SECS)
+	var primary_event_idx: int = -1
+	for i in range(maxi(start_idx, 0), events.size()):
+		var ev_probe: Dictionary = events[i]
+		var t_probe: float = float(ev_probe.get("time_start", -1.0))
+		var dt_probe: float = t_probe - song_time
+		if dt_probe <= 0.0:
+			continue
+		if dt_probe > marker_horizon:
+			break
+		if _has_fretted_note(ev_probe.get("notes", [])):
+			primary_event_idx = i
+			break
+
 	var added: int = 0
 	for i in range(maxi(start_idx, 0), events.size()):
 		if added >= UPCOMING_SCAN_MAX_EVENTS:
 			break
 		var ev: Dictionary = events[i]
 		var t: float = float(ev.get("time_start", -1.0))
-		if t <= song_time:
+		var dt: float = t - song_time
+		if dt <= 0.0:
 			continue
-		if t > song_time + lookahead:
+		if dt > marker_horizon:
 			break
 		var notes: Array = ev.get("notes", [])
 		if notes.is_empty():
 			continue
-		_render_event_markers(notes)
+		var is_primary_event: bool = (i == primary_event_idx)
+		var visual_style: String = "primary" if is_primary_event else "upcoming_dim"
+		var alpha: float = 1.0 if is_primary_event else UPCOMING_SECONDARY_ALPHA
+		var glow_energy: float = NOTE_HEAD_MAX_GLOW_ENERGY if is_primary_event else 0.0
+		var spawned_count: int = _render_event_markers(notes, visual_style, alpha, glow_energy)
 		added += 1
 
 
-func _render_event_markers(notes: Array) -> void:
+func _has_fretted_note(notes: Array) -> bool:
+	for n in notes:
+		var f: int = int(n.get("fret", -1))
+		var s: int = int(n.get("string", -1))
+		if s >= 0 and s < STRING_COUNT and f >= 1 and f <= ChartCommon.FRET_COUNT:
+			return true
+	return false
+
+
+func _render_event_markers(notes: Array, visual_style: String, alpha: float, glow_energy: float) -> int:
 	var fretted: Array = []
 	for n in notes:
 		var f: int = int(n.get("fret", -1))
@@ -96,7 +127,16 @@ func _render_event_markers(notes: Array) -> void:
 	if fretted.size() > 1:
 		fretted_marker_type = "chord"
 	for n in fretted:
-		_note_head_pool.call("spawn_note_head", int(n.get("fret", 1)), int(n.get("string", 0)), fretted_marker_type)
+		_note_head_pool.call(
+			"spawn_note_head",
+			int(n.get("fret", 1)),
+			int(n.get("string", 0)),
+			fretted_marker_type,
+			visual_style,
+			alpha,
+			glow_energy
+		)
+	return fretted.size()
 
 
 ## Instantiate a thin PlaneMesh quad at each ChartPlayer fret separator X position.

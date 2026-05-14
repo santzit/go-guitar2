@@ -15,10 +15,17 @@ func begin_frame() -> void:
 	_heads.release_all(Callable(self, "_hide_head_instance"))
 
 
-func spawn_note_head(p_fret: int, p_string: int, p_marker_type: String = "single") -> Node3D:
+func spawn_note_head(
+		p_fret: int,
+		p_string: int,
+		p_marker_type: String = "single",
+		p_visual_style: String = "primary",
+		p_alpha: float = -1.0,
+		p_glow_energy: float = -1.0
+) -> Node3D:
 	var head: Node3D = _heads.acquire(Callable(self, "_make_note_head"))
 	if head.has_method("setup_head"):
-		head.setup_head(p_fret, p_string, p_marker_type)
+		head.setup_head(p_fret, p_string, p_marker_type, p_visual_style, p_alpha, p_glow_energy)
 	else:
 		head.visible = true
 	return head
