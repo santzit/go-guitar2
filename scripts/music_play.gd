@@ -38,7 +38,11 @@ const WARMUP_SECS : float = 3.0
 
 # -- String glow constants ---------------------------------------------------
 ## How many seconds before a note arrives to begin ramping up the string glow.
-const GLOW_WINDOW : float = 2.0
+## Tuned so strings visibly light up in the 0.5–1.0s pre-hit window.
+const GLOW_WINDOW : float = 1.0
+const GLOW_MIN_INTENSITY_WHEN_UPCOMING : float = 0.14
+const GLOW_ATTACK_LERP : float = 0.35
+const GLOW_DECAY_LERP : float = 0.08
 
 # -- Debug overlay -----------------------------------------------------------
 ## Standard guitar string names (string index 0–5, low E to high e).
@@ -552,9 +556,12 @@ func _update_string_glows() -> void:
 			break
 		var s : int = int(_notes[i].get("string", -1))
 		if s >= 0 and s < 6:
-			# Quadratic ease-in: near-zero far away, steep rise in the last 0.5 s.
+			# Proximity curve tuned for a clear 0.5–1.0s pre-hit cue.
 			var t         : float = clampf(dt / GLOW_WINDOW, 0.0, 1.0)
-			var intensity : float = 1.0 - t * t
+			var proximity : float = 1.0 - t
+			var intensity : float = pow(proximity, 1.8)
+			if dt >= 0.0:
+				intensity = maxf(intensity, GLOW_MIN_INTENSITY_WHEN_UPCOMING)
 			if intensity > targets[s]:
 				targets[s] = intensity
 		i += 1
@@ -563,7 +570,7 @@ func _update_string_glows() -> void:
 	for s in 6:
 		var current : float = _string_glow[s]
 		var target  : float = targets[s]
-		var lerp_k  : float = 0.25 if target > current else 0.06
+		var lerp_k  : float = GLOW_ATTACK_LERP if target > current else GLOW_DECAY_LERP
 		var new_val : float = lerpf(current, target, lerp_k)
 		if absf(new_val - current) > 0.001:
 			_string_glow[s] = new_val

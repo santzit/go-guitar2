@@ -10,7 +10,6 @@ extends Node3D
 
 ## Mirrors ChartCommon.STRING_COUNT — kept local for brevity in this file.
 const STRING_COUNT : int = ChartCommon.STRING_COUNT
-const NOTE_MARKER_SHADER: Shader = preload("res://shaders/note_marker_corner_glow.gdshader")
 
 ## Width of each fret-line quad in world units.
 ## Slightly wider than the highway shader lines to be clearly visible.
@@ -24,17 +23,13 @@ const FRET_NUM_Y_OFFSET: float = 0.22
 const FRET_NUM_PIXEL_SIZE: float = 0.005
 ## Additional Z offset so fret-number labels sit in front of fret lines.
 const FRET_NUM_Z_OFFSET: float = 0.04
-const UPCOMING_MARKER_Z: float = 0.02
 const UPCOMING_SCAN_MAX_EVENTS: int = 24
-const UPCOMING_NOTE_HEAD_SIZE: Vector3 = Vector3(0.78, 0.34, 0.04)
-const UPCOMING_NOTE_HEAD_CORNER_RADIUS: float = 0.08
-const UPCOMING_NOTE_HEAD_CORNER_GLOW_WIDTH: float = 0.22
-const UPCOMING_NOTE_HEAD_CORNER_GLOW_BOOST: float = 18.0
-const UPCOMING_NOTE_HEAD_GLOW_ENERGY: float = 2.4
+
+@export var note_head_pool_path: NodePath = NodePath("../NoteHeadPool")
 
 ## Cache of ShaderMaterial per string (index 0–5).
 var _string_mats : Array = []
-var _upcoming_root: Node3D = null
+var _note_head_pool: Node3D = null
 
 
 func _ready() -> void:
@@ -46,11 +41,11 @@ func _ready() -> void:
 		else:
 			push_warning("Fretboard: String%d node not found." % i)
 			_string_mats.append(null)
+	_note_head_pool = get_node_or_null(note_head_pool_path) as Node3D
+	if _note_head_pool == null:
+		push_warning("Fretboard: NoteHeadPool node not found at '%s'." % str(note_head_pool_path))
 	for i in STRING_COUNT:
 		set_string_glow(i, 0.0)
-	_upcoming_root = Node3D.new()
-	_upcoming_root.name = "UpcomingMarkers"
-	add_child(_upcoming_root)
 	_build_fret_lines()
 	_build_fret_numbers()
 
@@ -66,10 +61,9 @@ func set_string_glow(string_idx: int, intensity: float) -> void:
 
 
 func update_upcoming_markers(events: Array, song_time: float, lookahead: float, start_idx: int = 0) -> void:
-	if _upcoming_root == null:
+	if _note_head_pool == null:
 		return
-	for child in _upcoming_root.get_children():
-		child.free()
+	_note_head_pool.call("begin_frame")
 
 	var added: int = 0
 	for i in range(maxi(start_idx, 0), events.size()):
@@ -102,46 +96,7 @@ func _render_event_markers(notes: Array) -> void:
 	if fretted.size() > 1:
 		fretted_marker_type = "chord"
 	for n in fretted:
-		_add_note_head_marker(int(n.get("fret", 1)), int(n.get("string", 0)), fretted_marker_type)
-
-
-func _add_note_head_marker(fret: int, string_idx: int, marker_type: String) -> void:
-	var marker := MeshInstance3D.new()
-	marker.name = "UpcomingNoteHead"
-	marker.set_meta("marker_type", marker_type)
-	var mesh := BoxMesh.new()
-	mesh.size = UPCOMING_NOTE_HEAD_SIZE
-	marker.mesh = mesh
-	marker.position = Vector3(
-		ChartCommon.fret_mid_world_x(fret - 1),
-		ChartCommon.string_world_y(string_idx) + 0.10,
-		UPCOMING_MARKER_Z
-	)
-	marker.set_surface_override_material(0, _make_note_head_material(string_idx))
-	_upcoming_root.add_child(marker)
-
-
-func _make_marker_material(color: Color) -> StandardMaterial3D:
-	var mat := StandardMaterial3D.new()
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	mat.emission_enabled = false
-	mat.albedo_color = color
-	return mat
-
-
-func _make_note_head_material(string_idx: int) -> ShaderMaterial:
-	var c: Color = ChartCommon.STRING_COLORS[string_idx] if string_idx >= 0 and string_idx < ChartCommon.STRING_COLORS.size() else Color.WHITE
-	var mat := ShaderMaterial.new()
-	mat.shader = NOTE_MARKER_SHADER
-	mat.set_shader_parameter("base_color", Color(c.r, c.g, c.b, 1.0))
-	mat.set_shader_parameter("corner_glow_color", Color(1.0, 1.0, 1.0, 1.0))
-	mat.set_shader_parameter("corner_glow_width", UPCOMING_NOTE_HEAD_CORNER_GLOW_WIDTH)
-	mat.set_shader_parameter("corner_glow_boost", UPCOMING_NOTE_HEAD_CORNER_GLOW_BOOST)
-	mat.set_shader_parameter("corner_radius_uv", UPCOMING_NOTE_HEAD_CORNER_RADIUS / minf(UPCOMING_NOTE_HEAD_SIZE.x, UPCOMING_NOTE_HEAD_SIZE.y))
-	mat.set_shader_parameter("glow_energy", UPCOMING_NOTE_HEAD_GLOW_ENERGY)
-	return mat
+		_note_head_pool.call("spawn_note_head", int(n.get("fret", 1)), int(n.get("string", 0)), fretted_marker_type)
 
 
 ## Instantiate a thin PlaneMesh quad at each ChartPlayer fret separator X position.

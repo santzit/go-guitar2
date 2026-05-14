@@ -6,7 +6,6 @@ const ChartCommon = preload("res://scripts/common.gd")
 const START_Z: float = -ChartCommon.HIGHWAY_DEPTH
 const STRUM_Z: float = 0.0
 const TRAVEL_SPEED: float = ChartCommon.Z_UNITS_PER_SECOND
-const MISS_HOLD_SECS: float = 1.0
 const OPEN_STRING_SPAN_FRETS: int = 4
 const OPEN_STRING_LOCAL_Z: float = 0.08
 const NOTE_MARKER_NEON_GLOW_BASE: float = 2.4
@@ -22,7 +21,9 @@ var string_index: int = 0
 var time_offset: float = 0.0
 var duration: float = 0.25
 var is_active: bool = false
-var _miss_until: float = -1.0
+var _head_hidden: bool = false
+var _end_time: float = 0.0
+var _has_sustain: bool = false
 var _marker_mat: StandardMaterial3D = null
 var _sustain_trail: MeshInstance3D = null
 var _sustain_trail_mat: StandardMaterial3D = null
@@ -35,6 +36,8 @@ func _ready() -> void:
 
 
 func _ensure_visual_nodes() -> void:
+	if _marker == null:
+		_marker = get_node_or_null("OpenStringMarker") as MeshInstance3D
 	if _marker:
 		_marker.rotation_degrees = Vector3(0.0, 0.0, 90.0)
 		_marker.position = Vector3(0.0, 0.0, OPEN_STRING_LOCAL_Z)
@@ -75,25 +78,38 @@ func setup(
 	duration = maxf(p_duration, 0.0)
 	is_active = true
 	visible = true
-	_miss_until = -1.0
+	_head_hidden = false
+	_end_time = time_offset
+	_has_sustain = false
 
 	var span_world: float = float(OPEN_STRING_SPAN_FRETS) * ChartCommon.FRET_SPACING
 	var center_x: float = span_world * 0.5
 	position = Vector3(center_x, ChartCommon.string_world_y(string_index), START_Z)
+	if _marker != null:
+		_marker.visible = true
 	_apply_color()
 	_update_sustain_trail()
+	if duration * TRAVEL_SPEED >= SUSTAIN_MIN_LENGTH:
+		_has_sustain = true
+		_end_time = time_offset + duration
 
 
 func tick(song_time: float) -> void:
 	if not is_active:
 		return
 
-	position.z = ChartCommon.note_world_z(time_offset, song_time, STRUM_Z)
+	if _head_hidden:
+		position.z = STRUM_Z
+		_update_active_sustain_trail(song_time)
+	else:
+		position.z = ChartCommon.note_world_z(time_offset, song_time, STRUM_Z)
 	_update_sustain_glow(song_time)
 
-	if _miss_until < 0.0 and song_time >= time_offset:
-		_miss_until = song_time + duration + MISS_HOLD_SECS
-	elif _miss_until >= 0.0 and song_time >= _miss_until:
+	if not _head_hidden and song_time >= time_offset:
+		_hide_head_visuals()
+		position.z = STRUM_Z
+		_update_active_sustain_trail(song_time)
+	if _head_hidden and song_time >= _end_time:
 		deactivate()
 
 
@@ -102,12 +118,20 @@ func deactivate() -> void:
 		return
 	is_active = false
 	visible = false
-	_miss_until = -1.0
+	_head_hidden = false
+	_end_time = 0.0
+	_has_sustain = false
 	if _sustain_trail:
 		_sustain_trail.visible = false
 	var pool := get_parent()
 	if pool and pool.has_method("return_note"):
 		pool.return_note(self)
+
+
+func _hide_head_visuals() -> void:
+	_head_hidden = true
+	if _marker != null:
+		_marker.visible = false
 
 
 func is_open_string() -> bool:
@@ -130,7 +154,25 @@ func _update_sustain_trail() -> void:
 		return
 	var sustain_length: float = maxf(duration * TRAVEL_SPEED, 0.0)
 	if sustain_length < SUSTAIN_MIN_LENGTH:
+		_has_sustain = false
 		_sustain_trail.visible = false
+		return
+	_has_sustain = true
+	_set_sustain_trail_length(sustain_length)
+
+
+func _update_active_sustain_trail(song_time: float) -> void:
+	if not _has_sustain or _sustain_trail == null:
+		return
+	var remaining_secs: float = maxf(_end_time - song_time, 0.0)
+	if remaining_secs <= 0.0:
+		_sustain_trail.visible = false
+		return
+	_set_sustain_trail_length(remaining_secs * TRAVEL_SPEED)
+
+
+func _set_sustain_trail_length(sustain_length: float) -> void:
+	if _sustain_trail == null:
 		return
 	var trail_mesh: BoxMesh = _sustain_trail.mesh as BoxMesh
 	if trail_mesh == null:

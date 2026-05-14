@@ -48,12 +48,10 @@ void fragment() {
 const START_Z          : float = -ChartCommon.HIGHWAY_DEPTH
 const STRUM_Z          : float =  0.0
 const TRAVEL_SPEED     : float =  ChartCommon.Z_UNITS_PER_SECOND   # must match note.gd and music_play.gd
-const MISS_HOLD        : float =  1.0   # seconds to keep visible after strum
 
 
 var time_offset    : float = 0.0
 var is_active      : bool  = false
-var _miss_until    : float = -1.0
 
 ## Lazy-initialised persistent nodes (survive pool reuse).
 var _border_mesh   : MeshInstance3D = null
@@ -84,7 +82,6 @@ func setup(
 	time_offset = p_time
 	is_active   = true
 	visible     = true
-	_miss_until = -1.0
 	var is_single_event : bool = (p_event_kind == "single") or (p_notes.size() <= 1)
 
 	# ── Determine extent of notes ──────────────────────────────────────────────
@@ -208,9 +205,6 @@ func _ensure_label() -> void:
 
 ## Return all borrowed Note instances to ChordPool's NotePool.
 func _clear_indicators() -> void:
-	for ind in _indicators:
-		if is_instance_valid(ind) and ind.has_method("deactivate"):
-			ind.deactivate()
 	_indicators.clear()
 
 
@@ -220,18 +214,16 @@ func _clear_indicators() -> void:
 func tick(p_song_time: float) -> void:
 	if not is_active:
 		return
-	position.z = ChartCommon.note_world_z(time_offset, p_song_time, STRUM_Z)
-	if _miss_until < 0.0 and p_song_time >= time_offset:
-		_miss_until = p_song_time + MISS_HOLD
-	elif _miss_until >= 0.0 and p_song_time >= _miss_until:
+	if p_song_time >= time_offset:
 		deactivate()
+		return
+	position.z = ChartCommon.note_world_z(time_offset, p_song_time, STRUM_Z)
 
 
 ## Deactivate and return to the ChordPool.
 func deactivate() -> void:
 	is_active   = false
 	visible     = false
-	_miss_until = -1.0
 	_clear_indicators()
 	if is_instance_valid(_chord_label):
 		_chord_label.visible = false

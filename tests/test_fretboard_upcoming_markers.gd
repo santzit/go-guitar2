@@ -6,6 +6,7 @@
 extends SceneTree
 
 const FRETBOARD_SCENE: PackedScene = preload("res://scenes/fretboard.tscn")
+const NOTE_HEAD_POOL_SCENE: PackedScene = preload("res://scenes/note_head_pool.tscn")
 
 var _pass_count := 0
 var _fail_count := 0
@@ -38,6 +39,10 @@ func _assert_eq(actual, expected, description: String) -> void:
 
 func _run_all() -> void:
 	print("\n═══════ Fretboard Upcoming Marker Tests ═══════")
+
+	var note_head_pool := NOTE_HEAD_POOL_SCENE.instantiate() as Node3D
+	note_head_pool.name = "NoteHeadPool"
+	root.add_child(note_head_pool)
 
 	var fretboard := FRETBOARD_SCENE.instantiate() as Node3D
 	root.add_child(fretboard)
@@ -73,15 +78,14 @@ func _run_all() -> void:
 	]
 
 	fretboard.call("update_upcoming_markers", events, 2.0, 4.0, 0)
-	var markers := fretboard.get_node_or_null("UpcomingMarkers") as Node3D
-	_assert_true(markers != null, "UpcomingMarkers root exists")
-	if markers == null:
+	_assert_true(note_head_pool != null, "NoteHeadPool root exists")
+	if note_head_pool == null:
 		return
 
 	var marker_types: Dictionary = {"single": 0, "chord": 0, "open": 0}
-	for child in markers.get_children():
-		if child.has_meta("marker_type"):
-			var marker_type: String = String(child.get_meta("marker_type"))
+	for head in note_head_pool.call("get_active_heads"):
+		if head != null and head.has_meta("marker_type"):
+			var marker_type: String = String(head.get_meta("marker_type"))
 			if marker_types.has(marker_type):
 				marker_types[marker_type] = int(marker_types[marker_type]) + 1
 
@@ -91,7 +95,7 @@ func _run_all() -> void:
 
 	# Markers should be replaced on each update call.
 	fretboard.call("update_upcoming_markers", events, 10.0, 1.0, 0)
-	_assert_eq(markers.get_child_count(), 0, "Markers clear when no events are upcoming")
+	_assert_eq(int(note_head_pool.call("active_count")), 0, "Markers clear when no events are upcoming")
 
 
 func _print_summary() -> void:
