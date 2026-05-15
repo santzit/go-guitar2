@@ -12,8 +12,9 @@ const BAR_LINE_THICKNESS : float = 0.080
 const MAX_VISIBLE_BEAT_MARKERS : int = 128
 const BEAT_TAIL_SECS : float = 0.35
 const BEAT_HEAD_SECS : float = 0.20
+const MIN_BEAT_INTERVAL_SECS : float = 0.22
 const FRET_LABEL_Y : float = 0.08
-const FRET_LABEL_Z : float = -0.75
+const LABEL_LINE_OFFSET_Z : float = 0.06
 
 @onready var _surface: MeshInstance3D = $HighwaySurface
 
@@ -65,6 +66,9 @@ func update_beat_grid(song_time: float, lead_time: float) -> void:
 
 	var marker_idx: int = 0
 	var beat_idx: int = _first_visible_beat_idx
+	var last_rendered_time: float = -1000000.0
+	var label_anchor_z: float = START_Z
+	var has_label_anchor: bool = false
 	while beat_idx < _beats.size():
 		var beat: Dictionary = _beats[beat_idx]
 		var beat_time: float = float(beat.get("time", 0.0))
@@ -75,15 +79,23 @@ func update_beat_grid(song_time: float, lead_time: float) -> void:
 
 		var marker: MeshInstance3D = _beat_markers[marker_idx]
 		var is_bar: bool = bool(beat.get("is_bar", int(beat.get("measure", -1)) >= 0))
+		if not is_bar and (beat_time - last_rendered_time) < MIN_BEAT_INTERVAL_SECS:
+			beat_idx += 1
+			continue
 		marker.material_override = _bar_line_material if is_bar else _beat_line_material
 		marker.scale.z = BAR_LINE_THICKNESS if is_bar else BEAT_LINE_THICKNESS
 		marker.position.z = ChartCommon.note_world_z(beat_time, song_time, STRUM_Z)
 		marker.visible = true
+		last_rendered_time = beat_time
+		if (is_bar or not has_label_anchor):
+			label_anchor_z = marker.position.z + LABEL_LINE_OFFSET_Z
+			has_label_anchor = true
 		marker_idx += 1
 		beat_idx += 1
 
 	for i in range(marker_idx, _beat_markers.size()):
 		_beat_markers[i].visible = false
+	_update_fret_label_depth(label_anchor_z if has_label_anchor else START_Z + LABEL_LINE_OFFSET_Z)
 
 
 func _ensure_marker_resources() -> void:
@@ -140,7 +152,11 @@ func _refresh_fret_labels(fret_count: int) -> void:
 		label.modulate = Color(0.95, 0.95, 0.98, 1.0)
 		label.outline_size = 10
 		label.outline_modulate = Color(0.0, 0.0, 0.0, 1.0)
-		label.position = Vector3(ChartCommon.fret_mid_world_x(fret), FRET_LABEL_Y, FRET_LABEL_Z)
+		label.position = Vector3(
+			ChartCommon.fret_mid_world_x(fret),
+			FRET_LABEL_Y,
+			START_Z + LABEL_LINE_OFFSET_Z
+		)
 		add_child(label)
 		_fret_labels.append(label)
 
@@ -156,3 +172,10 @@ func _marker_frets(fret_count: int) -> Array[int]:
 func _hide_all_markers() -> void:
 	for marker in _beat_markers:
 		marker.visible = false
+	_update_fret_label_depth(START_Z + LABEL_LINE_OFFSET_Z)
+
+
+func _update_fret_label_depth(z_pos: float) -> void:
+	for label in _fret_labels:
+		if is_instance_valid(label):
+			label.position.z = z_pos
