@@ -62,6 +62,7 @@ const QENGINE_NOISE_GATE    : float = 0.02
 # -- Scene references --------------------------------------------------------
 @onready var _chord_pool  : Node3D            = $ChordPool
 @onready var _fretboard   : Node3D            = $Fretboard
+@onready var _highway     : Node3D            = $Highway
 @onready var _player      : AudioStreamPlayer = $AudioStreamPlayer
 @onready var _camera      : CameraController   = $Camera3D
 @onready var _debug_label : Label             = $DebugOverlay/DebugLabel
@@ -139,6 +140,9 @@ func _ready() -> void:
 	print("MusicPlay: difficulty=%.0f%%" % difficulty_pct)
 	if _bridge.load_psarc_abs(selected_psarc_path):
 		_notes = _bridge.get_notes()
+		var _beats: Array = _bridge.get_beats()
+		if is_instance_valid(_highway) and _highway.has_method("set_beats"):
+			_highway.call("set_beats", _beats)
 		_last_chord_sig = ""
 		var bridge_events: Array = _bridge.get_play_events()
 		_events = _build_play_events(_notes)
@@ -289,6 +293,8 @@ func _process(delta: float) -> void:
 
 	# Push the authoritative audio time to all active notes/chords so their Z
 	# positions are computed directly from the audio clock (not accumulated delta).
+	if is_instance_valid(_highway) and _highway.has_method("update_beat_grid"):
+		_highway.call("update_beat_grid", _song_time, LEAD_TIME)
 	_chord_pool.tick(_song_time)
 
 	# ── Pitch detection + scoring ─────────────────────────────────────────────

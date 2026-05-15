@@ -1,5 +1,6 @@
 use crate::rsapi::{
-    ChordTemplateEntry, HandShapeEntry, LevelEntry, PhraseEntry, PhraseIterationEntry, PsarcData,
+    BeatEntry, ChordTemplateEntry, HandShapeEntry, LevelEntry, PhraseEntry, PhraseIterationEntry,
+    PsarcData,
 };
 use godot::prelude::*;
 
@@ -41,6 +42,14 @@ struct PlayEventData {
     outline_max_string: i32,
 }
 
+#[derive(Clone, Debug)]
+struct BeatData {
+    time: f32,
+    measure: i32,
+    beat: i32,
+    is_bar: bool,
+}
+
 #[allow(non_camel_case_types)]
 #[derive(GodotClass)]
 #[class(base = Object)]
@@ -48,6 +57,7 @@ pub struct RSAPI_SNG {
     #[base]
     base: Base<Object>,
     notes: Vec<NoteData>,
+    beats: Vec<BeatData>,
     play_events: Vec<PlayEventData>,
     chord_templates: Vec<ChordTemplateEntry>,
     hand_shapes: Vec<HandShapeEntry>,
@@ -78,6 +88,7 @@ impl IObject for RSAPI_SNG {
         Self {
             base,
             notes: Vec::new(),
+            beats: Vec::new(),
             play_events: Vec::new(),
             chord_templates: Vec::new(),
             hand_shapes: Vec::new(),
@@ -141,6 +152,20 @@ impl RSAPI_SNG {
         let mut arr: Array<Variant> = Array::new();
         for n in &self.notes {
             arr.push(&note_to_dict(n).to_variant());
+        }
+        arr
+    }
+
+    #[func]
+    fn get_beats(&self) -> Array<Variant> {
+        let mut arr: Array<Variant> = Array::new();
+        for b in &self.beats {
+            let mut d: Dictionary<GString, Variant> = Dictionary::new();
+            d.set(&GString::from("time"), b.time);
+            d.set(&GString::from("measure"), b.measure);
+            d.set(&GString::from("beat"), b.beat);
+            d.set(&GString::from("is_bar"), b.is_bar);
+            arr.push(&d.to_variant());
         }
         arr
     }
@@ -323,6 +348,7 @@ impl RSAPI_SNG {
 impl RSAPI_SNG {
     fn reset(&mut self) {
         self.notes.clear();
+        self.beats.clear();
         self.play_events.clear();
         self.chord_templates.clear();
         self.hand_shapes.clear();
@@ -366,6 +392,16 @@ impl RSAPI_SNG {
         self.phrases = data.phrases;
         self.phrase_iterations = data.phrase_iterations;
         self.levels = data.levels;
+        self.beats = data
+            .beats
+            .iter()
+            .map(|b: &BeatEntry| BeatData {
+                time: b.time,
+                measure: i32::from(b.measure),
+                beat: i32::from(b.beat),
+                is_bar: b.is_bar,
+            })
+            .collect();
 
         self.notes = data
             .notes
@@ -397,8 +433,9 @@ impl RSAPI_SNG {
         self.preview_wem_data = data.preview_wem_bytes;
 
         godot_print!(
-            "RSAPI_SNG: notes={} events={} phrases={} levels={}",
+            "RSAPI_SNG: notes={} beats={} events={} phrases={} levels={}",
             self.notes.len(),
+            self.beats.len(),
             self.play_events.len(),
             self.phrases.len(),
             self.levels.len()
