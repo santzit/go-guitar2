@@ -64,6 +64,7 @@ const QENGINE_NOISE_GATE    : float = 0.02
 @onready var _fretboard   : Node3D            = $Fretboard
 @onready var _player      : AudioStreamPlayer = $AudioStreamPlayer
 @onready var _camera      : CameraController   = $Camera3D
+@onready var _world_env   : WorldEnviromentController = $WorldEnviroment
 @onready var _debug_label : Label             = $DebugOverlay/DebugLabel
 @onready var _pause_dimmer : ColorRect        = $PauseOverlay/Dimmer
 @onready var _pause_panel  : PanelContainer   = $PauseOverlay/PausePanel
@@ -342,6 +343,8 @@ func _process(delta: float) -> void:
 
 	if _camera:
 		_camera.tick_camera(_events, _debug_strum_event_idx, _song_time, LEAD_TIME, delta, MAX_DELTA)
+		if _world_env:
+			_world_env.update_for_camera_zoom(_camera.get_zoom_distance())
 
 	# Screenshots based on real wall-clock time to avoid timer batching on slow renderers.
 	if _shot_idx < SCREENSHOT_TIMES.size():
