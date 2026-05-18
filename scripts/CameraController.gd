@@ -25,7 +25,6 @@ const CAMERA_MAX_ZOOM_DISTANCE   : float = 21.5
 const CAMERA_LOOKAHEAD_SECONDS   : float = 3.0
 const CAMERA_TARGET_BEHIND_SECONDS: float = 0.20
 const CAMERA_TARGET_AHEAD_SECONDS : float = 1.60
-const CAMERA_MAX_YAW_DEGREES      : float = 1.0
 
 var _camera_target_x    : float = 0.0
 var _camera_look_at_x   : float = 0.0
@@ -63,8 +62,7 @@ func tick_camera(events: Array, debug_strum_event_idx: int, song_time: float, le
 	cam_pos.y = _zoom_distance_to_height(maxf(cam_pos.z - CAMERA_LOOK_AT_Z, 0.001))
 	position = cam_pos
 	_camera_look_at_z = cam_pos.z - (cam_pos.y / maxf(tan(deg_to_rad(CAMERA_PITCH_DEGREES)), 0.001))
-	var yaw_limited_look_x: float = _clamp_look_x_for_yaw(_camera_target_look_at_x, cam_pos.x, cam_pos.z, _camera_look_at_z)
-	_camera_look_at_x = _damp_float(_camera_look_at_x, yaw_limited_look_x, CAMERA_LOOK_DAMPING_RATE, damp_delta)
+	_camera_look_at_x = cam_pos.x
 	if is_inside_tree():
 		look_at(Vector3(_camera_look_at_x, 0.0, _camera_look_at_z), Vector3.UP)
 
@@ -148,12 +146,6 @@ func _zoom_distance_to_height(zoom_distance: float) -> float:
 
 func _fret_to_world_x(fret_num: float) -> float:
 	return ChartCommon.chart_fret_pos(fret_num) - (ChartCommon.FRET_SPACING * 0.5)
-
-
-func _clamp_look_x_for_yaw(target_look_x: float, cam_x: float, cam_z: float, look_z: float) -> float:
-	var depth_to_look: float = maxf(absf(cam_z - look_z), 0.001)
-	var max_dx: float = tan(deg_to_rad(CAMERA_MAX_YAW_DEGREES)) * depth_to_look
-	return clampf(target_look_x, cam_x - max_dx, cam_x + max_dx)
 
 
 func _find_next_upcoming_center_fret(events: Array, start_idx: int, song_time: float) -> float:

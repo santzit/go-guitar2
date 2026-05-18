@@ -29,7 +29,7 @@ func _assert_true(condition: bool, description: String) -> void:
 		_fail_count += 1
 
 
-func _run_ticks(camera: CameraController, events: Array, song_time: float, frames: int) -> void:
+func _run_ticks(camera, events: Array, song_time: float, frames: int) -> void:
 	for _i in range(frames):
 		camera.tick_camera(events, 0, song_time, 3.0, FRAME_DELTA, MAX_DELTA)
 
@@ -37,7 +37,7 @@ func _run_ticks(camera: CameraController, events: Array, song_time: float, frame
 func _run_all() -> void:
 	print("\n═══════ Camera Highway Tracking Tests ═══════")
 
-	var camera: CameraController = CameraControllerScript.new()
+	var camera = CameraControllerScript.new()
 	get_root().add_child(camera)
 	camera.reset_camera_defaults()
 
@@ -53,12 +53,14 @@ func _run_all() -> void:
 	]
 	_run_ticks(camera, left_events, 1.0, 90)
 	var left_x: float = camera.position.x
+	var left_forward_x: float = absf((-camera.transform.basis.z.normalized()).x)
 
 	var right_events: Array = [
 		{"time_start": 1.0, "notes": [{"fret": 20}]}
 	]
 	_run_ticks(camera, right_events, 1.0, 90)
 	var right_x: float = camera.position.x
+	var right_forward_x: float = absf((-camera.transform.basis.z.normalized()).x)
 
 	var wide_events: Array = [
 		{"time_start": 1.0, "notes": [{"fret": 2}, {"fret": 20}]}
@@ -72,6 +74,8 @@ func _run_all() -> void:
 	_assert_true(right_x > center_x, "camera pans right for right-side targets")
 	_assert_true(wide_zoom > center_zoom + 0.4, "camera pulls back when target spread increases")
 	_assert_true(wide_zoom <= 21.6, "camera zoom stays clamped to max zoom distance")
+	_assert_true(left_forward_x <= 0.02, "camera keeps frontal perspective while panning left")
+	_assert_true(right_forward_x <= 0.02, "camera keeps frontal perspective while panning right")
 	_assert_true(absf(camera.position.y - expected_height) <= 0.35, "camera keeps a fixed low-angle track ratio while dollying")
 
 	camera.queue_free()
