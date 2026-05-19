@@ -37,14 +37,12 @@ var string_index : int   = 0
 var time_offset  : float = 0.0
 var duration     : float = 0.25
 var is_active    : bool  = false
-var _head_hidden : bool  = false
 var _show_lane_connector: bool = true
 var _lifecycle: EventLifecycle = EventLifecycle.new()
 var _note_marker_mat: ShaderMaterial = null
 var _lane_connector: MeshInstance3D = null
 var _lane_connector_mat: ShaderMaterial = null
 var _sustain_trail: MeshInstance3D = null
-var _sustain_trail_mat: ShaderMaterial = null
 var _indicator_color: Color = Color(1.0, 0.5, 0.1, 1.0)
 var _note_marker_offset: Vector3 = NOTE_MARKER_LOCAL_OFFSET
 
@@ -73,8 +71,6 @@ func _ensure_visual_nodes() -> void:
 	if _sustain_trail == null:
 		_sustain_trail = get_node_or_null("SustainTrail") as MeshInstance3D
 	if _sustain_trail:
-		if _sustain_trail_mat == null:
-			_sustain_trail_mat = _sustain_trail.get_surface_override_material(0) as ShaderMaterial
 		_sustain_trail.visible = false
 
 
@@ -93,7 +89,6 @@ func setup(
 	_show_lane_connector = p_show_lane_connector
 	is_active    = true
 	visible      = true
-	_head_hidden = false
 	_lifecycle.setup(time_offset, duration, SUSTAIN_MIN_SECS, true)
 
 	position = Vector3(ChartCommon.fret_mid_world_x(fret - 1), ChartCommon.string_world_y(string_index), START_Z)
@@ -133,14 +128,12 @@ func deactivate() -> void:
 		return   # already deactivated — guard against double-deactivation from pool
 	is_active    = false
 	visible      = false
-	_head_hidden = false
 	var pool := get_parent()
 	if pool and pool.has_method("return_note"):
 		pool.return_note(self)
 
 
 func _hide_head_visuals() -> void:
-	_head_hidden = true
 	if _note_marker != null:
 		_note_marker.visible = false
 	if _lane_connector != null:
@@ -152,9 +145,11 @@ func _apply_marker_color() -> void:
 		return
 	var marker_tint := Color(_indicator_color.r, _indicator_color.g, _indicator_color.b, NOTE_MARKER_TEXTURE_ALPHA)
 	_note_marker_mat.set_shader_parameter("base_color", marker_tint)
-	if _sustain_trail_mat != null:
-		var visual_color := _with_visual_alpha(_indicator_color)
-		_sustain_trail_mat.set_shader_parameter("base_color", visual_color)
+	if _sustain_trail != null:
+		var trail_mat := _sustain_trail.get_surface_override_material(0) as ShaderMaterial
+		if trail_mat != null:
+			var visual_color := _with_visual_alpha(_indicator_color)
+			trail_mat.set_shader_parameter("base_color", visual_color)
 
 
 func _update_marker_glow(song_time: float) -> void:
@@ -165,8 +160,10 @@ func _update_marker_glow(song_time: float) -> void:
 	_note_marker_mat.set_shader_parameter("glow_energy", glow_energy)
 	if _lane_connector_mat != null:
 		_lane_connector_mat.set_shader_parameter("glow_energy", glow_energy * NOTE_LANE_CONNECTOR_GLOW_MULTIPLIER)
-	if _sustain_trail_mat != null:
-		_sustain_trail_mat.set_shader_parameter("glow_energy", glow_energy)
+	if _sustain_trail != null:
+		var trail_mat := _sustain_trail.get_surface_override_material(0) as ShaderMaterial
+		if trail_mat != null:
+			trail_mat.set_shader_parameter("glow_energy", glow_energy)
 
 
 func _update_sustain_trail() -> void:
@@ -195,8 +192,9 @@ func _set_sustain_trail_length(sustain_length: float) -> void:
 	if trail_mesh == null:
 		return
 	trail_mesh.size = Vector3(SUSTAIN_TRAIL_WIDTH, SUSTAIN_TRAIL_HEIGHT, sustain_length)
-	if _sustain_trail_mat != null:
-		_sustain_trail_mat.set_shader_parameter("mesh_width", trail_mesh.size.x)
+	var trail_mat := _sustain_trail.get_surface_override_material(0) as ShaderMaterial
+	if trail_mat != null:
+		trail_mat.set_shader_parameter("mesh_width", trail_mesh.size.x)
 	_sustain_trail.position = Vector3(
 		_note_marker_offset.x,
 		_note_marker_offset.y,
