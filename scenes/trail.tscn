@@ -1,25 +1,27 @@
-[gd_scene load_steps=4 format=3 uid="uid://ctrail0001"]
+[gd_scene load_steps=5 format=3 uid="uid://ctrail0001"]
 
-[ext_resource type="Shader" path="res://shaders/trail_border.gdshader" id="1_trail_shader"]
+[ext_resource type="Shader" uid="uid://ca5438f0bmk0h" path="res://shaders/trail_border.gdshader" id="1_trail_shader"]
+[ext_resource type="Script" uid="uid://bb8840ndpyncb" path="res://scripts/trail.gd" id="2_trail_script"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_trail"]
 resource_local_to_scene = true
-size = Vector3(0.5, 0.08, 1.0)
+size = Vector3(0.5, 0.02, 1)
 
 [sub_resource type="ShaderMaterial" id="TrailMat"]
 resource_local_to_scene = true
+render_priority = 0
 shader = ExtResource("1_trail_shader")
-shader_parameter/base_color = Color(1, 0.5, 0.1, 0.4)
-shader_parameter/border_color = Color(1, 1, 1, 0.6)
+shader_parameter/base_color = Color(1, 0.5, 0.1, 0.45)
+shader_parameter/border_color = Color(1, 1, 1, 0.47)
 shader_parameter/mesh_width = 0.5
 shader_parameter/mesh_length = 1.0
-shader_parameter/border_width = 0.06
+shader_parameter/border_thickness_world = 0.015
 shader_parameter/edge_softness = 0.02
 shader_parameter/corner_radius = 0.2
 shader_parameter/glow_energy = 2.4
-shader_parameter/border_glow_boost = 1.6
+shader_parameter/border_glow_boost = 1.1
 
 [node name="Trail" type="MeshInstance3D"]
 mesh = SubResource("BoxMesh_trail")
 surface_material_override/0 = SubResource("TrailMat")
-visible = false
+script = ExtResource("2_trail_script")

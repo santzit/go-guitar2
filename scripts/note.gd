@@ -29,7 +29,6 @@ const NOTE_LANE_CONNECTOR_GLOW_MULTIPLIER: float = 2.2
 const NOTE_VISUAL_ALPHA: float = 0.4
 const SUSTAIN_MIN_SECS: float = 0.05
 const SUSTAIN_TRAIL_WIDTH: float = 0.5
-const SUSTAIN_TRAIL_HEIGHT: float = 0.08
 const SUSTAIN_MIN_LENGTH: float = SUSTAIN_MIN_SECS * TRAVEL_SPEED
 
 var fret         : int   = 0
@@ -42,7 +41,7 @@ var _lifecycle: EventLifecycle = EventLifecycle.new()
 var _note_marker_mat: ShaderMaterial = null
 var _lane_connector: MeshInstance3D = null
 var _lane_connector_mat: ShaderMaterial = null
-var _sustain_trail: MeshInstance3D = null
+var _sustain_trail: Trail = null
 var _indicator_color: Color = Color(1.0, 0.5, 0.1, 1.0)
 var _note_marker_offset: Vector3 = NOTE_MARKER_LOCAL_OFFSET
 
@@ -69,9 +68,9 @@ func _ensure_visual_nodes() -> void:
 		if _lane_connector_mat == null:
 			_lane_connector_mat = _lane_connector.get_surface_override_material(0) as ShaderMaterial
 	if _sustain_trail == null:
-		_sustain_trail = get_node_or_null("SustainTrail") as MeshInstance3D
+		_sustain_trail = get_node_or_null("SustainTrail") as Trail
 	if _sustain_trail:
-		_sustain_trail.visible = false
+		_sustain_trail.hide_trail()
 
 
 func setup(
@@ -128,6 +127,8 @@ func deactivate() -> void:
 		return   # already deactivated — guard against double-deactivation from pool
 	is_active    = false
 	visible      = false
+	if _sustain_trail != null:
+		_sustain_trail.hide_trail()
 	var pool := get_parent()
 	if pool and pool.has_method("return_note"):
 		pool.return_note(self)
@@ -146,10 +147,7 @@ func _apply_marker_color() -> void:
 	var marker_tint := Color(_indicator_color.r, _indicator_color.g, _indicator_color.b, NOTE_MARKER_TEXTURE_ALPHA)
 	_note_marker_mat.set_shader_parameter("base_color", marker_tint)
 	if _sustain_trail != null:
-		var trail_mat := _sustain_trail.get_surface_override_material(0) as ShaderMaterial
-		if trail_mat != null:
-			var visual_color := _with_visual_alpha(_indicator_color)
-			trail_mat.set_shader_parameter("base_color", visual_color)
+		_sustain_trail.set_visual_color(_with_visual_alpha(_indicator_color))
 
 
 func _update_marker_glow(song_time: float) -> void:
@@ -161,9 +159,7 @@ func _update_marker_glow(song_time: float) -> void:
 	if _lane_connector_mat != null:
 		_lane_connector_mat.set_shader_parameter("glow_energy", glow_energy * NOTE_LANE_CONNECTOR_GLOW_MULTIPLIER)
 	if _sustain_trail != null:
-		var trail_mat := _sustain_trail.get_surface_override_material(0) as ShaderMaterial
-		if trail_mat != null:
-			trail_mat.set_shader_parameter("glow_energy", glow_energy)
+		_sustain_trail.set_glow_energy(glow_energy)
 
 
 func _update_sustain_trail() -> void:
@@ -171,7 +167,7 @@ func _update_sustain_trail() -> void:
 		return
 	var sustain_length: float = maxf(duration * TRAVEL_SPEED, 0.0)
 	if sustain_length < SUSTAIN_MIN_LENGTH:
-		_sustain_trail.visible = false
+		_sustain_trail.hide_trail()
 		return
 	_set_sustain_trail_length(sustain_length)
 
@@ -180,7 +176,7 @@ func _update_active_sustain_trail(remaining_secs: float) -> void:
 	if _sustain_trail == null:
 		return
 	if remaining_secs <= 0.0:
-		_sustain_trail.visible = false
+		_sustain_trail.hide_trail()
 		return
 	_set_sustain_trail_length(remaining_secs * TRAVEL_SPEED)
 
@@ -188,20 +184,13 @@ func _update_active_sustain_trail(remaining_secs: float) -> void:
 func _set_sustain_trail_length(sustain_length: float) -> void:
 	if _sustain_trail == null:
 		return
-	var trail_mesh: BoxMesh = _sustain_trail.mesh as BoxMesh
-	if trail_mesh == null:
-		return
-	trail_mesh.size = Vector3(SUSTAIN_TRAIL_WIDTH, SUSTAIN_TRAIL_HEIGHT, sustain_length)
-	var trail_mat := _sustain_trail.get_surface_override_material(0) as ShaderMaterial
-	if trail_mat != null:
-		trail_mat.set_shader_parameter("mesh_width", trail_mesh.size.x)
-		trail_mat.set_shader_parameter("mesh_length", trail_mesh.size.z)
-	_sustain_trail.position = Vector3(
+	_sustain_trail.set_width_and_length(SUSTAIN_TRAIL_WIDTH, sustain_length)
+	_sustain_trail.set_local_position(Vector3(
 		_note_marker_offset.x,
 		_note_marker_offset.y,
 		_note_marker_offset.z - sustain_length * 0.5
-	)
-	_sustain_trail.visible = true
+	))
+	_sustain_trail.show_trail()
 
 
 func _update_lane_connector() -> void:
