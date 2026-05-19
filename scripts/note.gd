@@ -62,6 +62,9 @@ func _ensure_visual_nodes() -> void:
 		if _note_marker_mat == null:
 			_note_marker_mat = _note_marker.get_surface_override_material(0) as ShaderMaterial
 		_note_marker_offset = _note_marker.position
+		var marker_mesh := _note_marker.mesh as BoxMesh
+		if _note_marker_mat != null and marker_mesh != null:
+			_note_marker_mat.set_shader_parameter("marker_size", Vector2(marker_mesh.size.x, marker_mesh.size.y))
 	if _lane_connector == null:
 		_lane_connector = get_node_or_null("LaneConnector") as MeshInstance3D
 	if _lane_connector:
@@ -192,6 +195,8 @@ func _set_sustain_trail_length(sustain_length: float) -> void:
 	if trail_mesh == null:
 		return
 	trail_mesh.size = Vector3(SUSTAIN_TRAIL_WIDTH, SUSTAIN_TRAIL_HEIGHT, sustain_length)
+	if _sustain_trail_mat != null:
+		_sustain_trail_mat.set_shader_parameter("mesh_width", trail_mesh.size.x)
 	_sustain_trail.position = Vector3(
 		_note_marker_offset.x,
 		_note_marker_offset.y,

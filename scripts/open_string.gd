@@ -166,6 +166,8 @@ func _set_sustain_trail_length(sustain_length: float) -> void:
 	var right_x: float = ChartCommon.fret_separator_world_x(mini(anchor_fret_start + 3, ChartCommon.FRET_COUNT))
 	var span_world: float = maxf(right_x - left_x, ChartCommon.FRET_SPACING)
 	trail_mesh.size = Vector3(span_world, SUSTAIN_TRAIL_HEIGHT, sustain_length)
+	if _sustain_trail_mat != null:
+		_sustain_trail_mat.set_shader_parameter("mesh_width", trail_mesh.size.x)
 	_sustain_trail.position = Vector3(
 		0.0,
 		0.0,
