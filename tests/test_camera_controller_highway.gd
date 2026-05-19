@@ -51,16 +51,18 @@ func _run_all() -> void:
 	var left_events: Array = [
 		{"time_start": 1.0, "notes": [{"fret": 2}]}
 	]
-	_run_ticks(camera, left_events, 1.0, 90)
+	_run_ticks(camera, left_events, 1.0, 24)
+	var left_yaw_offset_x: float = absf(float(camera.get("_camera_look_at_x")) - camera.position.x)
+	_run_ticks(camera, left_events, 1.0, 66)
 	var left_x: float = camera.position.x
-	var left_forward_x: float = absf((-camera.transform.basis.z.normalized()).x)
 
 	var right_events: Array = [
 		{"time_start": 1.0, "notes": [{"fret": 20}]}
 	]
-	_run_ticks(camera, right_events, 1.0, 90)
+	_run_ticks(camera, right_events, 1.0, 24)
+	var right_yaw_offset_x: float = absf(float(camera.get("_camera_look_at_x")) - camera.position.x)
+	_run_ticks(camera, right_events, 1.0, 66)
 	var right_x: float = camera.position.x
-	var right_forward_x: float = absf((-camera.transform.basis.z.normalized()).x)
 
 	var wide_events: Array = [
 		{"time_start": 1.0, "notes": [{"fret": 2}, {"fret": 20}]}
@@ -74,8 +76,8 @@ func _run_all() -> void:
 	_assert_true(right_x > center_x, "camera pans right for right-side targets")
 	_assert_true(wide_zoom > center_zoom + 0.4, "camera pulls back when target spread increases")
 	_assert_true(wide_zoom <= 21.6, "camera zoom stays clamped to max zoom distance")
-	_assert_true(left_forward_x <= 0.02, "camera keeps frontal perspective while panning left")
-	_assert_true(right_forward_x <= 0.02, "camera keeps frontal perspective while panning right")
+	_assert_true(left_yaw_offset_x >= 0.03 and left_yaw_offset_x <= 0.25, "camera applies subtle cinematic yaw while panning left")
+	_assert_true(right_yaw_offset_x >= 0.03 and right_yaw_offset_x <= 0.25, "camera applies subtle cinematic yaw while panning right")
 	_assert_true(absf(camera.position.y - expected_height) <= 0.35, "camera keeps a fixed low-angle track ratio while dollying")
 
 	camera.queue_free()
