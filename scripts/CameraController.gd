@@ -26,6 +26,8 @@ const CAMERA_LOOKAHEAD_SECONDS   : float = 3.0
 const CAMERA_TARGET_BEHIND_SECONDS: float = 0.20
 const CAMERA_TARGET_AHEAD_SECONDS : float = 1.60
 const CAMERA_MAX_YAW_DEGREES      : float = 0.45
+const CAMERA_ZONE_YAW_DEGREES     : float = 0.30
+const CAMERA_FRET_ZONE_SPLIT      : float = 12.0
 
 var _camera_target_x    : float = 0.0
 var _camera_look_at_x   : float = 0.0
@@ -73,6 +75,8 @@ func tick_camera(events: Array, debug_strum_event_idx: int, song_time: float, le
 func _update_camera_targets_from_visible_events(events: Array, debug_strum_event_idx: int, song_time: float, lead_time: float, damp_delta: float) -> void:
 	var min_target_x: float = INF
 	var max_target_x: float = -INF
+	var min_target_fret: float = INF
+	var max_target_fret: float = -INF
 	var has_target: bool = false
 	var lookahead_end: float = song_time + minf(maxf(lead_time, CAMERA_TARGET_AHEAD_SECONDS), CAMERA_LOOKAHEAD_SECONDS)
 	var target_window_start: float = song_time - CAMERA_TARGET_BEHIND_SECONDS
@@ -95,6 +99,8 @@ func _update_camera_targets_from_visible_events(events: Array, debug_strum_event
 				var target_x: float = _fret_to_world_x(float(fret))
 				min_target_x = minf(min_target_x, target_x)
 				max_target_x = maxf(max_target_x, target_x)
+				min_target_fret = minf(min_target_fret, float(fret))
+				max_target_fret = maxf(max_target_fret, float(fret))
 				has_target = true
 			if not has_target:
 				var hand_start: int = int(ev.get("hand_fret_start", -1))
@@ -104,6 +110,8 @@ func _update_camera_targets_from_visible_events(events: Array, debug_strum_event
 					var hand_max_x: float = _fret_to_world_x(float(hand_end))
 					min_target_x = minf(min_target_x, hand_min_x)
 					max_target_x = maxf(max_target_x, hand_max_x)
+					min_target_fret = minf(min_target_fret, float(hand_start))
+					max_target_fret = maxf(max_target_fret, float(hand_end))
 					has_target = true
 		i += 1
 
@@ -113,8 +121,12 @@ func _update_camera_targets_from_visible_events(events: Array, debug_strum_event
 		var padded_spread_x: float = spread_x + (CAMERA_SAFE_ZONE_PADDING_X * 2.0)
 		var required_zoom_distance: float = _required_zoom_distance_for_span_x(padded_spread_x)
 		_camera_target_x = clampf(target_center_x, CAMERA_X_MIN, CAMERA_X_MAX)
-		_camera_target_look_at_x = _camera_target_x
 		_camera_target_zoom_distance = clampf(required_zoom_distance, CAMERA_MIN_ZOOM_DISTANCE, CAMERA_MAX_ZOOM_DISTANCE)
+		var center_fret: float = DEFAULT_CAMERA_FRET
+		if min_target_fret != INF and max_target_fret != -INF:
+			center_fret = (min_target_fret + max_target_fret) * 0.5
+		var zone_yaw_sign: float = -1.0 if center_fret <= CAMERA_FRET_ZONE_SPLIT else 1.0
+		_camera_target_look_at_x = _camera_target_x + _yaw_dx_for_zoom(_camera_target_zoom_distance, CAMERA_ZONE_YAW_DEGREES) * zone_yaw_sign
 	else:
 		var next_center_fret := _find_next_upcoming_center_fret(events, debug_strum_event_idx, song_time)
 		if next_center_fret >= 0.0:
@@ -153,8 +165,12 @@ func _fret_to_world_x(fret_num: float) -> float:
 
 func _clamp_look_x_for_yaw(target_look_x: float, cam_x: float, cam_z: float, look_z: float) -> float:
 	var depth_to_look: float = maxf(absf(cam_z - look_z), 0.001)
-	var max_dx: float = tan(deg_to_rad(CAMERA_MAX_YAW_DEGREES)) * depth_to_look
+	var max_dx: float = _yaw_dx_for_zoom(depth_to_look, CAMERA_MAX_YAW_DEGREES)
 	return clampf(target_look_x, cam_x - max_dx, cam_x + max_dx)
+
+
+func _yaw_dx_for_zoom(depth_to_look: float, yaw_degrees: float) -> float:
+	return tan(deg_to_rad(yaw_degrees)) * maxf(depth_to_look, 0.001)
 
 
 func _find_next_upcoming_center_fret(events: Array, start_idx: int, song_time: float) -> float:
