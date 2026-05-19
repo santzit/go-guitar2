@@ -41,29 +41,14 @@ func _ensure_visual_nodes() -> void:
 	if _marker == null:
 		_marker = get_node_or_null("OpenStringMarker") as MeshInstance3D
 	if _marker:
-		_marker.rotation_degrees = Vector3(0.0, 0.0, 90.0)
-		_marker.position = Vector3(0.0, 0.0, OPEN_STRING_LOCAL_Z)
 		if _marker_mat == null:
-			_marker_mat = StandardMaterial3D.new()
-			_marker_mat.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
-			_marker_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-			_marker_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-			_marker_mat.emission_enabled = false
-		_marker.set_surface_override_material(0, _marker_mat)
+			_marker_mat = _marker.get_surface_override_material(0) as StandardMaterial3D
 	if _sustain_trail == null:
 		_sustain_trail = get_node_or_null("SustainTrail") as MeshInstance3D
-	if _sustain_trail == null:
-		_sustain_trail = MeshInstance3D.new()
-		_sustain_trail.name = "SustainTrail"
-		add_child(_sustain_trail)
-	if _sustain_trail_mat == null:
-		_sustain_trail_mat = StandardMaterial3D.new()
-		_sustain_trail_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		_sustain_trail_mat.emission_enabled = true
-		_sustain_trail_mat.metallic = 0.2
-		_sustain_trail_mat.roughness = 0.08
-		_sustain_trail_mat.emission_energy_multiplier = NOTE_MARKER_NEON_GLOW_BASE
-	_sustain_trail.visible = false
+	if _sustain_trail:
+		if _sustain_trail_mat == null:
+			_sustain_trail_mat = _sustain_trail.get_surface_override_material(0) as StandardMaterial3D
+		_sustain_trail.visible = false
 
 
 func setup(
@@ -176,10 +161,7 @@ func _set_sustain_trail_length(sustain_length: float) -> void:
 		return
 	var trail_mesh: BoxMesh = _sustain_trail.mesh as BoxMesh
 	if trail_mesh == null:
-		trail_mesh = BoxMesh.new()
-		_sustain_trail.mesh = trail_mesh
-		if _sustain_trail_mat:
-			_sustain_trail.set_surface_override_material(0, _sustain_trail_mat)
+		return
 	var anchor_fret_start: int = _anchor_fret_start()
 	var left_x: float = ChartCommon.fret_separator_world_x(anchor_fret_start - 1)
 	var right_x: float = ChartCommon.fret_separator_world_x(mini(anchor_fret_start + 3, ChartCommon.FRET_COUNT))

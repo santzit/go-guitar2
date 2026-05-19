@@ -1,12 +1,48 @@
-[gd_scene load_steps=3 format=3 uid="uid://cnotescn0001"]
+[gd_scene load_steps=9 format=3 uid="uid://cnotescn0001"]
 
 [ext_resource type="Script" uid="uid://sgku0amyd188" path="res://scripts/note.gd" id="1_notescript"]
+[ext_resource type="Shader" path="res://shaders/note_marker_corner_glow.gdshader" id="2_note_marker_shader"]
+[ext_resource type="Shader" path="res://shaders/note_lane_connector.gdshader" id="3_lane_connector_shader"]
+[ext_resource type="PackedScene" path="res://scenes/note_trail.tscn" id="4_note_trail"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_note_marker"]
-size = Vector3(0.78, 0.34, 0.08)
+resource_local_to_scene = true
+size = Vector3(0.78, 0.34, 0.04)
+
+[sub_resource type="ShaderMaterial" id="ShaderMat_note_marker"]
+resource_local_to_scene = true
+shader = ExtResource("2_note_marker_shader")
+shader_parameter/base_color = Color(1, 0.5, 0.1, 1)
+shader_parameter/corner_glow_color = Color(1, 1, 1, 1)
+shader_parameter/corner_radius_uv = 0.235294
+shader_parameter/corner_glow_width = 0.22
+shader_parameter/glow_energy = 2.4
+shader_parameter/corner_glow_boost = 18.0
+
+[sub_resource type="BoxMesh" id="BoxMesh_lane_connector"]
+resource_local_to_scene = true
+size = Vector3(0.012, 0.02, 0.012)
+
+[sub_resource type="ShaderMaterial" id="ShaderMat_lane_connector"]
+resource_local_to_scene = true
+shader = ExtResource("3_lane_connector_shader")
+shader_parameter/line_color = Color(1, 1, 1, 1)
+shader_parameter/glow_energy = 5.28
+shader_parameter/connector_width = 0.012
+shader_parameter/connector_depth = 0.012
+shader_parameter/connector_height = 0.02
 
 [node name="Note" type="Node3D"]
 script = ExtResource("1_notescript")
 
 [node name="NoteMarker" type="MeshInstance3D" parent="."]
 mesh = SubResource("BoxMesh_note_marker")
+surface_material_override/0 = SubResource("ShaderMat_note_marker")
+position = Vector3(0, 0.1, 0.08)
+
+[node name="LaneConnector" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_lane_connector")
+surface_material_override/0 = SubResource("ShaderMat_lane_connector")
+visible = false
+
+[node name="SustainTrail" parent="." instance=ExtResource("4_note_trail")]
