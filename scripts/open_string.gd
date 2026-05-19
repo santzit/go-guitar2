@@ -168,6 +168,7 @@ func _set_sustain_trail_length(sustain_length: float) -> void:
 	trail_mesh.size = Vector3(span_world, SUSTAIN_TRAIL_HEIGHT, sustain_length)
 	if _sustain_trail_mat != null:
 		_sustain_trail_mat.set_shader_parameter("mesh_width", trail_mesh.size.x)
+		_sustain_trail_mat.set_shader_parameter("mesh_length", trail_mesh.size.z)
 	_sustain_trail.position = Vector3(
 		0.0,
 		0.0,

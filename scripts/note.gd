@@ -195,6 +195,7 @@ func _set_sustain_trail_length(sustain_length: float) -> void:
 	var trail_mat := _sustain_trail.get_surface_override_material(0) as ShaderMaterial
 	if trail_mat != null:
 		trail_mat.set_shader_parameter("mesh_width", trail_mesh.size.x)
+		trail_mat.set_shader_parameter("mesh_length", trail_mesh.size.z)
 	_sustain_trail.position = Vector3(
 		_note_marker_offset.x,
 		_note_marker_offset.y,
