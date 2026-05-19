@@ -26,3 +26,9 @@ This project uses a single shared coordinate source in:
 ## Usage
 
 Always use `ChartCommon` helpers (`fret_separator_world_x`, `fret_mid_world_x`, `string_world_y`, `note_world_z`) instead of reimplementing coordinate math in gameplay scripts.
+
+## Highway camera framing
+
+- `scripts/CameraController.gd` keeps a fixed low pitch (`20°`) and tracks the horizontal center of active targets.
+- Zoom/dolly depth is calculated from horizontal target span + safe-zone padding using horizontal frustum width (`fov` + viewport aspect).
+- When targets spread apart, the camera increases zoom distance (pulls back); when clustered, it reduces zoom distance (dollies forward).

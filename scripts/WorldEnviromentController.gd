@@ -3,6 +3,12 @@ class_name WorldEnviromentController
 
 
 const SUN_LIGHT_NAME := "DirectionalLight3D"
+const CAMERA_MIN_ZOOM_DISTANCE: float = 13.0
+const CAMERA_MAX_ZOOM_DISTANCE: float = 21.5
+const GLOW_INTENSITY_NEAR: float = 2.2
+const GLOW_INTENSITY_FAR: float = 2.6
+const GLOW_BLOOM_NEAR: float = 0.90
+const GLOW_BLOOM_FAR: float = 0.75
 
 
 func _ready() -> void:
@@ -17,8 +23,17 @@ func _ready() -> void:
 	environment.glow_intensity = 2.4
 	environment.glow_bloom = 0.85
 	environment.glow_hdr_threshold = 0.22
+	environment.fog_enabled = false
 
 	_ensure_directional_light()
+
+
+func update_for_camera_zoom(zoom_distance: float) -> void:
+	if environment == null:
+		return
+	var zoom_t: float = clampf(inverse_lerp(CAMERA_MIN_ZOOM_DISTANCE, CAMERA_MAX_ZOOM_DISTANCE, zoom_distance), 0.0, 1.0)
+	environment.glow_intensity = lerpf(GLOW_INTENSITY_NEAR, GLOW_INTENSITY_FAR, zoom_t)
+	environment.glow_bloom = lerpf(GLOW_BLOOM_NEAR, GLOW_BLOOM_FAR, zoom_t)
 
 
 func _ensure_directional_light() -> void:
