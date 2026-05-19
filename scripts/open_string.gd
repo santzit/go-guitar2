@@ -28,7 +28,7 @@ var _head_hidden: bool = false
 var _lifecycle: EventLifecycle = EventLifecycle.new()
 var _marker_mat: StandardMaterial3D = null
 var _sustain_trail: MeshInstance3D = null
-var _sustain_trail_mat: StandardMaterial3D = null
+var _sustain_trail_mat: ShaderMaterial = null
 
 @onready var _marker: MeshInstance3D = $OpenStringMarker
 
@@ -47,7 +47,7 @@ func _ensure_visual_nodes() -> void:
 		_sustain_trail = get_node_or_null("SustainTrail") as MeshInstance3D
 	if _sustain_trail:
 		if _sustain_trail_mat == null:
-			_sustain_trail_mat = _sustain_trail.get_surface_override_material(0) as StandardMaterial3D
+			_sustain_trail_mat = _sustain_trail.get_surface_override_material(0) as ShaderMaterial
 		_sustain_trail.visible = false
 
 
@@ -133,8 +133,7 @@ func _apply_color() -> void:
 	_marker_mat.albedo_color = c
 	if _sustain_trail_mat:
 		var visual_color := _with_visual_alpha(c)
-		_sustain_trail_mat.albedo_color = visual_color
-		_sustain_trail_mat.emission = visual_color
+		_sustain_trail_mat.set_shader_parameter("base_color", visual_color)
 
 
 func _update_sustain_trail() -> void:
@@ -179,7 +178,7 @@ func _update_sustain_glow(song_time: float) -> void:
 	if _sustain_trail_mat == null:
 		return
 	var pulse: float = 0.5 + 0.5 * sin(song_time * NOTE_MARKER_PULSE_FREQUENCY)
-	_sustain_trail_mat.emission_energy_multiplier = NOTE_MARKER_NEON_GLOW_BASE + NOTE_MARKER_NEON_GLOW_PULSE * pulse
+	_sustain_trail_mat.set_shader_parameter("glow_energy", NOTE_MARKER_NEON_GLOW_BASE + NOTE_MARKER_NEON_GLOW_PULSE * pulse)
 
 
 func _anchor_fret_start() -> int:

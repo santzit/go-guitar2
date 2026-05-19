@@ -29,8 +29,9 @@ void fragment() {
 	float corner_mask = edge_x * edge_y;
 	float face_mask = step(0.6, abs(NORMAL.z));
 	float corner_glow = ring * corner_mask * face_mask;
+	float alpha_mask = mix(1.0, outer, face_mask);
 
 	ALBEDO = base_color.rgb;
 	EMISSION = (base_color.rgb * glow_energy) + (corner_glow_color.rgb * corner_glow * glow_energy * corner_glow_boost);
-	ALPHA = base_color.a;
+	ALPHA = base_color.a * alpha_mask;
 }

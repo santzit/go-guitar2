@@ -44,7 +44,7 @@ var _note_marker_mat: ShaderMaterial = null
 var _lane_connector: MeshInstance3D = null
 var _lane_connector_mat: ShaderMaterial = null
 var _sustain_trail: MeshInstance3D = null
-var _sustain_trail_mat: StandardMaterial3D = null
+var _sustain_trail_mat: ShaderMaterial = null
 var _indicator_color: Color = Color(1.0, 0.5, 0.1, 1.0)
 var _note_marker_offset: Vector3 = NOTE_MARKER_LOCAL_OFFSET
 
@@ -71,7 +71,7 @@ func _ensure_visual_nodes() -> void:
 		_sustain_trail = get_node_or_null("SustainTrail") as MeshInstance3D
 	if _sustain_trail:
 		if _sustain_trail_mat == null:
-			_sustain_trail_mat = _sustain_trail.get_surface_override_material(0) as StandardMaterial3D
+			_sustain_trail_mat = _sustain_trail.get_surface_override_material(0) as ShaderMaterial
 		_sustain_trail.visible = false
 
 
@@ -151,8 +151,7 @@ func _apply_marker_color() -> void:
 	_note_marker_mat.set_shader_parameter("base_color", marker_tint)
 	if _sustain_trail_mat != null:
 		var visual_color := _with_visual_alpha(_indicator_color)
-		_sustain_trail_mat.albedo_color = visual_color
-		_sustain_trail_mat.emission = visual_color
+		_sustain_trail_mat.set_shader_parameter("base_color", visual_color)
 
 
 func _update_marker_glow(song_time: float) -> void:
@@ -164,7 +163,7 @@ func _update_marker_glow(song_time: float) -> void:
 	if _lane_connector_mat != null:
 		_lane_connector_mat.set_shader_parameter("glow_energy", glow_energy * NOTE_LANE_CONNECTOR_GLOW_MULTIPLIER)
 	if _sustain_trail_mat != null:
-		_sustain_trail_mat.emission_energy_multiplier = glow_energy
+		_sustain_trail_mat.set_shader_parameter("glow_energy", glow_energy)
 
 
 func _update_sustain_trail() -> void:
@@ -229,4 +228,3 @@ func _update_lane_connector() -> void:
 
 func _with_visual_alpha(c: Color) -> Color:
 	return Color(c.r, c.g, c.b, NOTE_VISUAL_ALPHA)
-
