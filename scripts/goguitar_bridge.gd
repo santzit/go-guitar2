@@ -71,6 +71,19 @@ func get_notes() -> Array:
 	return _ext.get_notes()
 
 
+## Returns beat map markers as an Array of Dictionaries:
+##   {
+##     "time": float,
+##     "measure": int,
+##     "beat": int,
+##     "is_bar": bool,
+##   }
+func get_beats() -> Array:
+	if _ext == null or not _ext.has_method("get_beats"):
+		return []
+	return _ext.get_beats()
+
+
 ## Returns prebuilt unified events from Rust (single + chord events).
 func get_play_events() -> Array:
 	if _ext == null or not _ext.has_method("get_play_events"):

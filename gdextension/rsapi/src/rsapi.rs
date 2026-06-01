@@ -7,7 +7,7 @@ use std::fs::File;
 
 use godot::prelude::godot_print;
 use godot::prelude::godot_warn;
-use rocksmith2014_sng::NoteMask;
+use rocksmith2014_sng::{BeatMask, NoteMask};
 pub use rocksmith2014_sng::Platform;
 use serde_json::Value;
 
@@ -24,6 +24,14 @@ pub struct NoteEntry {
     pub hand_shape_max_fret: i8,
     pub hand_shape_min_string: i8,
     pub hand_shape_max_string: i8,
+}
+
+#[derive(Clone, Debug)]
+pub struct BeatEntry {
+    pub time: f32,
+    pub measure: i16,
+    pub beat: i16,
+    pub is_bar: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -79,6 +87,7 @@ pub struct LevelEntry {
 /// the full-length MAIN WEM for gameplay, and the short PREVIEW WEM for the song list.
 pub struct PsarcData {
     pub notes: Vec<NoteEntry>,
+    pub beats: Vec<BeatEntry>,
     pub chord_templates: Vec<ChordTemplateEntry>,
     pub hand_shapes: Vec<HandShapeEntry>,
     pub phrases: Vec<PhraseEntry>,
@@ -179,6 +188,7 @@ impl PsarcData {
 
         let (
             notes,
+            beats,
             chord_templates,
             hand_shapes,
             phrases,
@@ -208,6 +218,16 @@ impl PsarcData {
             let capo = sng.metadata.capo_fret_id;
             let tuning = sng.metadata.tuning.clone();
             let song_length = sng.metadata.song_length;
+            let beats: Vec<BeatEntry> = sng
+                .beats
+                .iter()
+                .map(|b| BeatEntry {
+                    time: b.time,
+                    measure: b.measure,
+                    beat: b.beat,
+                    is_bar: b.mask.contains(BeatMask::FIRST_BEAT_OF_MEASURE) || b.measure >= 0,
+                })
+                .collect();
 
             let cstr = |bytes: &[u8]| -> String {
                 let end = bytes.iter().position(|b| *b == 0).unwrap_or(bytes.len());
@@ -471,6 +491,7 @@ impl PsarcData {
                 );
                 (
                     entries,
+                    beats,
                     chord_templates,
                     hand_shapes,
                     phrases,
@@ -515,6 +536,7 @@ impl PsarcData {
                         );
                         (
                             entries,
+                            beats,
                             chord_templates,
                             hand_shapes,
                             phrases,
@@ -533,6 +555,7 @@ impl PsarcData {
                         godot_warn!("rsapi: static SNG has no levels at all");
                         (
                             Vec::new(),
+                            beats,
                             chord_templates,
                             hand_shapes,
                             phrases,
@@ -576,6 +599,7 @@ impl PsarcData {
                         );
                         (
                             entries,
+                            beats,
                             chord_templates,
                             hand_shapes,
                             phrases,
@@ -594,6 +618,7 @@ impl PsarcData {
                         godot_warn!("rsapi: SNG has no levels at all");
                         (
                             Vec::new(),
+                            beats,
                             chord_templates,
                             hand_shapes,
                             phrases,
@@ -612,6 +637,7 @@ impl PsarcData {
             }
         } else {
             (
+                Vec::new(),
                 Vec::new(),
                 Vec::new(),
                 Vec::new(),
@@ -718,6 +744,7 @@ impl PsarcData {
 
         Ok(PsarcData {
             notes,
+            beats,
             chord_templates,
             hand_shapes,
             phrases,

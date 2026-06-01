@@ -25,7 +25,7 @@ scripts/
   song_list.gd         – Populates song list and launches music_play with selected song
   game_state.gd        – Shared selected-song state and DLC scan helper
   music_play.gd        – Loads selected .psarc via RSAPI_SNG, schedules notes, plays audio
-  highway.gd           – Runtime fret/string-count config for the highway shader
+  highway.gd           – Runtime highway visuals (fret lanes, scrolling beat/bar grid, fret labels)
   note.gd              – Note travel (X=fret, Y=string, Z=time), per-string colour, pool return
   note_pool.gd         – spawn_note / return_note pool API
   goguitar_bridge.gd   – GDScript wrapper around the RSAPI_SNG GDExtension
